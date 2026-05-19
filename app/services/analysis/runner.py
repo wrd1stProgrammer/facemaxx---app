@@ -15,6 +15,7 @@ from app.services.ai.factory import get_face_analysis_provider
 
 
 PRO_SCAN_MODE_IDS = {
+    "proportions",
     "aesthetics",
     "glow-up-coach",
     "look-archetype",
