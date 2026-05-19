@@ -80,8 +80,33 @@ jobs:
       - name: Pull and restart container
         run: |
           IMAGE="${{ steps.dockerhub.outputs.image }}:${{ github.sha }}"
-          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "cd /opt/facemaxx && FACEMAXX_IMAGE=$IMAGE docker compose pull && FACEMAXX_IMAGE=$IMAGE docker compose up -d --remove-orphans"
+          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "IMAGE='$IMAGE' bash -se" <<'REMOTE'
+            cd /opt/facemaxx
+            tmp="$(mktemp)"
+            if [ -f .env ]; then
+              grep -v '^FACEMAXX_IMAGE=' .env > "$tmp"
+            fi
+            printf '\nFACEMAXX_IMAGE=%s\n' "$IMAGE" >> "$tmp"
+            mv "$tmp" .env
+            chmod 600 .env
+            docker compose pull
+            docker compose up -d --remove-orphans
+          REMOTE
 
       - name: Verify deployment
         run: |
-          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "curl -fsS http://127.0.0.1:8000/health"
+          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+            cd /opt/facemaxx
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8000/health; then
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "Deployment health check failed. Container status:"
+            docker compose ps
+            echo "Recent container logs:"
+            docker compose logs --tail=120 api
+            exit 1
+          '

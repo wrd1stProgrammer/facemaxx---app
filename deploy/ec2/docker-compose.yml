@@ -1,6 +1,6 @@
 services:
   api:
-    image: ${FACEMAXX_IMAGE}
+    image: ${FACEMAXX_IMAGE:-wrd1stprogrammer/facemaxx:latest}
     container_name: facemaxx-api
     restart: unless-stopped
     env_file:
