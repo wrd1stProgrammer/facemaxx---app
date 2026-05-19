@@ -7,6 +7,8 @@ services:
       - .env
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - photo-data:/app/.data
     healthcheck:
       test:
         [
@@ -19,3 +21,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+volumes:
+  photo-data:

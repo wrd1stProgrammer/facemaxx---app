@@ -13,6 +13,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY app ./app
 
+RUN mkdir -p /app/.data/photos && chown -R app:app /app/.data
+
 USER app
 
 EXPOSE 8000
