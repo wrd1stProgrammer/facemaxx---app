@@ -59,9 +59,9 @@ class PurchaseRepository:
             return ProScanStatusResponse(
                 app_user_id=app_user_id,
                 has_active_pro_subscription=False,
-                pro_scans_remaining=1,
-                consumable_pro_scans_remaining=1,
-                can_use_pro_scan=True,
+                pro_scans_remaining=0,
+                consumable_pro_scans_remaining=0,
+                can_use_pro_scan=False,
             )
 
         self.ensure_account(app_user_id, identity)
@@ -100,9 +100,9 @@ class PurchaseRepository:
         if supabase is None:
             return ProScanReservation(
                 app_user_id=app_user_id,
-                allowed=True,
+                allowed=False,
                 subscription_active=False,
-                credits_remaining=1,
+                credits_remaining=0,
                 consumed_source=None,
             )
 

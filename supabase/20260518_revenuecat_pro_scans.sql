@@ -9,7 +9,7 @@ create table if not exists public.purchase_accounts (
   subscription_scan_limit integer not null default 0 check (subscription_scan_limit >= 0),
   subscription_scans_remaining integer not null default 0 check (subscription_scans_remaining >= 0),
   subscription_quota_reset_at timestamptz,
-  consumable_pro_scans_remaining integer not null default 1 check (consumable_pro_scans_remaining >= 0),
+  consumable_pro_scans_remaining integer not null default 0 check (consumable_pro_scans_remaining >= 0),
   revenuecat_original_app_user_id text,
   last_synced_at timestamptz,
   created_at timestamptz not null default now(),
