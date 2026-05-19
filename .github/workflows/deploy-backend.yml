@@ -31,10 +31,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Resolve Docker Hub image
+        id: dockerhub
+        shell: bash
+        run: |
+          USERNAME="$(printf '%s' '${{ secrets.DOCKERHUB_USERNAME }}' | tr -d '[:space:]')"
+          if [ -z "$USERNAME" ]; then
+            echo "DOCKERHUB_USERNAME secret is empty" >&2
+            exit 1
+          fi
+          echo "::add-mask::$USERNAME"
+          echo "username=$USERNAME" >> "$GITHUB_OUTPUT"
+          echo "image=$USERNAME/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ steps.dockerhub.outputs.username }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push backend image
@@ -45,8 +58,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.dockerhub.outputs.image }}:latest
+            ${{ steps.dockerhub.outputs.image }}:${{ github.sha }}
 
       - name: Prepare SSH key
         run: |
@@ -62,11 +75,11 @@ jobs:
 
       - name: Log in to Docker Hub on EC2
         run: |
-          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "printf '%s' '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
+          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "printf '%s' '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ steps.dockerhub.outputs.username }}' --password-stdin"
 
       - name: Pull and restart container
         run: |
-          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          IMAGE="${{ steps.dockerhub.outputs.image }}:${{ github.sha }}"
           ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "cd /opt/facemaxx && FACEMAXX_IMAGE=$IMAGE docker compose pull && FACEMAXX_IMAGE=$IMAGE docker compose up -d --remove-orphans"
 
       - name: Verify deployment
