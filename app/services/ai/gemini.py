@@ -14,6 +14,7 @@ from app.services.ai.prompt import TITLE_KEYS, build_face_analysis_prompt
 
 class GeminiFaceAnalysisProvider:
     name = "gemini"
+    transient_status_codes = {429, 500, 502, 503, 504}
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -51,15 +52,70 @@ class GeminiFaceAnalysisProvider:
             temperature=0.35,
             response_mime_type="application/json",
         )
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model=self.model_name,
+        response, used_model_name = await self._generate_content_with_fallback(
+            client=client,
             contents=contents,
             config=config,
         )
         data = self._parse_json(response.text or "{}")
-        data = self._normalize_payload(data, request)
+        data = self._normalize_payload(data, request, model_name=used_model_name)
         return AnalysisResultPayload.model_validate(data)
+
+    async def _generate_content_with_fallback(self, client, contents: list[object], config):
+        attempts_per_model = max(1, self.settings.gemini_retry_attempts)
+        model_candidates = self.settings.gemini_model_candidates or [self.model_name]
+        last_exc: Exception | None = None
+
+        for model_index, model_name in enumerate(model_candidates):
+            for attempt_index in range(attempts_per_model):
+                try:
+                    response = await asyncio.to_thread(
+                        client.models.generate_content,
+                        model=model_name,
+                        contents=contents,
+                        config=config,
+                    )
+                    if model_name != self.model_name:
+                        print(
+                            "Facemaxx Gemini fallback succeeded:",
+                            "primary=",
+                            self.model_name,
+                            "used=",
+                            model_name,
+                        )
+                    return response, model_name
+                except Exception as exc:
+                    last_exc = exc
+                    is_transient = self._is_transient_model_error(exc)
+                    has_more_attempts = attempt_index < attempts_per_model - 1
+                    has_fallback_model = model_index < len(model_candidates) - 1
+                    if not is_transient or (not has_more_attempts and not has_fallback_model):
+                        raise
+
+                    next_model = (
+                        model_candidates[model_index + 1]
+                        if not has_more_attempts and has_fallback_model
+                        else model_name
+                    )
+                    delay = self._retry_delay_seconds(attempt_index, model_index)
+                    print(
+                        "Facemaxx Gemini transient failure; retrying:",
+                        "model=",
+                        model_name,
+                        "next_model=",
+                        next_model,
+                        "attempt=",
+                        attempt_index + 1,
+                        "status=",
+                        self._exception_status_code(exc),
+                        "delay=",
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No Gemini model candidates configured")
 
     async def _image_parts(self, request: ProviderAnalysisRequest) -> list:
         if request.photos:
@@ -116,10 +172,15 @@ class GeminiFaceAnalysisProvider:
                 raise
             return json.loads(match.group(0))
 
-    def _normalize_payload(self, data: dict, request: ProviderAnalysisRequest) -> dict:
+    def _normalize_payload(
+        self,
+        data: dict,
+        request: ProviderAnalysisRequest,
+        model_name: str | None = None,
+    ) -> dict:
         data = data if isinstance(data, dict) else {}
         data["provider"] = self.name
-        data["model_name"] = self.model_name
+        data["model_name"] = model_name or self.model_name
         data["mode_id"] = request.mode_id
         data["overall_score"] = self._score(data.get("overall_score"))
         data["overall_progress"] = self._progress(data.get("overall_progress"))
@@ -159,6 +220,36 @@ class GeminiFaceAnalysisProvider:
             else None
         )
         return data
+
+    @classmethod
+    def _is_transient_model_error(cls, exc: Exception) -> bool:
+        status_code = cls._exception_status_code(exc)
+        if status_code in cls.transient_status_codes:
+            return True
+
+        text = str(exc).lower()
+        transient_markers = (
+            "unavailable",
+            "high demand",
+            "temporarily",
+            "resource_exhausted",
+            "deadline",
+            "timeout",
+            "rate limit",
+        )
+        return any(marker in text for marker in transient_markers)
+
+    @staticmethod
+    def _exception_status_code(exc: Exception) -> int | None:
+        status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        try:
+            return int(status_code) if status_code is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _retry_delay_seconds(self, attempt_index: int, model_index: int) -> float:
+        base_delay = max(0.1, self.settings.gemini_retry_base_delay_seconds)
+        return round(base_delay * (2 ** attempt_index) + (0.25 * model_index), 2)
 
     def _normalize_ring(self, item: dict, index: int) -> dict:
         metric_id = self._slug(item.get("metric_id") or item.get("id") or item.get("title") or f"ring-{index + 1}")

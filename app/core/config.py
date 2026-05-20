@@ -37,7 +37,10 @@ class Settings(BaseSettings):
 
     ai_provider: Literal["dummy", "gemini", "openai"] = "gemini"
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_fallback_models: str = "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite"
+    gemini_retry_attempts: int = 1
+    gemini_retry_base_delay_seconds: float = 0.8
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-5-mini"
 
@@ -102,6 +105,16 @@ class Settings(BaseSettings):
     @property
     def parsed_cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def gemini_model_candidates(self) -> list[str]:
+        candidates = [self.gemini_model]
+        candidates.extend(
+            model.strip()
+            for model in self.gemini_fallback_models.split(",")
+            if model.strip()
+        )
+        return candidates
 
 
 @lru_cache
