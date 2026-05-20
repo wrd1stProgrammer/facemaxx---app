@@ -86,7 +86,7 @@ Recommended RevenueCat setup:
 4. Create offering `default` and add the subscription packages plus custom packages for the scan packs.
 5. Set `REVENUECAT_IOS_API_KEY` in `Facemaxx/Config/Secrets.xcconfig`.
 6. Set `REVENUECAT_SECRET_API_KEY` in `back/.env`.
-7. Configure a RevenueCat webhook to `POST /v1/revenuecat/webhook`; if you set an Authorization bearer token in RevenueCat, put the same value in `REVENUECAT_WEBHOOK_BEARER_TOKEN`.
+7. Configure a RevenueCat webhook to `POST /v1/revenuecat/webhook`; if `REVENUECAT_WEBHOOK_BEARER_TOKEN` is set on the server, configure the same value in the RevenueCat webhook Authorization header. The server accepts either `Bearer <token>` or the raw token value.
 
 Server-side enforcement happens in `POST /v1/analysis-runs`: Pro modes require at least one remaining quota credit. `facemaxx1wk` refreshes 12 subscription credits per weekly cycle, `facemaxx1mo` refreshes 50 subscription credits per monthly cycle, and 10/20/50 consumables add separate non-renewing credits. Credit consumption is atomic in Supabase and is refunded if the AI provider or persistence step fails.
 

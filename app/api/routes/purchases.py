@@ -25,6 +25,12 @@ async def sync_pro_scan_status(
     identity: RequestIdentity = Depends(get_request_identity),
 ) -> ProScanStatusResponse:
     app_user_id = PurchaseRepository.app_user_id_for_identity(identity)
+    print(
+        "Facemaxx RevenueCat sync requested:",
+        f"app_user_id={app_user_id}",
+        f"user_id={identity.user_id or 'none'}",
+        f"install_id={identity.client_install_id or 'none'}",
+    )
     return await RevenueCatService().sync_subscriber(app_user_id)
 
 
@@ -35,8 +41,25 @@ async def revenuecat_webhook(
 ) -> RevenueCatWebhookResponse:
     expected_token = get_settings().revenuecat_webhook_bearer_token
     if expected_token:
-        expected_header = f"Bearer {expected_token}"
-        if authorization not in {expected_token, expected_header}:
+        expected_token = _normalized_webhook_token(expected_token)
+        received_token = _normalized_webhook_token(authorization)
+        if received_token != expected_token:
+            received_scheme = authorization.strip().split(" ", 1)[0] if authorization else "missing"
+            print(
+                "Facemaxx RevenueCat webhook rejected:",
+                "authorization_present=" + str(bool(authorization)),
+                f"authorization_scheme={received_scheme}",
+            )
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid RevenueCat webhook token")
 
     return RevenueCatService().handle_webhook(payload)
+
+
+def _normalized_webhook_token(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    token = value.strip()
+    if token.lower().startswith("bearer "):
+        token = token.split(" ", 1)[1].strip()
+    return token or None

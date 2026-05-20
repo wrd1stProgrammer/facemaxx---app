@@ -28,6 +28,15 @@ class RevenueCatService:
         original_app_user_id = subscriber.get("original_app_user_id")
         subscription_product_id, expires_at = self._active_subscription(subscriber)
         subscription_active = expires_at is None or expires_at > datetime.now(timezone.utc)
+        non_subscription_product_ids = sorted((subscriber.get("non_subscriptions") or {}).keys())
+        print(
+            "Facemaxx RevenueCat subscriber fetched:",
+            f"app_user_id={app_user_id}",
+            f"original_app_user_id={original_app_user_id or 'none'}",
+            f"subscription_product_id={subscription_product_id or 'none'}",
+            f"subscription_active={subscription_active}",
+            f"non_subscriptions={','.join(non_subscription_product_ids) or 'none'}",
+        )
         self.purchase_repository.set_subscription_status(
             app_user_id=app_user_id,
             active=subscription_active,
@@ -41,11 +50,19 @@ class RevenueCatService:
                 continue
             for purchase in purchases or []:
                 transaction_id = self._transaction_id(product_id, purchase)
-                self.purchase_repository.grant_scan_pack(
+                did_grant = self.purchase_repository.grant_scan_pack(
                     app_user_id=app_user_id,
                     product_id=product_id,
                     transaction_id=transaction_id,
                     raw_transaction=purchase,
+                )
+                print(
+                    "Facemaxx RevenueCat scan pack sync:",
+                    f"app_user_id={app_user_id}",
+                    f"product_id={product_id}",
+                    f"transaction_id={transaction_id}",
+                    f"credits={SCAN_PACK_CREDITS_BY_PRODUCT_ID[product_id]}",
+                    f"granted={did_grant}",
                 )
 
         return self.purchase_repository.status_for_app_user_id(app_user_id)
@@ -106,6 +123,15 @@ class RevenueCatService:
                 original_app_user_id=self._string_value(event, "original_app_user_id"),
             )
 
+        print(
+            "Facemaxx RevenueCat webhook processed:",
+            f"event_id={event_id}",
+            f"event_type={event_type}",
+            f"app_user_id={app_user_id}",
+            f"product_id={product_id or 'none'}",
+            f"is_new_event={is_new_event}",
+            f"credits_granted={credits_granted}",
+        )
         return RevenueCatWebhookResponse(
             ok=True,
             app_user_id=app_user_id,

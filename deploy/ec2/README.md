@@ -22,7 +22,7 @@ Create `/opt/facemaxx/.env` manually on the server. Do not commit production sec
 ```env
 APP_ENV=production
 API_PREFIX=/v1
-AUTH_DISABLED=true
+AUTH_DISABLED=false
 AI_PROVIDER=gemini
 GEMINI_API_KEY=
 SUPABASE_URL=
@@ -35,6 +35,10 @@ CLOUDINARY_FOLDER=facemaxx
 REVENUECAT_SECRET_API_KEY=
 REVENUECAT_WEBHOOK_BEARER_TOKEN=
 ```
+
+`AUTH_DISABLED=false` is required in production. RevenueCat purchases are tied to the logged-in app user id; if auth is disabled, the server falls back to the install id and `/v1/pro-scans/sync` can return 200 while syncing the wrong RevenueCat subscriber.
+
+If `REVENUECAT_WEBHOOK_BEARER_TOKEN` is set, configure the same value in the RevenueCat webhook Authorization header. The server accepts either `Bearer <token>` or the raw token value.
 
 ## Manual Deploy Check
 
