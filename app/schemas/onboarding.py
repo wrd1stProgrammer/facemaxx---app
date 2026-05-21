@@ -12,6 +12,7 @@ OnboardingGoalID = Literal[
     "symmetry",
     "jawline",
     "skin",
+    "glow",
     "proportions",
     "progress",
     "photos",

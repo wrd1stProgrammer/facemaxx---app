@@ -50,6 +50,7 @@ class AnalysisRunner:
         pro_scan_reservation = None
         if request.mode_id in PRO_SCAN_MODE_IDS:
             pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
+        is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
 
         try:
             run_id = self.analysis_repository.create_run(
@@ -61,6 +62,7 @@ class AnalysisRunner:
                 source=request.source,
                 face_scan_capture_id=request.face_scan_capture_id,
                 onboarding_context=onboarding_context,
+                is_free_trial_result=is_free_trial_result,
             )
         except Exception:
             self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
@@ -154,6 +156,7 @@ class AnalysisRunner:
             id=run_id,
             status="completed",
             mode_id=request.mode_id,
+            is_free_trial_result=is_free_trial_result,
             photo_id=primary_photo.photo_id if primary_photo else None,
             photo_ids=photo_ids,
             face_scan_capture_id=request.face_scan_capture_id,

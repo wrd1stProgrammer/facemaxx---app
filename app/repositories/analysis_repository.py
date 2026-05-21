@@ -43,6 +43,7 @@ class AnalysisRepository:
         source: str,
         face_scan_capture_id: UUID | None = None,
         onboarding_context: dict[str, Any] | None = None,
+        is_free_trial_result: bool = False,
     ) -> UUID:
         settings = get_settings()
         run_id = uuid4()
@@ -57,6 +58,7 @@ class AnalysisRepository:
             "source": source,
             "status": "processing",
             "onboarding_context": self._safe_json(onboarding_context or {}),
+            "is_free_trial_result": is_free_trial_result,
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -70,22 +72,29 @@ class AnalysisRepository:
                 supabase.table("analysis_runs").insert(payload).execute()
             except Exception as exc:
                 message = str(exc)
-                if "onboarding_context" not in message and "photo_ids" not in message:
+                if "onboarding_context" not in message and "photo_ids" not in message and "is_free_trial_result" not in message:
                     raise
                 legacy_payload = dict(payload)
                 if "onboarding_context" in message:
                     legacy_payload.pop("onboarding_context", None)
                 if "photo_ids" in message:
                     legacy_payload.pop("photo_ids", None)
+                if "is_free_trial_result" in message:
+                    legacy_payload.pop("is_free_trial_result", None)
                 try:
                     supabase.table("analysis_runs").insert(legacy_payload).execute()
                 except Exception as retry_exc:
                     retry_message = str(retry_exc)
-                    if "onboarding_context" not in retry_message and "photo_ids" not in retry_message:
+                    if (
+                        "onboarding_context" not in retry_message
+                        and "photo_ids" not in retry_message
+                        and "is_free_trial_result" not in retry_message
+                    ):
                         raise
                     legacy_payload = dict(payload)
                     legacy_payload.pop("onboarding_context", None)
                     legacy_payload.pop("photo_ids", None)
+                    legacy_payload.pop("is_free_trial_result", None)
                     supabase.table("analysis_runs").insert(legacy_payload).execute()
         except Exception as exc:
             raise HTTPException(
@@ -211,6 +220,7 @@ class AnalysisRepository:
             id=row["id"],
             status=row["status"],
             mode_id=row["mode_id"],
+            is_free_trial_result=bool(row.get("is_free_trial_result")),
             photo_id=row.get("photo_id"),
             photo_ids=self._photo_ids_from_row(row),
             face_scan_capture_id=row.get("face_scan_capture_id"),
@@ -232,7 +242,7 @@ class AnalysisRepository:
         query = (
             supabase
             .table("analysis_runs")
-            .select("id,status,mode_id,photo_id,photo_ids,face_scan_capture_id,overall_score,summary_text,created_at,completed_at")
+            .select("id,status,mode_id,is_free_trial_result,photo_id,photo_ids,face_scan_capture_id,overall_score,summary_text,created_at,completed_at")
             .order("created_at", desc=True)
             .limit(limit)
         )
@@ -246,12 +256,16 @@ class AnalysisRepository:
         try:
             response = query.execute()
         except Exception as exc:
-            if "photo_ids" not in str(exc):
+            message = str(exc)
+            if "photo_ids" not in message and "is_free_trial_result" not in message:
                 raise
+            select_columns = "id,status,mode_id,photo_id,face_scan_capture_id,overall_score,summary_text,created_at,completed_at"
+            if "photo_ids" not in message:
+                select_columns = "id,status,mode_id,photo_ids,face_scan_capture_id,overall_score,summary_text,created_at,completed_at"
             query = (
                 supabase
                 .table("analysis_runs")
-                .select("id,status,mode_id,photo_id,face_scan_capture_id,overall_score,summary_text,created_at,completed_at")
+                .select(select_columns)
                 .order("created_at", desc=True)
                 .limit(limit)
             )

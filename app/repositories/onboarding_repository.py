@@ -13,10 +13,21 @@ GOAL_LABELS = {
     "symmetry": "facial symmetry and balance",
     "jawline": "jawline and lower-face definition",
     "skin": "skin clarity and glow",
+    "glow": "glow-up execution plan and improvement priorities",
     "proportions": "facial proportions and structure",
     "progress": "glow-up progress tracking",
     "photos": "best photo and angle selection",
     "profile": "dating and social profile performance",
+}
+
+DISCOVERY_SOURCE_LABELS = {
+    "app-store": "found the app from the App Store",
+    "tiktok": "found the app from TikTok",
+    "instagram": "found the app from Instagram",
+    "youtube": "found the app from YouTube",
+    "google": "found the app from Google search",
+    "friend": "found the app through a friend",
+    "other": "found the app from another source",
 }
 
 AGE_CONTEXT = {
@@ -112,7 +123,7 @@ class OnboardingRepository:
         try:
             response = (
                 supabase.table("user_onboarding_preferences")
-                .select("selected_goal_ids,gender_id,age,age_range_id,completed_at")
+                .select("selected_goal_ids,gender_id,age,age_range_id,completed_at,metadata")
                 .eq("user_id", user_id)
                 .limit(1)
                 .execute()
@@ -151,6 +162,12 @@ class OnboardingRepository:
             context["age_context"] = AGE_CONTEXT[age_range_id]
         if raw_context.get("completed_at"):
             context["completed_at"] = raw_context["completed_at"]
+        metadata = raw_context.get("metadata")
+        if isinstance(metadata, dict):
+            discovery_source_id = metadata.get("discovery_source")
+            if isinstance(discovery_source_id, str) and discovery_source_id in DISCOVERY_SOURCE_LABELS:
+                context["discovery_source_id"] = discovery_source_id
+                context["discovery_source_context"] = DISCOVERY_SOURCE_LABELS[discovery_source_id]
 
         return context
 

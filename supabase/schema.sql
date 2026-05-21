@@ -55,6 +55,7 @@ create table if not exists public.user_onboarding_preferences (
         'symmetry',
         'jawline',
         'skin',
+        'glow',
         'proportions',
         'progress',
         'photos',
@@ -69,7 +70,7 @@ create index if not exists user_onboarding_preferences_completed_idx
 create table if not exists public.user_usage (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   scans_remaining integer not null default 5 check (scans_remaining >= 0),
-  pro_scans_remaining integer not null default 1 check (pro_scans_remaining >= 0),
+  pro_scans_remaining integer not null default 0 check (pro_scans_remaining >= 0),
   current_streak integer not null default 0 check (current_streak >= 0),
   last_scan_date date,
   created_at timestamptz not null default now(),
@@ -383,6 +384,7 @@ create table if not exists public.analysis_runs (
   summary_text text,
   look_archetype_id text references public.look_archetypes(id),
   onboarding_context jsonb not null default '{}'::jsonb,
+  is_free_trial_result boolean not null default false,
   raw_provider_response jsonb,
   error_message text,
   started_at timestamptz,
@@ -396,6 +398,9 @@ alter table if exists public.analysis_runs
 
 alter table if exists public.analysis_runs
   add column if not exists onboarding_context jsonb not null default '{}'::jsonb;
+
+alter table if exists public.analysis_runs
+  add column if not exists is_free_trial_result boolean not null default false;
 
 create index if not exists analysis_runs_user_created_idx
   on public.analysis_runs (user_id, created_at desc);

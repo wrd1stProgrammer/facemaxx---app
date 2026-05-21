@@ -37,12 +37,17 @@ class ProScanReservation:
     app_user_id: str
     allowed: bool
     subscription_active: bool
+    free_trial_scan_available: bool
     credits_remaining: int
     consumed_source: str | None
 
     @property
     def consumed_credit(self) -> bool:
-        return self.consumed_source in {"subscription", "consumable"}
+        return self.consumed_source in {"free_trial", "subscription", "consumable"}
+
+    @property
+    def consumed_free_trial(self) -> bool:
+        return self.consumed_source == "free_trial"
 
 
 class PurchaseRepository:
@@ -59,6 +64,7 @@ class PurchaseRepository:
             return ProScanStatusResponse(
                 app_user_id=app_user_id,
                 has_active_pro_subscription=False,
+                free_trial_scan_available=False,
                 pro_scans_remaining=0,
                 consumable_pro_scans_remaining=0,
                 can_use_pro_scan=False,
@@ -66,32 +72,46 @@ class PurchaseRepository:
 
         self.ensure_account(app_user_id, identity)
         supabase.rpc("refresh_purchase_account_quota", {"p_app_user_id": app_user_id}).execute()
-        response = (
-            supabase.table("purchase_accounts")
-            .select(
-                "pro_subscription_active,pro_subscription_product_id,pro_subscription_expires_at,"
-                "subscription_scan_limit,subscription_scans_remaining,subscription_quota_reset_at,"
-                "consumable_pro_scans_remaining"
-            )
-            .eq("app_user_id", app_user_id)
-            .single()
-            .execute()
+        select_columns = (
+            "pro_subscription_active,pro_subscription_product_id,pro_subscription_expires_at,"
+            "subscription_scan_limit,subscription_scans_remaining,subscription_quota_reset_at,"
+            "consumable_pro_scans_remaining,free_trial_scan_available"
         )
+        try:
+            response = (
+                supabase.table("purchase_accounts")
+                .select(select_columns)
+                .eq("app_user_id", app_user_id)
+                .single()
+                .execute()
+            )
+        except Exception as exc:
+            if "free_trial_scan_available" not in str(exc):
+                raise
+            response = (
+                supabase.table("purchase_accounts")
+                .select(select_columns.replace(",free_trial_scan_available", ""))
+                .eq("app_user_id", app_user_id)
+                .single()
+                .execute()
+            )
         row = response.data or {}
         has_subscription = self._is_subscription_active(row)
         subscription_credits = max(0, int(row.get("subscription_scans_remaining") or 0)) if has_subscription else 0
         consumable_credits = max(0, int(row.get("consumable_pro_scans_remaining") or 0))
         total_credits = subscription_credits + consumable_credits
+        free_trial_available = bool(row.get("free_trial_scan_available")) and not has_subscription and total_credits <= 0
         return ProScanStatusResponse(
             app_user_id=app_user_id,
             has_active_pro_subscription=has_subscription,
+            free_trial_scan_available=free_trial_available,
             pro_scans_remaining=total_credits,
             subscription_product_id=row.get("pro_subscription_product_id"),
             subscription_scan_limit=max(0, int(row.get("subscription_scan_limit") or 0)),
             subscription_scans_remaining=subscription_credits,
             subscription_quota_reset_at=row.get("subscription_quota_reset_at"),
             consumable_pro_scans_remaining=consumable_credits,
-            can_use_pro_scan=total_credits > 0,
+            can_use_pro_scan=free_trial_available or total_credits > 0,
         )
 
     def reserve_pro_scan(self, identity: RequestIdentity) -> ProScanReservation:
@@ -102,6 +122,7 @@ class PurchaseRepository:
                 app_user_id=app_user_id,
                 allowed=False,
                 subscription_active=False,
+                free_trial_scan_available=False,
                 credits_remaining=0,
                 consumed_source=None,
             )
@@ -119,6 +140,7 @@ class PurchaseRepository:
             app_user_id=app_user_id,
             allowed=bool(data.get("allowed")),
             subscription_active=bool(data.get("subscription_active")),
+            free_trial_scan_available=bool(data.get("free_trial_scan_available")),
             credits_remaining=max(0, int(data.get("credits_remaining") or 0)),
             consumed_source=data.get("consumed_source"),
         )

@@ -279,6 +279,7 @@ class AnalysisRunResponse(FacemaxxBaseModel):
     id: UUID
     status: RunStatus
     mode_id: str
+    is_free_trial_result: bool = False
     photo_id: Optional[UUID] = None
     photo_ids: list[UUID] = Field(default_factory=list)
     face_scan_capture_id: Optional[UUID] = None
@@ -291,6 +292,7 @@ class AnalysisRunSummaryResponse(FacemaxxBaseModel):
     id: UUID
     status: RunStatus
     mode_id: str
+    is_free_trial_result: bool = False
     photo_id: Optional[UUID] = None
     photo_ids: list[UUID] = Field(default_factory=list)
     face_scan_capture_id: Optional[UUID] = None
