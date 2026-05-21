@@ -25,6 +25,11 @@ PRO_SCAN_MODE_IDS = {
     "instagram-profile-score",
 }
 
+FREE_TRIAL_MODE_IDS = {
+    "proportions",
+    "aesthetics",
+}
+
 
 class AnalysisRunner:
     def __init__(self) -> None:
@@ -49,6 +54,17 @@ class AnalysisRunner:
 
         pro_scan_reservation = None
         if request.mode_id in PRO_SCAN_MODE_IDS:
+            pro_scan_status = self.purchase_repository.status_for_identity(identity)
+            if pro_scan_status.free_trial_scan_available and request.mode_id not in FREE_TRIAL_MODE_IDS:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "code": "free_trial_mode_locked",
+                        "message": "Free trial analysis is limited to proportions and aesthetics.",
+                        "app_user_id": pro_scan_status.app_user_id,
+                        "pro_scans_remaining": pro_scan_status.pro_scans_remaining,
+                    },
+                )
             pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
         is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
 
