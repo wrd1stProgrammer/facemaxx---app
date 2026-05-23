@@ -25,16 +25,21 @@ TITLE_KEYS = {
         "left": "analysis.photoOptimization.ring.left",
         "right": "analysis.photoOptimization.ring.right",
         "high-angle": "analysis.photoOptimization.ring.highAngle",
+        "highangle": "analysis.photoOptimization.ring.highAngle",
         "low-angle": "analysis.photoOptimization.ring.lowAngle",
+        "lowangle": "analysis.photoOptimization.ring.lowAngle",
         "first-impression": "analysis.photoOptimization.ring.firstImpression",
+        "firstimpression": "analysis.photoOptimization.ring.firstImpression",
         "approachability": "analysis.photoOptimization.ring.approachability",
         "confidence": "analysis.photoOptimization.ring.confidence",
         "trust": "analysis.photoOptimization.ring.trust",
         "style": "analysis.photoOptimization.ring.style",
         "conversation": "analysis.photoOptimization.ring.conversation",
         "visual-impact": "analysis.photoOptimization.ring.visualImpact",
+        "visualimpact": "analysis.photoOptimization.ring.visualImpact",
         "crop": "analysis.photoOptimization.ring.crop",
         "feed-fit": "analysis.photoOptimization.ring.feedFit",
+        "feedfit": "analysis.photoOptimization.ring.feedFit",
         "shareability": "analysis.photoOptimization.ring.shareability",
         "vibe": "analysis.photoOptimization.ring.vibe",
     },
@@ -284,6 +289,9 @@ Mode-specific output:
 - For every visible score in this mode, keep score fields normalized as 0..1 for progress, but write display_value/value_text as a 10-point number such as "8.3", not "0.83".
 - Return metrics in section "angle_breakdown" with best-angle, front-read, left-read, right-read, camera-height.
 - Return metrics in section "capture_plan" with avoid-angle and retake-plan.
+- summary_text must feel like a useful camera direction: 4-5 compact sentences explaining the best angle, what it does to the jawline/cheekbones/eyes, what angle to avoid, and how to retake it.
+- Each angle_breakdown detail_text must be 2-4 sentences. Include concrete language such as camera height, face turn degrees, chin position, shoulder angle, lens distance, and lighting direction when visible.
+- capture_plan must include a practical shot sequence users can try immediately, not generic praise.
 """,
     "dating-profile-score": """
 Mode-specific output:
@@ -310,6 +318,9 @@ Mode-specific output:
 - Use calibrated scoring. Do not return all 10s unless the photo is genuinely exceptional across crop, lighting, visual impact, feed fit, shareability, and vibe.
 - If any visible issue exists such as harsh lighting, weak crop, clutter, blur, awkward expression, or inconsistent color, at least one ring should be below 9.0 and overall_score should reflect that.
 - If you think in percent internally, convert it before returning: overall_score/potential_score are 0..10 and ring score/progress fields are 0..1.
+- summary_text must be 4-5 compact sentences with a creator-style read: profile thumbnail strength, grid/feed fit, first-scroll impression, what feels shareable, and the highest-leverage fix.
+- Each instagram_profile detail_text must be 2-4 sentences and connect the visible image to a real Instagram decision: profile crop, pinned post, story thumbnail, feed order, or lighting/caption direction.
+- content_plan must be playful but specific. Include one caption angle and one posting or retake fix that makes the profile feel more intentional.
 """,
 }
 
@@ -387,7 +398,14 @@ Locale: {locale}.
 {_onboarding_context_block(onboarding_context)}
 
 Use the attached image or images when available. When multiple images are attached, treat them as photo candidates numbered by attachment order and compare only those attached photos. Use these measured face geometry values as grounded context. If there are multiple images, these geometry values describe the primary photo / candidate 1 unless the data clearly says otherwise.
-If a visual impression conflicts with geometry, prefer the geometry for numeric ratios and the image for styling/aesthetic interpretation:
+Grounding requirements:
+- Base the report on BOTH sources when both are present: visible evidence from the photo and measured scan/geometry values.
+- For ratio, symmetry, angle, and proportion claims, use the measured scan values first, then explain how the visible photo supports or limits that read.
+- For style, photo quality, expression, grooming, and profile-use claims, use visible photo evidence first, then use scan values only as supporting context.
+- Do not write generic advice that could apply to any face. Each summary and expanded metric should connect at least one visible cue or one measured value to a concrete interpretation.
+- If scan values are missing or low-confidence, rely on the photo and phrase numeric/proportion reads as estimates without mentioning missing backend data.
+- If a visual impression conflicts with geometry, prefer the geometry for numeric ratios and the image for styling/aesthetic interpretation.
+Measured scan/geometry values:
 {metric_block}
 
 Product constraints:

@@ -35,6 +35,28 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
   locale text not null default 'en' check (locale in ('en', 'ko', 'ja', 'de', 'es-419', 'zh-Hant', 'pt-BR', 'fr', 'it', 'id', 'tr', 'ar')),
+  onboarding_selected_goal_ids text[] not null default '{}'::text[] check (
+    onboarding_selected_goal_ids <@ array[
+      'symmetry',
+      'jawline',
+      'skin',
+      'glow',
+      'proportions',
+      'progress',
+      'photos',
+      'profile'
+    ]::text[]
+  ),
+  onboarding_gender_id text check (onboarding_gender_id is null or onboarding_gender_id in ('male', 'female', 'other')),
+  onboarding_age integer check (onboarding_age is null or onboarding_age between 13 and 70),
+  onboarding_age_range_id text check (onboarding_age_range_id is null or onboarding_age_range_id in ('18-24', '25-34', '35-44', '45+')),
+  onboarding_discovery_source_id text check (
+    onboarding_discovery_source_id is null
+    or onboarding_discovery_source_id in ('app-store', 'tiktok', 'instagram', 'youtube', 'google', 'friend', 'other')
+  ),
+  onboarding_completed_at timestamptz,
+  onboarding_metadata jsonb not null default '{}'::jsonb,
+  onboarding_updated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

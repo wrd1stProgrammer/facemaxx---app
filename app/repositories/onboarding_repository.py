@@ -58,6 +58,7 @@ class OnboardingRepository:
             return self._response_from_request(request, persisted=False)
 
         age_range_id = request.age_range_id or self._age_range_id(request.age)
+        now_iso = datetime.now(timezone.utc).isoformat()
         payload = {
             "user_id": user_id,
             "selected_goal_ids": request.selected_goal_ids,
@@ -66,7 +67,7 @@ class OnboardingRepository:
             "age_range_id": age_range_id,
             "completed_at": request.completed_at.isoformat(),
             "metadata": request.metadata,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": now_iso,
         }
 
         try:
@@ -75,6 +76,7 @@ class OnboardingRepository:
                 payload,
                 on_conflict="user_id",
             ).execute()
+            self._mirror_profile_preferences(supabase, user_id, request, age_range_id, now_iso)
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -174,6 +176,38 @@ class OnboardingRepository:
     @staticmethod
     def _ensure_profile(supabase, user_id: str) -> None:
         supabase.table("profiles").upsert({"id": user_id}, on_conflict="id").execute()
+
+    @staticmethod
+    def _mirror_profile_preferences(
+        supabase,
+        user_id: str,
+        request: OnboardingPreferencesRequest,
+        age_range_id: Optional[str],
+        updated_at: str,
+    ) -> None:
+        discovery_source_id = None
+        metadata = request.metadata if isinstance(request.metadata, dict) else {}
+        raw_discovery_source_id = metadata.get("discovery_source")
+        if isinstance(raw_discovery_source_id, str):
+            discovery_source_id = raw_discovery_source_id
+
+        profile_payload = {
+            "id": user_id,
+            "onboarding_selected_goal_ids": request.selected_goal_ids,
+            "onboarding_gender_id": request.gender_id,
+            "onboarding_age": request.age,
+            "onboarding_age_range_id": age_range_id,
+            "onboarding_discovery_source_id": discovery_source_id,
+            "onboarding_completed_at": request.completed_at.isoformat(),
+            "onboarding_metadata": metadata,
+            "onboarding_updated_at": updated_at,
+            "updated_at": updated_at,
+        }
+
+        try:
+            supabase.table("profiles").upsert(profile_payload, on_conflict="id").execute()
+        except Exception as exc:
+            print(f"Onboarding profile mirror skipped: {exc}")
 
     @staticmethod
     def _response_from_request(

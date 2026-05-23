@@ -188,7 +188,7 @@ class GeminiFaceAnalysisProvider:
         data["potential_progress"] = self._progress(data.get("potential_progress"))
 
         data["rings"] = [
-            self._normalize_ring(item, index)
+            self._normalize_ring(item, request.mode_id, index)
             for index, item in enumerate(self._as_list(data.get("rings")))
             if isinstance(item, dict)
         ]
@@ -251,7 +251,7 @@ class GeminiFaceAnalysisProvider:
         base_delay = max(0.1, self.settings.gemini_retry_base_delay_seconds)
         return round(base_delay * (2 ** attempt_index) + (0.25 * model_index), 2)
 
-    def _normalize_ring(self, item: dict, index: int) -> dict:
+    def _normalize_ring(self, item: dict, mode_id: str, index: int) -> dict:
         metric_id = self._slug(item.get("metric_id") or item.get("id") or item.get("title") or f"ring-{index + 1}")
         score = self._float(item.get("score"), 0.0)
         if score > 10:
@@ -261,12 +261,21 @@ class GeminiFaceAnalysisProvider:
         score = min(max(score, 0), 1)
         return {
             "metric_id": metric_id,
-            "title_key": item.get("title_key") or TITLE_KEYS["rings"].get(metric_id, "analysis.results.ring.harmony"),
+            "title_key": self._ring_title_key(item, mode_id, metric_id),
             "score": score,
             "display_value": self._score_display_value(item.get("display_value"), score),
             "tint": item.get("tint") or "#7EF0A1",
             "sort_order": self._int(item.get("sort_order"), (index + 1) * 10),
         }
+
+    @staticmethod
+    def _ring_title_key(item: dict, mode_id: str, metric_id: str) -> str:
+        known_keys = set(TITLE_KEYS["rings"].values())
+        proposed_key = str(item.get("title_key") or "").strip()
+        if proposed_key in known_keys:
+            return proposed_key
+
+        return TITLE_KEYS["rings"].get(metric_id, "analysis.results.ring.harmony")
 
     def _normalize_metric(self, item: dict, mode_id: str, index: int, locale: str) -> dict:
         section = str(item.get("section") or self._default_metric_section(mode_id))
