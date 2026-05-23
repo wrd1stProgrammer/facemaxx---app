@@ -180,6 +180,7 @@ Required top-level shape:
     "archetype_id": string,
     "title_key": "analysis.lookArchetype.title",
     "type_name": string,
+    "secondary_type_name": string | null,
     "subtitle_text": string,
     "body_text": string,
     "share_badge_key": "analysis.lookArchetype.shareReady",
@@ -249,9 +250,22 @@ Mode-specific output:
 """,
     "look-archetype": """
 Mode-specific output:
-- Return one memorable type from this family or a close variant: Clean-cut Heartthrob, Cold Handsome Type, Soft Boy Next Door, K-pop Idol Type, Model-like Sharp Type, Athletic Masculine Type, Warm Approachable Type, Dark Academia Type, Pretty Boy Type, Charismatic Leader Type.
-- Include why it fits, best features, style direction, avoid, and concise signature style traits. Do not label traits as SNS/share traits.
-- Make the archetype feel specific to the photo, not a generic personality label.
+- Treat this as a premium personal image strategy report, not a score-only beauty report.
+- Return one memorable primary type from this family or a close variant: Clean Sharp, Soft Natural, Urban Chic, Calm Intelligent, Warm Friendly, Romantic Soft, Sporty Fresh, Minimal Classic, Edgy Charisma, Youthful Casual, Mature Elegant, Trendy Social, Clean-cut Heartthrob, Cold Handsome Type, Soft Boy Next Door, K-pop Idol Type, Model-like Sharp Type, Athletic Masculine Type, Warm Approachable Type, Dark Academia Type, Pretty Boy Type, Charismatic Leader Type.
+- Also return secondary_type_name as a complementary archetype. It must be different from type_name and should explain the mixed impression, e.g. primary "Clean Sharp" with secondary "Warm Natural".
+- summary_text must be 3-4 compact sentences explaining the primary read, secondary read, strongest visible evidence, and most useful style direction.
+- look_archetype.subtitle_text must be a one-line identity statement, not a generic compliment.
+- look_archetype.body_text must be 2-3 sentences connecting facial impression, photo read, and styling strategy.
+- Return 4 concise traits. These should be impression/style traits such as Clean, Sharp, Warm, Natural, Minimal, Chic, Fresh, Calm, Soft, Charismatic, not SNS/share labels.
+- Return exactly 6 sections in this order:
+  1. impression-summary: title_text should mean "First impression summary"; icon_name "person.crop.rectangle.stack.fill"; tint "#A78BFA"; is_default_expanded true; 3 bullets.
+  2. why-this-fits: visible evidence from face line, eye read, expression, symmetry, hair/framing, or photo lighting; icon_name "checkmark.seal.fill"; tint "#34D15C"; is_default_expanded true; 3 bullets.
+  3. best-features: the 3 strongest image assets; icon_name "star.fill"; tint "#1F91FF"; 3 bullets.
+  4. style-direction: hair, outfit, color, grooming, or vibe direction; icon_name "wand.and.stars"; tint "#63CCFA"; 4 bullets.
+  5. photo-playbook: camera angle, lighting, crop, expression, profile-photo usage; icon_name "camera.viewfinder"; tint "#FFB84D"; 3 bullets.
+  6. avoid: phrase as "what makes the strengths less visible", not harsh criticism; icon_name "xmark.octagon.fill"; tint "#FF7A45"; 3 bullets.
+- Every bullet title_text must be specific to the visible photo and useful as advice. Avoid vague lines like "you look good" or "nice style".
+- Do not infer sensitive identity. Use self-selected onboarding age/gender only to tune styling language, never as proof from the image.
 """,
     "best-photo-selector": """
 Mode-specific output:

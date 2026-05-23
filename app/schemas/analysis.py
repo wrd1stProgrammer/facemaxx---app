@@ -248,6 +248,7 @@ class LookArchetypeResult(FacemaxxBaseModel):
     archetype_id: str
     title_key: str
     type_name: str
+    secondary_type_name: Optional[str] = None
     subtitle_key: Optional[str] = None
     subtitle_text: Optional[str] = None
     body_key: Optional[str] = None

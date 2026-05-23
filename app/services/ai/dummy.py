@@ -133,36 +133,51 @@ class DummyFaceAnalysisProvider:
         payload.look_archetype = LookArchetypeResult(
             archetype_id="clean-cut-heartthrob",
             title_key="analysis.lookArchetype.title",
-            type_name="Clean-cut Heartthrob",
-            subtitle_key="analysis.lookArchetype.typeSubtitle",
-            body_key="analysis.lookArchetype.typeBody",
+            type_name="Clean Sharp",
+            secondary_type_name="Warm Natural",
+            subtitle_text="A clean, structured first impression softened by an approachable natural read.",
+            body_text=(
+                "The strongest read is polished and direct, but not cold. Clean facial framing, balanced features, "
+                "and a softer expression make minimal styling and natural-light photos work better than heavy filters."
+            ),
             share_badge_key="analysis.lookArchetype.shareReady",
             traits=[
-                LookArchetypeTrait(trait_id="clean", title_key="analysis.lookArchetype.trait.clean", tint="#34D15C", sort_order=10),
-                LookArchetypeTrait(trait_id="youthful", title_key="analysis.lookArchetype.trait.youthful", tint="#1F91FF", sort_order=20),
-                LookArchetypeTrait(trait_id="approachable", title_key="analysis.lookArchetype.trait.approachable", tint="#63CCFA", sort_order=30),
+                LookArchetypeTrait(trait_id="clean", title_key="analysis.lookArchetype.trait.clean", title_text="Clean", tint="#34D15C", sort_order=10),
+                LookArchetypeTrait(trait_id="sharp", title_key="analysis.lookArchetype.trait.sharp", title_text="Sharp", tint="#A78BFA", sort_order=20),
+                LookArchetypeTrait(trait_id="natural", title_key="analysis.lookArchetype.trait.natural", title_text="Natural", tint="#63CCFA", sort_order=30),
+                LookArchetypeTrait(trait_id="approachable", title_key="analysis.lookArchetype.trait.approachable", title_text="Approachable", tint="#1F91FF", sort_order=40),
             ],
             sections=[
-                LookArchetypeSection(section_id="why-this-fits", title_key="analysis.lookArchetype.whyThisFits", icon_name="checkmark.seal.fill", tint="#34D15C", is_default_expanded=True, sort_order=10, bullets=[
-                    LookArchetypeBullet(bullet_id="harmony", title_key="analysis.lookArchetype.why.harmony", icon_name="checkmark.circle.fill", sort_order=10),
-                    LookArchetypeBullet(bullet_id="skin-hair", title_key="analysis.lookArchetype.why.skinHair", icon_name="checkmark.circle.fill", sort_order=20),
-                    LookArchetypeBullet(bullet_id="soft-impression", title_key="analysis.lookArchetype.why.softImpression", icon_name="checkmark.circle.fill", sort_order=30),
+                LookArchetypeSection(section_id="impression-summary", title_key="analysis.lookArchetype.impressionSummary", title_text="First impression summary", icon_name="person.crop.rectangle.stack.fill", tint="#A78BFA", is_default_expanded=True, sort_order=10, bullets=[
+                    LookArchetypeBullet(bullet_id="primary-read", title_key="analysis.lookArchetype.bullet.primaryRead", title_text="The photo reads clean and composed first, with enough softness to avoid looking distant.", icon_name="sparkles", sort_order=10),
+                    LookArchetypeBullet(bullet_id="secondary-read", title_key="analysis.lookArchetype.bullet.secondaryRead", title_text="The secondary impression is warmer and more natural, especially when the expression stays relaxed.", icon_name="leaf.fill", sort_order=20),
+                    LookArchetypeBullet(bullet_id="best-use", title_key="analysis.lookArchetype.bullet.bestUse", title_text="This works best for profile photos that need a sharp but trustworthy first second.", icon_name="person.crop.square.fill", sort_order=30),
                 ]),
-                LookArchetypeSection(section_id="best-features", title_key="analysis.lookArchetype.bestFeatures", icon_name="star.fill", tint="#1F91FF", is_default_expanded=False, sort_order=20, bullets=[
-                    LookArchetypeBullet(bullet_id="skin", title_key="analysis.lookArchetype.feature.skin", icon_name="sparkle", sort_order=10),
-                    LookArchetypeBullet(bullet_id="hair", title_key="analysis.lookArchetype.feature.hair", icon_name="sparkle", sort_order=20),
-                    LookArchetypeBullet(bullet_id="symmetry", title_key="analysis.lookArchetype.feature.symmetry", icon_name="sparkle", sort_order=30),
+                LookArchetypeSection(section_id="why-this-fits", title_key="analysis.lookArchetype.whyThisFits", title_text="Why this fits", icon_name="checkmark.seal.fill", tint="#34D15C", is_default_expanded=True, sort_order=20, bullets=[
+                    LookArchetypeBullet(bullet_id="harmony", title_key="analysis.lookArchetype.why.harmony", title_text="The overall face read is balanced enough that simple styling looks intentional rather than plain.", icon_name="checkmark.circle.fill", sort_order=10),
+                    LookArchetypeBullet(bullet_id="hair-frame", title_key="analysis.lookArchetype.why.hairFrame", title_text="Hair and face framing create the strongest clean-sharp signal in the current photo.", icon_name="checkmark.circle.fill", sort_order=20),
+                    LookArchetypeBullet(bullet_id="soft-impression", title_key="analysis.lookArchetype.why.softImpression", title_text="A relaxed expression keeps the sharpness from feeling too cold or severe.", icon_name="checkmark.circle.fill", sort_order=30),
                 ]),
-                LookArchetypeSection(section_id="style-direction", title_key="analysis.lookArchetype.styleDirection", icon_name="wand.and.stars", tint="#63CCFA", is_default_expanded=False, sort_order=30, bullets=[
-                    LookArchetypeBullet(bullet_id="natural-light", title_key="analysis.lookArchetype.style.naturalLight", icon_name="sun.max.fill", sort_order=10),
-                    LookArchetypeBullet(bullet_id="neat-hair", title_key="analysis.lookArchetype.style.neatHair", icon_name="comb.fill", sort_order=20),
-                    LookArchetypeBullet(bullet_id="clean-top", title_key="analysis.lookArchetype.style.cleanTop", icon_name="tshirt.fill", sort_order=30),
-                    LookArchetypeBullet(bullet_id="natural-smile", title_key="analysis.lookArchetype.style.naturalSmile", icon_name="face.smiling", sort_order=40),
+                LookArchetypeSection(section_id="best-features", title_key="analysis.lookArchetype.bestFeatures", title_text="Best image assets", icon_name="star.fill", tint="#1F91FF", is_default_expanded=False, sort_order=30, bullets=[
+                    LookArchetypeBullet(bullet_id="structure", title_key="analysis.lookArchetype.feature.structure", title_text="The face structure supports a neat, minimal look without needing loud styling.", icon_name="sparkle", sort_order=10),
+                    LookArchetypeBullet(bullet_id="readability", title_key="analysis.lookArchetype.feature.readability", title_text="The face is easy to read quickly, which is useful for dating and social thumbnails.", icon_name="sparkle", sort_order=20),
+                    LookArchetypeBullet(bullet_id="natural-warmth", title_key="analysis.lookArchetype.feature.naturalWarmth", title_text="The softer secondary read gives the look more approachability.", icon_name="sparkle", sort_order=30),
                 ]),
-                LookArchetypeSection(section_id="avoid", title_key="analysis.lookArchetype.avoid", icon_name="xmark.circle.fill", tint="#FFB020", is_default_expanded=False, sort_order=40, bullets=[
-                    LookArchetypeBullet(bullet_id="dark-light", title_key="analysis.lookArchetype.avoid.darkLight", icon_name="xmark.circle.fill", sort_order=10),
-                    LookArchetypeBullet(bullet_id="blank-expression", title_key="analysis.lookArchetype.avoid.blankExpression", icon_name="xmark.circle.fill", sort_order=20),
-                    LookArchetypeBullet(bullet_id="heavy-bangs", title_key="analysis.lookArchetype.avoid.heavyBangs", icon_name="xmark.circle.fill", sort_order=30),
+                LookArchetypeSection(section_id="style-direction", title_key="analysis.lookArchetype.styleDirection", title_text="Style direction", icon_name="wand.and.stars", tint="#63CCFA", is_default_expanded=False, sort_order=40, bullets=[
+                    LookArchetypeBullet(bullet_id="natural-light", title_key="analysis.lookArchetype.style.naturalLight", title_text="Use window light or soft outdoor light so the clean read stays premium.", icon_name="sun.max.fill", sort_order=10),
+                    LookArchetypeBullet(bullet_id="neat-hair", title_key="analysis.lookArchetype.style.neatHair", title_text="Keep the hair outline controlled; too much cover hides the sharp-natural mix.", icon_name="comb.fill", sort_order=20),
+                    LookArchetypeBullet(bullet_id="clean-top", title_key="analysis.lookArchetype.style.cleanTop", title_text="Black, white, navy, charcoal, and muted blue will support the archetype best.", icon_name="tshirt.fill", sort_order=30),
+                    LookArchetypeBullet(bullet_id="natural-smile", title_key="analysis.lookArchetype.style.naturalSmile", title_text="A small relaxed smile will make the look feel more magnetic than a blank expression.", icon_name="face.smiling", sort_order=40),
+                ]),
+                LookArchetypeSection(section_id="photo-playbook", title_key="analysis.lookArchetype.photoPlaybook", title_text="Photo playbook", icon_name="camera.viewfinder", tint="#FFB84D", is_default_expanded=False, sort_order=50, bullets=[
+                    LookArchetypeBullet(bullet_id="camera-height", title_key="analysis.lookArchetype.photo.cameraHeight", title_text="Shoot from eye level or slightly above; low angles reduce the clean-sharp read.", icon_name="camera.fill", sort_order=10),
+                    LookArchetypeBullet(bullet_id="crop", title_key="analysis.lookArchetype.photo.crop", title_text="Keep the crop simple with visible hair and jaw framing, not too tight around the face.", icon_name="crop", sort_order=20),
+                    LookArchetypeBullet(bullet_id="expression", title_key="analysis.lookArchetype.photo.expression", title_text="Use a calm direct gaze with a softer mouth; that is where the archetype looks strongest.", icon_name="eye.fill", sort_order=30),
+                ]),
+                LookArchetypeSection(section_id="avoid", title_key="analysis.lookArchetype.avoid", title_text="What weakens the read", icon_name="xmark.octagon.fill", tint="#FF7A45", is_default_expanded=False, sort_order=60, bullets=[
+                    LookArchetypeBullet(bullet_id="dark-light", title_key="analysis.lookArchetype.avoid.darkLight", title_text="Very dark lighting makes the clean details harder to read.", icon_name="xmark.circle.fill", sort_order=10),
+                    LookArchetypeBullet(bullet_id="blank-expression", title_key="analysis.lookArchetype.avoid.blankExpression", title_text="A completely blank expression can make the sharpness feel colder than intended.", icon_name="xmark.circle.fill", sort_order=20),
+                    LookArchetypeBullet(bullet_id="heavy-bangs", title_key="analysis.lookArchetype.avoid.heavyBangs", title_text="Heavy front hair coverage hides the face structure that gives this type its strength.", icon_name="xmark.circle.fill", sort_order=30),
                 ]),
             ],
         )

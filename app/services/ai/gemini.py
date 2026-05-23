@@ -404,6 +404,7 @@ class GeminiFaceAnalysisProvider:
             "archetype_id": archetype_id,
             "title_key": item.get("title_key") or "analysis.lookArchetype.title",
             "type_name": str(item.get("type_name") or "Clean-cut Heartthrob"),
+            "secondary_type_name": self._optional_string(item.get("secondary_type_name") or item.get("secondary_type")),
             "subtitle_key": self._optional_string(item.get("subtitle_key")),
             "subtitle_text": self._optional_string(item.get("subtitle_text")),
             "body_key": self._optional_string(item.get("body_key")),
