@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 
 from app.core.config import get_settings
 from app.db.supabase import get_supabase_service_client
-from app.models.constants import ANALYSIS_MODES
+from app.models.constants import ANALYSIS_METRIC_TEMPLATES, ANALYSIS_MODES
 from app.schemas.analysis import (
     AnalysisResultPayload,
     AnalysisRunResponse,
@@ -68,6 +68,7 @@ class AnalysisRepository:
 
         try:
             self._ensure_analysis_modes(supabase)
+            self._ensure_analysis_metric_templates(supabase)
             try:
                 supabase.table("analysis_runs").insert(payload).execute()
             except Exception as exc:
@@ -223,6 +224,18 @@ class AnalysisRepository:
             supabase.table("analysis_modes").upsert(ANALYSIS_MODES, on_conflict="id").execute()
         except TypeError:
             supabase.table("analysis_modes").upsert(ANALYSIS_MODES).execute()
+
+    def _ensure_analysis_metric_templates(self, supabase) -> None:
+        try:
+            supabase.table("analysis_metric_templates").upsert(
+                ANALYSIS_METRIC_TEMPLATES,
+                on_conflict="mode_id,section,metric_id",
+            ).execute()
+        except TypeError:
+            supabase.table("analysis_metric_templates").upsert(ANALYSIS_METRIC_TEMPLATES).execute()
+        except Exception as exc:
+            if "analysis_metric_templates" not in str(exc):
+                raise
 
     def fail_run(self, run_id: UUID, message: str) -> None:
         supabase = get_supabase_service_client()

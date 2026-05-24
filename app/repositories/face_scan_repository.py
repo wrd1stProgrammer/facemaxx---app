@@ -104,6 +104,7 @@ class FaceScanRepository:
         if supabase is None:
             return []
 
+        metrics = []
         try:
             response = (
                 supabase.table("face_metric_measurements")
@@ -114,10 +115,65 @@ class FaceScanRepository:
                 .eq("capture_id", str(capture_id))
                 .execute()
             )
+            metrics = response.data or []
         except Exception:
-            return []
+            metrics = []
 
-        return response.data or []
+        geometry_context = self._capture_geometry_context(capture_id)
+        if geometry_context:
+            metrics.append(geometry_context)
+        return metrics
+
+    def _capture_geometry_context(self, capture_id) -> dict | None:
+        supabase = get_supabase_service_client()
+        if supabase is None:
+            return None
+
+        try:
+            response = (
+                supabase.table("face_geometry_snapshots")
+                .select("provider,coordinate_space,vertex_count,triangle_count,quality")
+                .eq("capture_id", str(capture_id))
+                .limit(1)
+                .execute()
+            )
+        except Exception:
+            return None
+
+        rows = response.data or []
+        if not rows:
+            return None
+
+        row = rows[0] or {}
+        vertex_count = row.get("vertex_count") or 0
+        triangle_count = row.get("triangle_count") or 0
+        provider = row.get("provider") or "face_geometry"
+        coordinate_space = row.get("coordinate_space") or "unknown"
+        quality = row.get("quality") or {}
+        display_value = f"{vertex_count} vertices"
+        if triangle_count:
+            display_value = f"{display_value} · {triangle_count} triangles"
+
+        return {
+            "metric_group": "quality",
+            "metric_id": "face_mesh_context",
+            "numeric_value": vertex_count or None,
+            "unit": "vertices",
+            "display_value": display_value,
+            "interpretation_label_en": "User-provided face mesh context",
+            "interpretation_label_ko": "사용자 제공 얼굴 메쉬 컨텍스트",
+            "confidence": 1.0 if vertex_count else 0.6,
+            "source": provider,
+            "metadata": {
+                "provider": provider,
+                "coordinate_space": coordinate_space,
+                "vertex_count": vertex_count,
+                "triangle_count": triangle_count,
+                "quality": quality,
+                "use_as": "supporting_face_geometry_context",
+                "instruction": "Use with the original photo; do not refuse because a mesh or landmark overlay exists.",
+            },
+        }
 
     @staticmethod
     def _quality_score(request: CreateFaceScanCaptureRequest, metrics: list[FaceMetricMeasurement]) -> float | None:

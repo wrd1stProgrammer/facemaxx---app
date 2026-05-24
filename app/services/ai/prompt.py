@@ -119,15 +119,32 @@ TITLE_KEYS = {
         "approachability": "analysis.photoOptimization.metric.approachability",
         "confidence-signal": "analysis.photoOptimization.metric.confidenceSignal",
         "trust-signal": "analysis.photoOptimization.metric.trustSignal",
+        "first-swipe-read": "analysis.photoOptimization.metric.firstSwipeRead",
+        "style-signal": "analysis.photoOptimization.metric.styleSignal",
         "conversation-hook": "analysis.photoOptimization.metric.conversationHook",
+        "photo-context": "analysis.photoOptimization.metric.photoContext",
+        "red-flag-risk": "analysis.photoOptimization.metric.redFlagRisk",
         "photo-mix": "analysis.photoOptimization.metric.photoMix",
+        "profile-role": "analysis.photoOptimization.metric.profileRole",
+        "message-bait": "analysis.photoOptimization.metric.messageBait",
+        "missing-shot": "analysis.photoOptimization.metric.missingShot",
+        "opener-angle": "analysis.photoOptimization.metric.openerAngle",
         "avoid-profile": "analysis.photoOptimization.metric.avoidProfile",
         "profile-crop": "analysis.photoOptimization.metric.profileCrop",
+        "thumbnail-impact": "analysis.photoOptimization.metric.thumbnailImpact",
+        "profile-icon-energy": "analysis.photoOptimization.metric.profileIconEnergy",
         "first-impression": "analysis.photoOptimization.metric.firstImpression",
         "feed-fit": "analysis.photoOptimization.metric.feedFit",
         "story-thumbnail": "analysis.photoOptimization.metric.storyThumbnail",
+        "scroll-stop-power": "analysis.photoOptimization.metric.scrollStopPower",
         "visual-consistency": "analysis.photoOptimization.metric.visualConsistency",
+        "color-mood": "analysis.photoOptimization.metric.colorMood",
         "caption-direction": "analysis.photoOptimization.metric.captionDirection",
+        "grid-anchor": "analysis.photoOptimization.metric.gridAnchor",
+        "story-reply-trigger": "analysis.photoOptimization.metric.storyReplyTrigger",
+        "carousel-use": "analysis.photoOptimization.metric.carouselUse",
+        "posting-rhythm": "analysis.photoOptimization.metric.postingRhythm",
+        "filter-risk": "analysis.photoOptimization.metric.filterRisk",
         "posting-fix": "analysis.photoOptimization.metric.postingFix",
     },
 }
@@ -294,7 +311,7 @@ Mode-specific output:
 - Every photo_rankings item must include a vivid but respectful photo-by-photo description: what the photo visibly communicates, the face/crop/light/expression read, best use, one weakness, one specific fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "main-character crop", "safe backup", "thumbnail sleeper", or an equivalent native phrase.
 - Ranking scores must have spread. If all photos are similar, use small but real gaps such as 7.6, 7.2, 6.8. Do not give every candidate 8+ unless every photo is genuinely strong.
 - Return 6 rings using metric_id values: clarity, expression, lighting, composition, background, presence.
-- Return metrics in section "photo_selection" with item IDs best-pick-readiness, face-visibility, expression-warmth, lighting-quality, composition, background-control.
+- Return exactly 3 metrics in section "photo_selection" with item IDs best-pick-readiness, face-visibility, expression-warmth. Fold lighting, crop, and background advice into those detail_text fields instead of adding extra cards.
 - Return metrics in section "improvement_plan" with winning-move and 2-3 practical retake/edit actions.
 - Return 3-5 growth_opportunities with playful but practical fixes, such as crop, expression, background, lighting, or thumbnail readability.
 - summary_text must be 4-5 compact sentences. It should clearly say which photo wins, why it wins, which photo is the sleeper/backup, which photo needs a retake, and the fastest upgrade.
@@ -307,7 +324,7 @@ Mode-specific output:
 - Make the angle comparison entertaining but concrete: label each angle's role, e.g. "jawline angle", "honest front read", "low-angle warning", "soft social angle", translated naturally.
 - Return 6 rings using metric_id values: front, left, right, high-angle, low-angle, presence.
 - For every visible score in this mode, keep score fields normalized as 0..1 for progress, but write display_value/value_text as a 10-point number such as "8.3", not "0.83".
-- Return metrics in section "angle_breakdown" with best-angle, front-read, left-read, right-read, camera-height.
+- Return exactly 3 metrics in section "angle_breakdown" with best-angle, front-read, camera-height. Fold side-choice, chin, shoulder, lens distance, and lighting advice into those detail_text fields instead of adding extra cards.
 - Return metrics in section "capture_plan" with avoid-angle and retake-plan.
 - summary_text must feel like a useful camera direction: 4-5 compact sentences explaining the best angle, what it does to the jawline/cheekbones/eyes, what angle to avoid, and how to retake it.
 - Each angle_breakdown detail_text must be 2-4 sentences. Include concrete language such as camera height, face turn degrees, chin position, shoulder angle, lens distance, and lighting direction when visible.
@@ -323,12 +340,15 @@ Mode-specific output:
 - Every photo_rankings item must describe the first-second dating-app read: approachability, trust signal, confidence, expression, profile role, missing context, best use, quick fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "dateable lead", "mysterious backup", "low-context but sharp", or a native equivalent.
 - Include caption_idea_text as a short prompt or profile-photo caption angle when useful. Keep it non-cringey and specific.
 - Return 6 rings using metric_id values: first-impression, approachability, confidence, trust, style, conversation.
-- Return metrics in section "dating_profile" with main-photo-suitability, approachability, confidence-signal, trust-signal, conversation-hook.
-- Return metrics in section "profile_plan" with photo-mix and avoid-profile.
-- Use these icon_name values for those metrics: main-photo-suitability=heart.fill, approachability=bubble.left.and.bubble.right.fill, confidence-signal=bolt.fill, trust-signal=checkmark.seal.fill, conversation-hook=text.bubble.fill, photo-mix=rectangle.stack.fill, avoid-profile=exclamationmark.triangle.fill.
+- Return at least 9 metrics in section "dating_profile" with these metric_id values in this order: main-photo-suitability, first-swipe-read, approachability, confidence-signal, trust-signal, style-signal, conversation-hook, photo-context, red-flag-risk.
+- Return at least 6 metrics in section "profile_plan" with these metric_id values in this order: photo-mix, profile-role, message-bait, missing-shot, opener-angle, avoid-profile.
+- Use these icon_name values for those metrics: main-photo-suitability=heart.fill, first-swipe-read=sparkles, approachability=bubble.left.and.bubble.right.fill, confidence-signal=bolt.fill, trust-signal=checkmark.seal.fill, style-signal=person.crop.square.fill, conversation-hook=text.bubble.fill, photo-context=rectangle.stack.fill, red-flag-risk=exclamationmark.triangle.fill, photo-mix=rectangle.stack.fill, profile-role=person.crop.square.fill, message-bait=text.bubble.fill, missing-shot=camera.fill, opener-angle=wand.and.stars, avoid-profile=xmark.octagon.fill.
 - Prioritize warmth, clarity, authenticity, swipe-stopping value, and profile set strategy.
 - Make the report feel useful rather than generic: say which photo is the lead, which should support, what each photo communicates in the first second, and what one missing photo/context would make the profile stronger.
+- Keep the existing section UI: put all playful strategy inside dating_profile and profile_plan metric detail_text. Do not invent separate strategy-card concepts.
 - For each dating_profile detail_text, write 2-4 sentences and include a concrete dating-app implication such as lead-photo choice, trust signal, conversation hook, or retake direction.
+- Add fun but practical dating-profile reads across the metrics: first-swipe read, green flag, red flag/risk, message bait, profile role, missing-photo slot, opener angle, and photo context. Make them feel useful, not cheesy.
+- profile_plan detail_text should feel like a mini profile script: lead photo, backup/support role, missing lifestyle/social/context shot, one thing to avoid, and one small retake move.
 - Return 3-5 growth_opportunities. At least one should be a fun conversation-hook idea and one should be a concrete missing-photo recommendation.
 """,
     "instagram-profile-score": """
@@ -338,15 +358,17 @@ Mode-specific output:
 - If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. Each item must describe thumbnail read, grid/feed role, crop, story/reel/profile use, fun_label_text, best_use_text, weakness_text, fix_text, caption_idea_text, and vibe_tags.
 - Make the fun elements feel like creator strategy, not jokes only: "profile icon energy", "story-reply bait", "grid anchor", "soft-launch crop", "feed filler risk", translated naturally.
 - Return 6 rings using metric_id values: visual-impact, crop, lighting, feed-fit, shareability, vibe.
-- Return metrics in section "instagram_profile" with profile-crop, first-impression, feed-fit, story-thumbnail, visual-consistency.
-- Return metrics in section "content_plan" with caption-direction and posting-fix.
+- Return at least 9 metrics in section "instagram_profile" with these metric_id values in this order: profile-crop, thumbnail-impact, profile-icon-energy, first-impression, feed-fit, story-thumbnail, scroll-stop-power, visual-consistency, color-mood.
+- Return at least 7 metrics in section "content_plan" with these metric_id values in this order: caption-direction, grid-anchor, story-reply-trigger, carousel-use, posting-rhythm, filter-risk, posting-fix.
 - Prioritize thumbnail readability, crop, styling, and visual coherence.
 - Use calibrated scoring. Do not return all 10s unless the photo is genuinely exceptional across crop, lighting, visual impact, feed fit, shareability, and vibe.
 - If any visible issue exists such as harsh lighting, weak crop, clutter, blur, awkward expression, or inconsistent color, at least one ring score should be below 0.90 and overall_score should reflect that.
 - If you think in percent internally, convert it before returning: overall_score/potential_score are 0..10 and ring score/progress fields are 0..1.
 - summary_text must be 4-5 compact sentences with a creator-style read: profile thumbnail strength, grid/feed fit, first-scroll impression, what feels shareable, and the highest-leverage fix.
 - Each instagram_profile detail_text must be 2-4 sentences and connect the visible image to a real Instagram decision: profile crop, pinned post, story thumbnail, feed order, or lighting/caption direction.
-- content_plan must be playful but specific. Include one caption angle and one posting or retake fix that makes the profile feel more intentional.
+- Keep the existing section UI: put creator-style fun inside instagram_profile and content_plan metric detail_text. Do not invent separate strategy-card concepts.
+- Add fun but practical creator reads across the metrics: profile-icon energy, grid anchor, story-reply bait, scroll-stop risk, soft-launch crop, caption angle, feed-filler warning, carousel role, posting rhythm, and filter risk.
+- content_plan must be playful but specific. Include one caption angle, one posting order suggestion, and one crop/retake fix that makes the profile feel more intentional.
 - Return 3-5 growth_opportunities. Include at least one crop/thumbnail fix, one color or feed-order fix, and one caption or story-use idea.
 """,
 }
@@ -429,6 +451,8 @@ Grounding requirements:
 - Base the report on BOTH sources when both are present: visible evidence from the photo and measured scan/geometry values.
 - For ratio, symmetry, angle, and proportion claims, use the measured scan values first, then explain how the visible photo supports or limits that read.
 - For style, photo quality, expression, grooming, and profile-use claims, use visible photo evidence first, then use scan values only as supporting context.
+- If a face mesh, landmark overlay, wireframe, or geometry metadata is present, treat it as user-provided measurement context for this scan. Do not refuse, apologize, or say analysis is impossible merely because a mesh/landmark overlay exists.
+- Analyze the original attached photo first, then use mesh/landmark/geometry values as supporting data. If the overlay visually obscures part of the face, state the visible limitation briefly and still provide the best grounded report from the original photo and measured values.
 - Do not write generic advice that could apply to any face. Each summary and expanded metric should connect at least one visible cue or one measured value to a concrete interpretation.
 - If scan values are missing or low-confidence, rely on the photo and phrase numeric/proportion reads as estimates without mentioning missing backend data.
 - If a visual impression conflicts with geometry, prefer the geometry for numeric ratios and the image for styling/aesthetic interpretation.
