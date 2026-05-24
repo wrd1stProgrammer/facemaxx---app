@@ -15,6 +15,12 @@ from app.services.ai.prompt import TITLE_KEYS, build_face_analysis_prompt
 class GeminiFaceAnalysisProvider:
     name = "gemini"
     transient_status_codes = {429, 500, 502, 503, 504}
+    photo_optimization_mode_ids = {
+        "best-photo-selector",
+        "best-angle-finder",
+        "dating-profile-score",
+        "instagram-profile-score",
+    }
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -207,6 +213,8 @@ class GeminiFaceAnalysisProvider:
             for index, item in enumerate(self._as_list(data.get("photo_rankings")))
             if isinstance(item, dict)
         ]
+        if request.mode_id in self.photo_optimization_mode_ids:
+            self._calibrate_photo_optimization_payload(data)
         data["coach_items"] = [
             self._normalize_coach_item(item, index, request.locale)
             for index, item in enumerate(self._as_list(data.get("coach_items")))
@@ -264,7 +272,7 @@ class GeminiFaceAnalysisProvider:
             "title_key": self._ring_title_key(item, mode_id, metric_id),
             "score": score,
             "display_value": self._score_display_value(item.get("display_value"), score),
-            "tint": item.get("tint") or "#7EF0A1",
+            "tint": item.get("tint") or self._score_tint(score),
             "sort_order": self._int(item.get("sort_order"), (index + 1) * 10),
         }
 
@@ -288,7 +296,8 @@ class GeminiFaceAnalysisProvider:
         if not detail_text:
             detail_text = self._fallback_metric_detail(metric_id, value_text, status_text, locale)
         numeric_value = self._optional_float(item.get("numeric_value"))
-        if self._is_score_metric(mode_id, section, item):
+        is_score_metric = self._is_score_metric(mode_id, section, item)
+        if is_score_metric:
             value_text = self._normalize_score_value_text(value_text)
             if numeric_value is not None and 0 < numeric_value <= 1:
                 numeric_value = round(numeric_value * 10, 2)
@@ -302,7 +311,7 @@ class GeminiFaceAnalysisProvider:
             "status_text": status_text,
             "detail_text": detail_text,
             "icon_name": self._safe_icon_name(item.get("icon_name"), metric_id),
-            "value_tint": item.get("value_tint") or "#34D15C",
+            "value_tint": item.get("value_tint") or self._metric_tint(numeric_value if is_score_metric else None),
             "sort_order": self._int(item.get("sort_order"), (index + 1) * 10),
         }
 
@@ -346,8 +355,12 @@ class GeminiFaceAnalysisProvider:
             rank = min(max(rank, 1), photo_count)
 
         score = self._optional_float(item.get("score") or item.get("numeric_value"))
-        if score is not None and score > 10:
-            score = score / 10
+        if score is not None:
+            if 0 < score <= 1:
+                score = score * 10
+            elif score > 10:
+                score = score / 10
+            score = round(min(max(score, 0), 10), 2)
 
         return {
             "candidate_index": candidate_index,
@@ -355,7 +368,62 @@ class GeminiFaceAnalysisProvider:
             "score": score,
             "verdict": self._optional_string(item.get("verdict") or item.get("status_text") or item.get("value_text")),
             "reason_text": self._optional_string(item.get("reason_text") or item.get("reason") or item.get("detail_text")),
+            "description_text": self._optional_string(item.get("description_text") or item.get("photo_description") or item.get("description")),
+            "best_use_text": self._optional_string(item.get("best_use_text") or item.get("best_use") or item.get("use_case")),
+            "fun_label_text": self._optional_string(item.get("fun_label_text") or item.get("fun_label") or item.get("vibe_label")),
+            "strengths": self._string_list(item.get("strengths") or item.get("strong_points")),
+            "weakness_text": self._optional_string(item.get("weakness_text") or item.get("weakness") or item.get("risk_text")),
+            "fix_text": self._optional_string(item.get("fix_text") or item.get("quick_fix") or item.get("retake_tip")),
+            "caption_idea_text": self._optional_string(item.get("caption_idea_text") or item.get("caption_idea") or item.get("prompt_text")),
+            "vibe_tags": self._string_list(item.get("vibe_tags") or item.get("tags")),
         }
+
+    def _calibrate_photo_optimization_payload(self, data: dict) -> None:
+        rankings = [
+            item
+            for item in self._as_list(data.get("photo_rankings"))
+            if isinstance(item, dict) and item.get("score") is not None
+        ]
+        if len(rankings) < 2:
+            return
+
+        score_values = [
+            self._float(item.get("score"), 0.0)
+            for item in rankings
+        ]
+        score_spread = max(score_values) - min(score_values)
+        all_high = min(score_values) >= 8.3
+        too_flat = score_spread < 0.45
+        if not all_high and not too_flat:
+            return
+
+        ordered_rankings = sorted(
+            rankings,
+            key=lambda item: (
+                self._int(item.get("rank"), 999),
+                self._int(item.get("candidate_index"), 999),
+            ),
+        )
+        top_score = self._float(ordered_rankings[0].get("score"), max(score_values))
+        top_score = min(max(top_score, 7.2), 8.8 if all_high else 9.2)
+        gap = 0.55 if all_high else 0.38
+        for offset, item in enumerate(ordered_rankings):
+            adjusted_score = top_score - (gap * offset) - (0.10 * max(offset - 1, 0))
+            item["score"] = round(min(max(adjusted_score, 5.2), 10.0), 1)
+
+        if data.get("overall_score") is not None:
+            average_score = sum(item["score"] for item in ordered_rankings) / len(ordered_rankings)
+            ceiling = min(ordered_rankings[0]["score"], average_score + 0.65)
+            data["overall_score"] = round(min(self._score(data.get("overall_score")) or ceiling, ceiling), 1)
+            data["overall_progress"] = round(data["overall_score"] / 10, 4)
+
+        if data.get("potential_score") is not None and data.get("overall_score") is not None:
+            potential_score = self._score(data.get("potential_score"))
+            if potential_score is not None:
+                ceiling = min(10.0, data["overall_score"] + 0.9)
+                floor = min(10.0, data["overall_score"] + 0.4)
+                data["potential_score"] = round(min(max(potential_score, floor), ceiling), 1)
+                data["potential_progress"] = round(data["potential_score"] / 10, 4)
 
     def _normalize_coach_item(self, item: dict, index: int, locale: str) -> dict:
         item_id = self._slug(item.get("item_id") or item.get("id") or item.get("title") or f"coach-{index + 1}")
@@ -465,6 +533,23 @@ class GeminiFaceAnalysisProvider:
     def _as_list(value: object) -> list:
         return value if isinstance(value, list) else []
 
+    @classmethod
+    def _string_list(cls, value: object) -> list[str]:
+        if isinstance(value, list):
+            return [
+                text
+                for item in value
+                if (text := cls._optional_string(item))
+            ][:5]
+        text = cls._optional_string(value)
+        if not text:
+            return []
+        return [
+            item.strip()
+            for item in re.split(r"[,/|]", text)
+            if item.strip()
+        ][:5]
+
     @staticmethod
     def _optional_string(value: object) -> str | None:
         if value is None:
@@ -489,6 +574,14 @@ class GeminiFaceAnalysisProvider:
         except (TypeError, ValueError):
             return None
         return number if math.isfinite(number) else None
+
+    @staticmethod
+    def _score_tint(score: float) -> str:
+        return "#FFB020" if score < 0.75 else "#7EF0A1"
+
+    @staticmethod
+    def _metric_tint(value: float | None) -> str:
+        return "#FFB020" if value is not None and value < 7.5 else "#34D15C"
 
     @classmethod
     def _score(cls, value: object) -> float | None:

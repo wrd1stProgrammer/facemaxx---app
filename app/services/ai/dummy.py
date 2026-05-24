@@ -185,27 +185,70 @@ class DummyFaceAnalysisProvider:
 
     def _best_photo_selector_payload(self) -> AnalysisResultPayload:
         payload = self._base("best-photo-selector")
-        payload.overall_score = 8.1
-        payload.overall_progress = 0.81
-        payload.potential_score = 9.0
-        payload.potential_progress = 0.90
+        payload.overall_score = 7.6
+        payload.overall_progress = 0.76
+        payload.potential_score = 8.4
+        payload.potential_progress = 0.84
         payload.summary_text = (
-            "Candidate 2 is the strongest main-pick option: it has the clearest face read, "
-            "the most balanced crop, and the least visual friction. Candidate 1 is usable "
-            "but less polished, while candidate 3 needs cleaner light before it can lead."
+            "Candidate 2 is the strongest main-pick option because it reads fastest at thumbnail size. "
+            "It has the cleanest face visibility and the least visual friction, so it feels like the safest lead. "
+            "Candidate 1 is the friendly backup with decent expression, but the frame is less polished. "
+            "Candidate 3 has a cooler vibe, yet the light and crop make it feel more like a retake than a lead."
         )
         payload.photo_rankings = [
-            PhotoCandidateRanking(candidate_index=2, rank=1, score=8.6, verdict="Best main pick", reason_text="Cleanest face visibility, balanced crop, and strongest first read."),
-            PhotoCandidateRanking(candidate_index=1, rank=2, score=7.8, verdict="Usable backup", reason_text="Good expression, but framing and background control are weaker."),
-            PhotoCandidateRanking(candidate_index=3, rank=3, score=7.1, verdict="Retake candidate", reason_text="Lighting and facial clarity need the most work."),
+            PhotoCandidateRanking(
+                candidate_index=2,
+                rank=1,
+                score=8.1,
+                verdict="Best main pick",
+                reason_text="Cleanest face visibility, balanced crop, and strongest first read.",
+                description_text="This frame gives the most direct read of the face: the eyes are easy to find, the crop feels intentional, and the background does not fight for attention.",
+                best_use_text="Lead profile photo, first slide, or main thumbnail.",
+                fun_label_text="Main-character crop",
+                strengths=["Fast face read", "Clean crop", "Low distraction"],
+                weakness_text="The expression is solid but could be warmer.",
+                fix_text="Retake the same setup with a small half-smile and slightly brighter eye light.",
+                caption_idea_text="Clean frame, clear read.",
+                vibe_tags=["clean", "confident", "profile-ready"],
+            ),
+            PhotoCandidateRanking(
+                candidate_index=1,
+                rank=2,
+                score=7.2,
+                verdict="Friendly backup",
+                reason_text="Good expression, but framing and background control are weaker.",
+                description_text="This one feels more casual and approachable, but the crop gives less polish and the background makes the face work harder to stand out.",
+                best_use_text="Second or third photo when you want a softer backup.",
+                fun_label_text="Friend-approved backup",
+                strengths=["Approachable", "Natural", "Usable expression"],
+                weakness_text="It does not pop as quickly in a small thumbnail.",
+                fix_text="Crop tighter around the face and simplify the background before using it as a lead.",
+                caption_idea_text="Keep it casual.",
+                vibe_tags=["warm", "casual", "backup"],
+            ),
+            PhotoCandidateRanking(
+                candidate_index=3,
+                rank=3,
+                score=6.4,
+                verdict="Retake candidate",
+                reason_text="Lighting and facial clarity need the most work.",
+                description_text="The idea is usable, but the light flattens the face and the crop makes the photo feel less deliberate than the others.",
+                best_use_text="Skip for now; use only after a cleaner retake.",
+                fun_label_text="Good idea, bad lighting",
+                strengths=["Potential vibe", "Different mood"],
+                weakness_text="The face is not readable fast enough for a main image.",
+                fix_text="Retake near soft window light with the camera at eye level and less background space.",
+                caption_idea_text="Save the vibe, redo the light.",
+                vibe_tags=["moody", "retake", "needs-polish"],
+            ),
         ]
         payload.rings = [
-            ScoreRing(metric_id="clarity", title_key="analysis.photoOptimization.ring.clarity", score=0.86, display_value="8.6", tint="#7EF0A1", sort_order=10),
-            ScoreRing(metric_id="expression", title_key="analysis.photoOptimization.ring.expression", score=0.78, display_value="7.8", tint="#7EF0A1", sort_order=20),
-            ScoreRing(metric_id="lighting", title_key="analysis.photoOptimization.ring.lighting", score=0.82, display_value="8.2", tint="#7EF0A1", sort_order=30),
-            ScoreRing(metric_id="composition", title_key="analysis.photoOptimization.ring.composition", score=0.80, display_value="8.0", tint="#7EF0A1", sort_order=40),
-            ScoreRing(metric_id="background", title_key="analysis.photoOptimization.ring.background", score=0.69, display_value="6.9", tint="#FFB020", sort_order=50),
-            ScoreRing(metric_id="presence", title_key="analysis.photoOptimization.ring.presence", score=0.83, display_value="8.3", tint="#7EF0A1", sort_order=60),
+            ScoreRing(metric_id="clarity", title_key="analysis.photoOptimization.ring.clarity", score=0.81, display_value="8.1", tint="#7EF0A1", sort_order=10),
+            ScoreRing(metric_id="expression", title_key="analysis.photoOptimization.ring.expression", score=0.72, display_value="7.2", tint="#FFB020", sort_order=20),
+            ScoreRing(metric_id="lighting", title_key="analysis.photoOptimization.ring.lighting", score=0.74, display_value="7.4", tint="#FFB020", sort_order=30),
+            ScoreRing(metric_id="composition", title_key="analysis.photoOptimization.ring.composition", score=0.78, display_value="7.8", tint="#7EF0A1", sort_order=40),
+            ScoreRing(metric_id="background", title_key="analysis.photoOptimization.ring.background", score=0.63, display_value="6.3", tint="#FFB020", sort_order=50),
+            ScoreRing(metric_id="presence", title_key="analysis.photoOptimization.ring.presence", score=0.77, display_value="7.7", tint="#7EF0A1", sort_order=60),
         ]
         payload.metrics = [
             AnalysisMetric(section="photo_selection", metric_id="best-pick-readiness", title_key="analysis.photoOptimization.metric.bestPickReadiness", value_text="Main-photo ready", status_text="Strong candidate", detail_text="Clear face visibility and balanced framing make this usable as the lead photo.", icon_name="checkmark.seal.fill", value_tint="#34D15C", sort_order=10),
@@ -226,10 +269,10 @@ class DummyFaceAnalysisProvider:
 
     def _best_angle_finder_payload(self) -> AnalysisResultPayload:
         payload = self._base("best-angle-finder")
-        payload.overall_score = 7.9
-        payload.overall_progress = 0.79
-        payload.potential_score = 8.9
-        payload.potential_progress = 0.89
+        payload.overall_score = 7.4
+        payload.overall_progress = 0.74
+        payload.potential_score = 8.2
+        payload.potential_progress = 0.82
         payload.summary_text = (
             "Your strongest next angle is a slight three-quarter view with the camera near "
             "eye level. It keeps the face balanced while adding more jawline and cheekbone "
@@ -238,13 +281,18 @@ class DummyFaceAnalysisProvider:
             "left three-quarter, and right three-quarter in the same light so the best "
             "side is obvious rather than guessed."
         )
+        payload.photo_rankings = [
+            PhotoCandidateRanking(candidate_index=2, rank=1, score=8.0, verdict="Best angle", reason_text="The slight three-quarter turn gives the cleanest structure without losing eye contact.", description_text="This angle gives the face more dimension: the jawline separates better, the cheekbone shadow is cleaner, and the gaze still feels direct.", best_use_text="Use as the default profile-photo angle.", fun_label_text="Jawline angle", strengths=["Dimensional", "Clear eyes", "Strong contour"], weakness_text="Too much turn would make it look staged.", fix_text="Keep the turn subtle, about 10-15 degrees, and keep the chin neutral.", vibe_tags=["sharp", "dimensional", "profile-ready"]),
+            PhotoCandidateRanking(candidate_index=1, rank=2, score=7.1, verdict="Honest front read", reason_text="Clear and recognizable, but flatter than the three-quarter option.", description_text="The front angle is straightforward and trustworthy, but it compresses facial depth and makes the image feel more ID-style.", best_use_text="Use when you want a clean, direct photo.", fun_label_text="Clean passport energy", strengths=["Recognizable", "Balanced", "Simple"], weakness_text="Less contour and less visual drama.", fix_text="Add soft side light or a tiny shoulder turn to avoid a flat read.", vibe_tags=["honest", "clean", "safe"]),
+            PhotoCandidateRanking(candidate_index=3, rank=3, score=5.9, verdict="Avoid as lead", reason_text="The angle puts too much weight under the chin and weakens eye emphasis.", description_text="This angle pulls attention away from the eyes and makes the lower face carry more visual weight than needed.", best_use_text="Avoid for lead photos; use only as an experimental casual shot.", fun_label_text="Low-angle warning", strengths=["Different mood"], weakness_text="It reduces the clean structure that the better angle shows.", fix_text="Raise the phone to eye level and step back slightly to reduce distortion.", vibe_tags=["risky", "retake", "low-angle"]),
+        ]
         payload.rings = [
-            ScoreRing(metric_id="front", title_key="analysis.photoOptimization.ring.front", score=0.76, display_value="7.6", tint="#7EF0A1", sort_order=10),
-            ScoreRing(metric_id="left", title_key="analysis.photoOptimization.ring.left", score=0.84, display_value="8.4", tint="#7EF0A1", sort_order=20),
+            ScoreRing(metric_id="front", title_key="analysis.photoOptimization.ring.front", score=0.71, display_value="7.1", tint="#FFB020", sort_order=10),
+            ScoreRing(metric_id="left", title_key="analysis.photoOptimization.ring.left", score=0.80, display_value="8.0", tint="#7EF0A1", sort_order=20),
             ScoreRing(metric_id="right", title_key="analysis.photoOptimization.ring.right", score=0.80, display_value="8.0", tint="#7EF0A1", sort_order=30),
             ScoreRing(metric_id="high-angle", title_key="analysis.photoOptimization.ring.highAngle", score=0.72, display_value="7.2", tint="#7EF0A1", sort_order=40),
             ScoreRing(metric_id="low-angle", title_key="analysis.photoOptimization.ring.lowAngle", score=0.58, display_value="5.8", tint="#FFB020", sort_order=50),
-            ScoreRing(metric_id="presence", title_key="analysis.photoOptimization.ring.presence", score=0.82, display_value="8.2", tint="#7EF0A1", sort_order=60),
+            ScoreRing(metric_id="presence", title_key="analysis.photoOptimization.ring.presence", score=0.76, display_value="7.6", tint="#7EF0A1", sort_order=60),
         ]
         payload.metrics = [
             AnalysisMetric(section="angle_breakdown", metric_id="best-angle", title_key="analysis.photoOptimization.metric.bestAngle", value_text="Left three-quarter", status_text="Best read", detail_text="Turn the face about 10-15 degrees from center and keep the phone close to eye level. This keeps the eyes readable while creating just enough cheekbone shadow and jawline separation.", icon_name="viewfinder", value_tint="#34D15C", sort_order=10),
@@ -263,10 +311,10 @@ class DummyFaceAnalysisProvider:
 
     def _dating_profile_score_payload(self) -> AnalysisResultPayload:
         payload = self._base("dating-profile-score")
-        payload.overall_score = 7.8
-        payload.overall_progress = 0.78
-        payload.potential_score = 8.8
-        payload.potential_progress = 0.88
+        payload.overall_score = 7.2
+        payload.overall_progress = 0.72
+        payload.potential_score = 8.0
+        payload.potential_progress = 0.80
         payload.summary_text = (
             "Photo 2 is the stronger lead dating-profile photo because it reads clearer, "
             "warmer, and more trustworthy at first glance. Photo 1 can still work as a "
@@ -275,16 +323,16 @@ class DummyFaceAnalysisProvider:
             "it with one lifestyle photo."
         )
         payload.photo_rankings = [
-            PhotoCandidateRanking(candidate_index=2, rank=1, score=8.2, verdict="Stronger lead photo", reason_text="Clearer first read, warmer expression, and better trust signal for a dating profile."),
-            PhotoCandidateRanking(candidate_index=1, rank=2, score=7.3, verdict="Backup candidate", reason_text="Usable, but the expression and context are less inviting than Photo 2."),
+            PhotoCandidateRanking(candidate_index=2, rank=1, score=7.8, verdict="Stronger lead photo", reason_text="Clearer first read, warmer expression, and better trust signal for a dating profile.", description_text="Photo 2 feels easier to trust in the first second because the face is readable and the expression is calmer. It gives enough confidence without looking too staged.", best_use_text="Lead dating profile photo.", fun_label_text="Dateable lead", strengths=["Clear face", "Trust signal", "Calm confidence"], weakness_text="It still needs more story or lifestyle context.", fix_text="Pair it with one hobby or place-based photo so the profile has something to message about.", caption_idea_text="Low-key, but easy to talk to.", vibe_tags=["warm", "trustworthy", "lead"]),
+            PhotoCandidateRanking(candidate_index=1, rank=2, score=6.7, verdict="Backup candidate", reason_text="Usable, but the expression and context are less inviting than Photo 2.", description_text="Photo 1 is not bad, but it feels more closed off. The face is visible, yet the photo does not give enough emotional or lifestyle signal for a dating lead.", best_use_text="Use later in the set, not first.", fun_label_text="Mysterious backup", strengths=["Composed", "Simple"], weakness_text="Low conversation value and less warmth.", fix_text="Retake with brighter light, a softer expression, and one visible context clue.", caption_idea_text="Needs a hook.", vibe_tags=["reserved", "backup", "low-context"]),
         ]
         payload.rings = [
-            ScoreRing(metric_id="first-impression", title_key="analysis.photoOptimization.ring.firstImpression", score=0.79, display_value="7.9", tint="#7EF0A1", sort_order=10),
-            ScoreRing(metric_id="approachability", title_key="analysis.photoOptimization.ring.approachability", score=0.73, display_value="7.3", tint="#7EF0A1", sort_order=20),
-            ScoreRing(metric_id="confidence", title_key="analysis.photoOptimization.ring.confidence", score=0.81, display_value="8.1", tint="#7EF0A1", sort_order=30),
-            ScoreRing(metric_id="trust", title_key="analysis.photoOptimization.ring.trust", score=0.84, display_value="8.4", tint="#7EF0A1", sort_order=40),
-            ScoreRing(metric_id="style", title_key="analysis.photoOptimization.ring.style", score=0.75, display_value="7.5", tint="#7EF0A1", sort_order=50),
-            ScoreRing(metric_id="conversation", title_key="analysis.photoOptimization.ring.conversation", score=0.64, display_value="6.4", tint="#FFB020", sort_order=60),
+            ScoreRing(metric_id="first-impression", title_key="analysis.photoOptimization.ring.firstImpression", score=0.76, display_value="7.6", tint="#7EF0A1", sort_order=10),
+            ScoreRing(metric_id="approachability", title_key="analysis.photoOptimization.ring.approachability", score=0.70, display_value="7.0", tint="#FFB020", sort_order=20),
+            ScoreRing(metric_id="confidence", title_key="analysis.photoOptimization.ring.confidence", score=0.78, display_value="7.8", tint="#7EF0A1", sort_order=30),
+            ScoreRing(metric_id="trust", title_key="analysis.photoOptimization.ring.trust", score=0.80, display_value="8.0", tint="#7EF0A1", sort_order=40),
+            ScoreRing(metric_id="style", title_key="analysis.photoOptimization.ring.style", score=0.71, display_value="7.1", tint="#FFB020", sort_order=50),
+            ScoreRing(metric_id="conversation", title_key="analysis.photoOptimization.ring.conversation", score=0.58, display_value="5.8", tint="#FFB020", sort_order=60),
         ]
         payload.metrics = [
             AnalysisMetric(section="dating_profile", metric_id="main-photo-suitability", title_key="analysis.photoOptimization.metric.mainPhotoSuitability", value_text="Photo 2 leads", numeric_value=8.2, unit="score", status_text="Strong lead", detail_text="Photo 2 should lead because the face reads clearer and the expression feels more approachable. Photo 1 is credible as a backup, but it is less warm for a first swipe.", icon_name="heart.fill", value_tint="#34D15C", sort_order=10),
@@ -303,10 +351,10 @@ class DummyFaceAnalysisProvider:
 
     def _instagram_profile_score_payload(self) -> AnalysisResultPayload:
         payload = self._base("instagram-profile-score")
-        payload.overall_score = 8.0
-        payload.overall_progress = 0.80
-        payload.potential_score = 9.1
-        payload.potential_progress = 0.91
+        payload.overall_score = 7.3
+        payload.overall_progress = 0.73
+        payload.potential_score = 8.1
+        payload.potential_progress = 0.81
         payload.summary_text = (
             "This photo has strong profile-grid potential because the face reads clearly "
             "and the overall vibe is clean. It works best as a profile image or story "
@@ -315,13 +363,17 @@ class DummyFaceAnalysisProvider:
             "move is to treat it as a clean anchor image, then support it with one brighter "
             "lifestyle post so the profile feels curated rather than random."
         )
+        payload.photo_rankings = [
+            PhotoCandidateRanking(candidate_index=1, rank=1, score=7.6, verdict="Best profile/grid anchor", reason_text="Strongest thumbnail clarity and cleanest profile icon read.", description_text="This photo works because the face reads quickly and the vibe is clean enough for a profile grid. It feels like an anchor image rather than a random upload.", best_use_text="Profile icon, pinned post, or first grid anchor.", fun_label_text="Profile icon energy", strengths=["Readable thumbnail", "Clean vibe", "Grid anchor"], weakness_text="The color story needs more consistency.", fix_text="Use a tighter crop and match exposure with nearby posts.", caption_idea_text="Keep the caption short and confident.", vibe_tags=["clean", "anchor", "profile-ready"]),
+            PhotoCandidateRanking(candidate_index=2, rank=2, score=6.6, verdict="Story support", reason_text="Usable for stories, but weaker as a permanent grid lead.", description_text="This candidate has a more casual feel, which can work in stories, but it does not have enough crop control or feed polish to lead the grid.", best_use_text="Story, close friends, or secondary carousel slide.", fun_label_text="Story-reply bait", strengths=["Casual", "More spontaneous"], weakness_text="Less polished in a square crop.", fix_text="Brighten the face and crop out extra background before posting.", caption_idea_text="A casual one-liner works better than a long caption.", vibe_tags=["casual", "story", "support"]),
+        ]
         payload.rings = [
-            ScoreRing(metric_id="visual-impact", title_key="analysis.photoOptimization.ring.visualImpact", score=0.81, display_value="8.1", tint="#7EF0A1", sort_order=10),
-            ScoreRing(metric_id="crop", title_key="analysis.photoOptimization.ring.crop", score=0.78, display_value="7.8", tint="#7EF0A1", sort_order=20),
-            ScoreRing(metric_id="lighting", title_key="analysis.photoOptimization.ring.lighting", score=0.82, display_value="8.2", tint="#7EF0A1", sort_order=30),
-            ScoreRing(metric_id="feed-fit", title_key="analysis.photoOptimization.ring.feedFit", score=0.76, display_value="7.6", tint="#7EF0A1", sort_order=40),
-            ScoreRing(metric_id="shareability", title_key="analysis.photoOptimization.ring.shareability", score=0.74, display_value="7.4", tint="#7EF0A1", sort_order=50),
-            ScoreRing(metric_id="vibe", title_key="analysis.photoOptimization.ring.vibe", score=0.83, display_value="8.3", tint="#7EF0A1", sort_order=60),
+            ScoreRing(metric_id="visual-impact", title_key="analysis.photoOptimization.ring.visualImpact", score=0.77, display_value="7.7", tint="#7EF0A1", sort_order=10),
+            ScoreRing(metric_id="crop", title_key="analysis.photoOptimization.ring.crop", score=0.72, display_value="7.2", tint="#FFB020", sort_order=20),
+            ScoreRing(metric_id="lighting", title_key="analysis.photoOptimization.ring.lighting", score=0.76, display_value="7.6", tint="#7EF0A1", sort_order=30),
+            ScoreRing(metric_id="feed-fit", title_key="analysis.photoOptimization.ring.feedFit", score=0.69, display_value="6.9", tint="#FFB020", sort_order=40),
+            ScoreRing(metric_id="shareability", title_key="analysis.photoOptimization.ring.shareability", score=0.66, display_value="6.6", tint="#FFB020", sort_order=50),
+            ScoreRing(metric_id="vibe", title_key="analysis.photoOptimization.ring.vibe", score=0.79, display_value="7.9", tint="#7EF0A1", sort_order=60),
         ]
         payload.metrics = [
             AnalysisMetric(section="instagram_profile", metric_id="profile-crop", title_key="analysis.photoOptimization.metric.profileCrop", value_text="Tight square crop works", numeric_value=7.8, unit="score", status_text="Good", detail_text="Crop closer around the face and shoulders so the circular profile thumbnail stays readable. Keep a little headroom, but remove any background area that does not add to the first impression.", icon_name="crop", value_tint="#34D15C", sort_order=10),

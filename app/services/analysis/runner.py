@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from uuid import UUID
 
@@ -30,6 +31,8 @@ FREE_TRIAL_MODE_IDS = {
     "aesthetics",
 }
 
+PROVIDER_TIMEOUT_SECONDS = 540
+
 
 class AnalysisRunner:
     def __init__(self) -> None:
@@ -52,8 +55,9 @@ class AnalysisRunner:
         request_onboarding_context = self.onboarding_repository.normalized_context(request.onboarding_context)
         onboarding_context = stored_onboarding_context or request_onboarding_context
 
+        pro_scan_required = request.mode_id in PRO_SCAN_MODE_IDS
         pro_scan_reservation = None
-        if request.mode_id in PRO_SCAN_MODE_IDS:
+        if pro_scan_required:
             pro_scan_status = self.purchase_repository.status_for_identity(identity)
             if pro_scan_status.free_trial_scan_available and request.mode_id not in FREE_TRIAL_MODE_IDS:
                 raise HTTPException(
@@ -65,24 +69,16 @@ class AnalysisRunner:
                         "pro_scans_remaining": pro_scan_status.pro_scans_remaining,
                     },
                 )
-            pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
-        is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
-
-        try:
-            run_id = self.analysis_repository.create_run(
-                user_id=identity.user_id,
-                client_install_id=identity.client_install_id,
-                mode_id=request.mode_id,
-                photo_id=photo_ids[0] if photo_ids else None,
-                photo_ids=photo_ids,
-                source=request.source,
-                face_scan_capture_id=request.face_scan_capture_id,
-                onboarding_context=onboarding_context,
-                is_free_trial_result=is_free_trial_result,
-            )
-        except Exception:
-            self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
-            raise
+            if not pro_scan_status.can_use_pro_scan:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "code": "pro_scan_required",
+                        "message": "Remaining Pro scan quota is required.",
+                        "app_user_id": pro_scan_status.app_user_id,
+                        "pro_scans_remaining": pro_scan_status.pro_scans_remaining,
+                    },
+                )
 
         provider = get_face_analysis_provider()
         photos = [self._provider_photo_input(photo_id) for photo_id in photo_ids]
@@ -115,21 +111,24 @@ class AnalysisRunner:
                 "onboarding=",
                 bool(onboarding_context),
             )
-            result = await provider.analyze(
-                ProviderAnalysisRequest(
-                    user_id=identity.user_id,
-                    mode_id=request.mode_id,
-                    locale=request.locale,
-                    photo_id=primary_photo.photo_id if primary_photo else None,
-                    photo_ids=photo_ids,
-                    photo_url=photo_url,
-                    photo_bytes=photo_bytes,
-                    photo_mime_type=photo_mime_type,
-                    photos=photos,
-                    face_scan_capture_id=request.face_scan_capture_id,
-                    face_metrics=face_metrics,
-                    onboarding_context=onboarding_context,
-                )
+            result = await asyncio.wait_for(
+                provider.analyze(
+                    ProviderAnalysisRequest(
+                        user_id=identity.user_id,
+                        mode_id=request.mode_id,
+                        locale=request.locale,
+                        photo_id=primary_photo.photo_id if primary_photo else None,
+                        photo_ids=photo_ids,
+                        photo_url=photo_url,
+                        photo_bytes=photo_bytes,
+                        photo_mime_type=photo_mime_type,
+                        photos=photos,
+                        face_scan_capture_id=request.face_scan_capture_id,
+                        face_metrics=face_metrics,
+                        onboarding_context=onboarding_context,
+                    )
+                ),
+                timeout=PROVIDER_TIMEOUT_SECONDS,
             )
             print(
                 "Facemaxx analysis completed:",
@@ -146,23 +145,43 @@ class AnalysisRunner:
                 "has_archetype=",
                 bool(result.look_archetype),
             )
+        except asyncio.TimeoutError as exc:
+            print("Facemaxx analysis provider timed out.")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Analysis provider timed out before a scan credit was used.",
+            ) from exc
         except Exception as exc:
             print("Facemaxx analysis provider failed:", repr(exc))
             traceback.print_exc()
-            self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
-            self.analysis_repository.fail_run(run_id, str(exc))
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Analysis provider failed: {exc}",
             ) from exc
 
+        if pro_scan_required:
+            pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
+        is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
+
         try:
-            self.analysis_repository.complete_run(run_id, result)
+            run_id = self.analysis_repository.create_run(
+                user_id=identity.user_id,
+                client_install_id=identity.client_install_id,
+                mode_id=request.mode_id,
+                photo_id=photo_ids[0] if photo_ids else None,
+                photo_ids=photo_ids,
+                source=request.source,
+                face_scan_capture_id=request.face_scan_capture_id,
+                onboarding_context=onboarding_context,
+                is_free_trial_result=is_free_trial_result,
+            )
+            self.analysis_repository.complete_run(run_id, result, photo_ids=photo_ids)
         except Exception as exc:
             print("Facemaxx analysis persistence failed:", repr(exc))
             traceback.print_exc()
             self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
-            self.analysis_repository.fail_run(run_id, str(exc))
+            if "run_id" in locals():
+                self.analysis_repository.fail_run(run_id, str(exc))
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Analysis persistence failed: {exc}",

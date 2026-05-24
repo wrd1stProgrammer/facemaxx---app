@@ -491,6 +491,36 @@ create table if not exists public.growth_opportunities (
   unique (run_id, item_id)
 );
 
+create table if not exists public.analysis_photo_rankings (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.analysis_runs(id) on delete cascade,
+  photo_id uuid references public.photos(id) on delete set null,
+  candidate_index integer not null check (candidate_index >= 1),
+  rank integer not null check (rank >= 1),
+  score numeric(4,2),
+  verdict text,
+  reason_text text,
+  description_text text,
+  best_use_text text,
+  fun_label_text text,
+  strengths text[] not null default '{}'::text[],
+  weakness_text text,
+  fix_text text,
+  caption_idea_text text,
+  vibe_tags text[] not null default '{}'::text[],
+  metadata jsonb not null default '{}'::jsonb,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (run_id, candidate_index),
+  unique (run_id, rank)
+);
+
+create index if not exists analysis_photo_rankings_run_rank_idx
+  on public.analysis_photo_rankings (run_id, rank);
+
+create index if not exists analysis_photo_rankings_photo_id_idx
+  on public.analysis_photo_rankings (photo_id);
+
 create table if not exists public.glow_up_coach_items (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references public.analysis_runs(id) on delete cascade,
@@ -564,6 +594,7 @@ alter table public.analysis_runs enable row level security;
 alter table public.analysis_score_rings enable row level security;
 alter table public.analysis_metrics enable row level security;
 alter table public.growth_opportunities enable row level security;
+alter table public.analysis_photo_rankings enable row level security;
 alter table public.glow_up_coach_items enable row level security;
 alter table public.localized_strings enable row level security;
 alter table public.user_progress_snapshots enable row level security;
@@ -690,6 +721,14 @@ on public.growth_opportunities for select
 using (exists (
   select 1 from public.analysis_runs runs
   where runs.id = growth_opportunities.run_id and runs.user_id = (select auth.uid())
+));
+
+drop policy if exists "Users can read own photo rankings" on public.analysis_photo_rankings;
+create policy "Users can read own photo rankings"
+on public.analysis_photo_rankings for select
+using (exists (
+  select 1 from public.analysis_runs runs
+  where runs.id = analysis_photo_rankings.run_id and runs.user_id = (select auth.uid())
 ));
 
 drop policy if exists "Users can read own coach items" on public.glow_up_coach_items;

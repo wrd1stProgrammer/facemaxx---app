@@ -202,6 +202,14 @@ class PhotoCandidateRanking(FacemaxxBaseModel):
     score: Optional[float] = None
     verdict: Optional[str] = None
     reason_text: Optional[str] = None
+    description_text: Optional[str] = None
+    best_use_text: Optional[str] = None
+    fun_label_text: Optional[str] = None
+    strengths: list[str] = Field(default_factory=list)
+    weakness_text: Optional[str] = None
+    fix_text: Optional[str] = None
+    caption_idea_text: Optional[str] = None
+    vibe_tags: list[str] = Field(default_factory=list)
 
 
 class GlowUpCoachItem(FacemaxxBaseModel):

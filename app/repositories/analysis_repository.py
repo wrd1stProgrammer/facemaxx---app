@@ -104,7 +104,12 @@ class AnalysisRepository:
 
         return run_id
 
-    def complete_run(self, run_id: UUID, result: AnalysisResultPayload) -> None:
+    def complete_run(
+        self,
+        run_id: UUID,
+        result: AnalysisResultPayload,
+        photo_ids: list[UUID] | None = None,
+    ) -> None:
         supabase = get_supabase_service_client()
         if supabase is None:
             return
@@ -146,11 +151,59 @@ class AnalysisRepository:
                 for item in result.growth_opportunities
             ]).execute()
 
+        if result.photo_rankings:
+            self._insert_photo_rankings(supabase, run_id, result, photo_ids or [])
+
         if result.coach_items:
             supabase.table("glow_up_coach_items").insert([
                 {**item.model_dump(), "run_id": str(run_id)}
                 for item in result.coach_items
             ]).execute()
+
+    def _insert_photo_rankings(
+        self,
+        supabase,
+        run_id: UUID,
+        result: AnalysisResultPayload,
+        photo_ids: list[UUID],
+    ) -> None:
+        rows = []
+        for index, ranking in enumerate(result.photo_rankings):
+            candidate_photo_id = (
+                str(photo_ids[ranking.candidate_index - 1])
+                if 0 <= ranking.candidate_index - 1 < len(photo_ids)
+                else None
+            )
+            rows.append({
+                "run_id": str(run_id),
+                "photo_id": candidate_photo_id,
+                "candidate_index": ranking.candidate_index,
+                "rank": ranking.rank,
+                "score": self._safe_score(ranking.score),
+                "verdict": ranking.verdict,
+                "reason_text": ranking.reason_text,
+                "description_text": ranking.description_text,
+                "best_use_text": ranking.best_use_text,
+                "fun_label_text": ranking.fun_label_text,
+                "strengths": ranking.strengths,
+                "weakness_text": ranking.weakness_text,
+                "fix_text": ranking.fix_text,
+                "caption_idea_text": ranking.caption_idea_text,
+                "vibe_tags": ranking.vibe_tags,
+                "metadata": self._safe_json(ranking.model_dump(mode="json")),
+                "sort_order": ranking.rank * 10 if ranking.rank else (index + 1) * 10,
+            })
+
+        if not rows:
+            return
+
+        try:
+            supabase.table("analysis_photo_rankings").insert(rows).execute()
+        except Exception as exc:
+            message = str(exc)
+            if "analysis_photo_rankings" not in message:
+                raise
+            print("Analysis photo rankings table is not available; skipping relational ranking insert.")
 
     def _ensure_look_archetype(self, supabase, archetype: LookArchetypeResult) -> str:
         payload = {

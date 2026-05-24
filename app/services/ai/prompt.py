@@ -146,7 +146,21 @@ Required top-level shape:
   "potential_progress": number 0..1 | null,
   "summary_text": string | null,
   "photo_rankings": [
-    {"candidate_index": number, "rank": number, "score": number | null, "verdict": string, "reason_text": string}
+    {
+      "candidate_index": number,
+      "rank": number,
+      "score": number 0..10 | null,
+      "verdict": string,
+      "reason_text": string,
+      "description_text": string,
+      "best_use_text": string,
+      "fun_label_text": string,
+      "strengths": [string],
+      "weakness_text": string,
+      "fix_text": string,
+      "caption_idea_text": string | null,
+      "vibe_tags": [string]
+    }
   ],
   "rings": [
     {"metric_id": string, "title_key": string, "score": number 0..1, "display_value": "8.3", "tint": "#7EF0A1", "sort_order": number}
@@ -277,14 +291,20 @@ Mode-specific output:
 - Treat this as a premium selector report for the attached photo candidate or candidates.
 - If multiple photos are attached, compare them by candidate number and identify the best current main-pick candidate in summary_text and metrics. Do not claim you compared unseen photos.
 - If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. rank 1 is the best current main-pick candidate.
+- Every photo_rankings item must include a vivid but respectful photo-by-photo description: what the photo visibly communicates, the face/crop/light/expression read, best use, one weakness, one specific fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "main-character crop", "safe backup", "thumbnail sleeper", or an equivalent native phrase.
+- Ranking scores must have spread. If all photos are similar, use small but real gaps such as 7.6, 7.2, 6.8. Do not give every candidate 8+ unless every photo is genuinely strong.
 - Return 6 rings using metric_id values: clarity, expression, lighting, composition, background, presence.
 - Return metrics in section "photo_selection" with item IDs best-pick-readiness, face-visibility, expression-warmth, lighting-quality, composition, background-control.
 - Return metrics in section "improvement_plan" with winning-move and 2-3 practical retake/edit actions.
+- Return 3-5 growth_opportunities with playful but practical fixes, such as crop, expression, background, lighting, or thumbnail readability.
+- summary_text must be 4-5 compact sentences. It should clearly say which photo wins, why it wins, which photo is the sleeper/backup, which photo needs a retake, and the fastest upgrade.
 """,
     "best-angle-finder": """
 Mode-specific output:
 - Infer the most flattering angle from the attached face geometry and photo perspective.
 - If multiple photos are attached, compare the candidate angles and name the strongest candidate angle by candidate number in summary_text or detail_text.
+- If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. Treat each as an angle candidate and fill description_text, best_use_text, fun_label_text, strengths, weakness_text, fix_text, and vibe_tags.
+- Make the angle comparison entertaining but concrete: label each angle's role, e.g. "jawline angle", "honest front read", "low-angle warning", "soft social angle", translated naturally.
 - Return 6 rings using metric_id values: front, left, right, high-angle, low-angle, presence.
 - For every visible score in this mode, keep score fields normalized as 0..1 for progress, but write display_value/value_text as a 10-point number such as "8.3", not "0.83".
 - Return metrics in section "angle_breakdown" with best-angle, front-read, left-read, right-read, camera-height.
@@ -292,6 +312,7 @@ Mode-specific output:
 - summary_text must feel like a useful camera direction: 4-5 compact sentences explaining the best angle, what it does to the jawline/cheekbones/eyes, what angle to avoid, and how to retake it.
 - Each angle_breakdown detail_text must be 2-4 sentences. Include concrete language such as camera height, face turn degrees, chin position, shoulder angle, lens distance, and lighting direction when visible.
 - capture_plan must include a practical shot sequence users can try immediately, not generic praise.
+- Return 3-5 growth_opportunities around chin position, lens height, side choice, shoulder angle, and lighting direction.
 """,
     "dating-profile-score": """
 Mode-specific output:
@@ -299,6 +320,8 @@ Mode-specific output:
 - If multiple photos are attached, compare them as profile candidates and identify which candidate should lead or support the set.
 - If exactly two photos are attached, make summary_text and at least two metric/detail_text fields explicitly compare "Photo 1" versus "Photo 2" or "1번 사진" versus "2번 사진"; clearly state which one is better as the lead profile photo and why.
 - If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. rank 1 is the strongest lead dating-profile photo.
+- Every photo_rankings item must describe the first-second dating-app read: approachability, trust signal, confidence, expression, profile role, missing context, best use, quick fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "dateable lead", "mysterious backup", "low-context but sharp", or a native equivalent.
+- Include caption_idea_text as a short prompt or profile-photo caption angle when useful. Keep it non-cringey and specific.
 - Return 6 rings using metric_id values: first-impression, approachability, confidence, trust, style, conversation.
 - Return metrics in section "dating_profile" with main-photo-suitability, approachability, confidence-signal, trust-signal, conversation-hook.
 - Return metrics in section "profile_plan" with photo-mix and avoid-profile.
@@ -306,21 +329,25 @@ Mode-specific output:
 - Prioritize warmth, clarity, authenticity, swipe-stopping value, and profile set strategy.
 - Make the report feel useful rather than generic: say which photo is the lead, which should support, what each photo communicates in the first second, and what one missing photo/context would make the profile stronger.
 - For each dating_profile detail_text, write 2-4 sentences and include a concrete dating-app implication such as lead-photo choice, trust signal, conversation hook, or retake direction.
+- Return 3-5 growth_opportunities. At least one should be a fun conversation-hook idea and one should be a concrete missing-photo recommendation.
 """,
     "instagram-profile-score": """
 Mode-specific output:
 - Evaluate the attached photo or photos for Instagram/SNS use.
 - If multiple photos are attached, compare thumbnail/crop/feed value by candidate number and identify the strongest use case.
+- If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. Each item must describe thumbnail read, grid/feed role, crop, story/reel/profile use, fun_label_text, best_use_text, weakness_text, fix_text, caption_idea_text, and vibe_tags.
+- Make the fun elements feel like creator strategy, not jokes only: "profile icon energy", "story-reply bait", "grid anchor", "soft-launch crop", "feed filler risk", translated naturally.
 - Return 6 rings using metric_id values: visual-impact, crop, lighting, feed-fit, shareability, vibe.
 - Return metrics in section "instagram_profile" with profile-crop, first-impression, feed-fit, story-thumbnail, visual-consistency.
 - Return metrics in section "content_plan" with caption-direction and posting-fix.
 - Prioritize thumbnail readability, crop, styling, and visual coherence.
 - Use calibrated scoring. Do not return all 10s unless the photo is genuinely exceptional across crop, lighting, visual impact, feed fit, shareability, and vibe.
-- If any visible issue exists such as harsh lighting, weak crop, clutter, blur, awkward expression, or inconsistent color, at least one ring should be below 9.0 and overall_score should reflect that.
+- If any visible issue exists such as harsh lighting, weak crop, clutter, blur, awkward expression, or inconsistent color, at least one ring score should be below 0.90 and overall_score should reflect that.
 - If you think in percent internally, convert it before returning: overall_score/potential_score are 0..10 and ring score/progress fields are 0..1.
 - summary_text must be 4-5 compact sentences with a creator-style read: profile thumbnail strength, grid/feed fit, first-scroll impression, what feels shareable, and the highest-leverage fix.
 - Each instagram_profile detail_text must be 2-4 sentences and connect the visible image to a real Instagram decision: profile crop, pinned post, story thumbnail, feed order, or lighting/caption direction.
 - content_plan must be playful but specific. Include one caption angle and one posting or retake fix that makes the profile feel more intentional.
+- Return 3-5 growth_opportunities. Include at least one crop/thumbnail fix, one color or feed-order fix, and one caption or story-use idea.
 """,
 }
 
@@ -420,6 +447,9 @@ Product constraints:
 - overall_score and potential_score must be on a 0..10 scale. Never return 81, 92, or other 100-point values in those fields.
 - overall_progress, potential_progress, and ring score fields must be on a 0..1 progress scale.
 - Score displays must be on a 10-point visible scale. If a score field is 0.83 for progress, display_value/value_text must be "8.3", not "0.83".
+- Use calibrated score bands, especially for photo optimization modes: 9.0-10.0 is exceptional and rare; 8.0-8.9 is strong; 7.0-7.9 is good but clearly improvable; 6.0-6.9 is usable but needs a fix; below 6.0 means retake or avoid for that use case.
+- Do not inflate every score. If the photo has clutter, flat light, weak crop, hidden eyes, blur, awkward angle, low context, or low conversation value, at least one relevant ring should be below 0.75 and use value_tint/tint "#FFB020".
+- potential_score should usually be only 0.4-0.9 above overall_score. Use a bigger jump only when the fix is obvious and easy, such as crop tighter or move to softer light.
 - Every expandable metric must have a meaningful detail_text. Do not leave it blank and do not repeat the title.
 - For metric detail_text, write 2-4 compact sentences: what was measured, what the user's result suggests, and one practical photo/style/coaching implication. For Korean, write natural Korean, not translated machine-sounding fragments.
 - For summary_text, write 3-5 sentences with a clear overall read, top strengths, and the most useful next improvement. Avoid generic praise.
