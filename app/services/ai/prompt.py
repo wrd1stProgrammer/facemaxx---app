@@ -311,9 +311,9 @@ Mode-specific output:
 - Every photo_rankings item must include a vivid but respectful photo-by-photo description: what the photo visibly communicates, the face/crop/light/expression read, best use, one weakness, one specific fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "main-character crop", "safe backup", "thumbnail sleeper", or an equivalent native phrase.
 - Ranking scores must have spread. If all photos are similar, use small but real gaps such as 7.6, 7.2, 6.8. Do not give every candidate 8+ unless every photo is genuinely strong.
 - Return 6 rings using metric_id values: clarity, expression, lighting, composition, background, presence.
-- Return exactly 3 metrics in section "photo_selection" with item IDs best-pick-readiness, face-visibility, expression-warmth. Fold lighting, crop, and background advice into those detail_text fields instead of adding extra cards.
-- Return metrics in section "improvement_plan" with winning-move and 2-3 practical retake/edit actions.
-- Return 3-5 growth_opportunities with playful but practical fixes, such as crop, expression, background, lighting, or thumbnail readability.
+- Return exactly 3 metrics total for this mode, all in section "photo_selection", with item IDs best-pick-readiness, face-visibility, expression-warmth. Fold lighting, crop, background, thumbnail, and retake advice into those detail_text fields instead of adding extra metric cards.
+- Do not return metrics in section "improvement_plan". Put winning-move, retake-light, edit-cleanup, crop, background, expression, and thumbnail suggestions into growth_opportunities instead.
+- Return 4-6 growth_opportunities with playful but practical fixes, such as crop, expression, background, lighting, thumbnail readability, and final-use decision.
 - summary_text must be 4-5 compact sentences. It should clearly say which photo wins, why it wins, which photo is the sleeper/backup, which photo needs a retake, and the fastest upgrade.
 """,
     "best-angle-finder": """
@@ -324,12 +324,12 @@ Mode-specific output:
 - Make the angle comparison entertaining but concrete: label each angle's role, e.g. "jawline angle", "honest front read", "low-angle warning", "soft social angle", translated naturally.
 - Return 6 rings using metric_id values: front, left, right, high-angle, low-angle, presence.
 - For every visible score in this mode, keep score fields normalized as 0..1 for progress, but write display_value/value_text as a 10-point number such as "8.3", not "0.83".
-- Return exactly 3 metrics in section "angle_breakdown" with best-angle, front-read, camera-height. Fold side-choice, chin, shoulder, lens distance, and lighting advice into those detail_text fields instead of adding extra cards.
-- Return metrics in section "capture_plan" with avoid-angle and retake-plan.
+- Return exactly 3 metrics total for this mode, all in section "angle_breakdown", with best-angle, front-read, camera-height. Fold side-choice, chin, shoulder, lens distance, avoid-angle, retake sequence, and lighting advice into those detail_text fields instead of adding extra metric cards.
+- Do not return metrics in section "capture_plan". Put avoid-angle, retake-plan, lens height, chin, shoulder, side-choice, and lighting direction into growth_opportunities instead.
 - summary_text must feel like a useful camera direction: 4-5 compact sentences explaining the best angle, what it does to the jawline/cheekbones/eyes, what angle to avoid, and how to retake it.
 - Each angle_breakdown detail_text must be 2-4 sentences. Include concrete language such as camera height, face turn degrees, chin position, shoulder angle, lens distance, and lighting direction when visible.
 - capture_plan must include a practical shot sequence users can try immediately, not generic praise.
-- Return 3-5 growth_opportunities around chin position, lens height, side choice, shoulder angle, and lighting direction.
+- Return 4-6 growth_opportunities around chin position, lens height, side choice, shoulder angle, lighting direction, and a quick comparison shot sequence.
 """,
     "dating-profile-score": """
 Mode-specific output:
