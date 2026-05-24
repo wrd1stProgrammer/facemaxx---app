@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 
@@ -235,6 +236,8 @@ Required top-level shape:
     ]
   } | null
 }
+
+For every photo_rankings item, strengths and vibe_tags are compact display chips. The two arrays combined must contain no more than 3 strings. Do not use these arrays for full analysis; put the richer/funnier analysis into description_text, best_use_text, weakness_text, fix_text, caption_idea_text, metrics, and growth_opportunities.
 """
 
 
@@ -252,6 +255,34 @@ SUPPORTED_LOCALE_NAMES = {
     "tr": "natural Turkish",
     "ar": "natural Arabic",
 }
+
+
+_INTERNAL_METRIC_TERM_PATTERN = re.compile(
+    r"face[ _-]?mesh|mesh|메시|메쉬|landmark(?:s)?|랜드마크|wireframe|와이어프레임|overlay|오버레이",
+    re.IGNORECASE,
+)
+
+
+def _public_metric_context(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_public_metric_context(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _public_metric_context(item) for key, item in value.items()}
+    if isinstance(value, str):
+        cleaned = _INTERNAL_METRIC_TERM_PATTERN.sub(_metric_term_replacement, value)
+        return cleaned.replace("vertices", "reference points").replace("triangles", "surface references")
+    return value
+
+
+def _metric_term_replacement(match: re.Match[str]) -> str:
+    token = match.group(0)
+    if re.search(r"[가-힣]", token):
+        return "얼굴 구조 참고값"
+    if "landmark" in token.lower():
+        return "reference points"
+    if "overlay" in token.lower():
+        return "photo reference"
+    return "face structure"
 
 
 MODE_PROMPT_SPECS = {
@@ -308,19 +339,23 @@ Mode-specific output:
 - Treat this as a premium selector report for the attached photo candidate or candidates.
 - If multiple photos are attached, compare them by candidate number and identify the best current main-pick candidate in summary_text and metrics. Do not claim you compared unseen photos.
 - If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. rank 1 is the best current main-pick candidate.
-- Every photo_rankings item must include a vivid but respectful photo-by-photo description: what the photo visibly communicates, the face/crop/light/expression read, best use, one weakness, one specific fix, 2-3 strengths, 2-4 vibe_tags, and a fun_label_text such as "main-character crop", "safe backup", "thumbnail sleeper", or an equivalent native phrase.
+- Every photo_rankings item must include a vivid but respectful photo-by-photo description: what the original photo visibly communicates, the face/crop/light/expression read, best use, one weakness, one specific fix, and a fun_label_text such as "main-character crop", "safe backup", "thumbnail sleeper", or an equivalent native phrase.
+- For each photo_rankings item, strengths + vibe_tags combined must contain no more than 3 short chip phrases total. Put extra nuance and fun into description_text, best_use_text, weakness_text, fix_text, caption_idea_text, metrics, and growth_opportunities instead of adding more chips.
+- photo_rankings text should never mention mesh, overlay, landmark, wireframe, or technical measurement comparison. Explain limitations using normal original-photo wording only.
 - Ranking scores must have spread. If all photos are similar, use small but real gaps such as 7.6, 7.2, 6.8. Do not give every candidate 8+ unless every photo is genuinely strong.
 - Return 6 rings using metric_id values: clarity, expression, lighting, composition, background, presence.
 - Return exactly 3 metrics total for this mode, all in section "photo_selection", with item IDs best-pick-readiness, face-visibility, expression-warmth. Fold lighting, crop, background, thumbnail, and retake advice into those detail_text fields instead of adding extra metric cards.
 - Do not return metrics in section "improvement_plan". Put winning-move, retake-light, edit-cleanup, crop, background, expression, and thumbnail suggestions into growth_opportunities instead.
-- Return 4-6 growth_opportunities with playful but practical fixes, such as crop, expression, background, lighting, thumbnail readability, and final-use decision.
+- Return 5-7 growth_opportunities with playful but practical text analysis, such as main-pick role, sleeper/backup role, crop, expression, background, lighting, thumbnail readability, caption angle, and final-use decision.
 - summary_text must be 4-5 compact sentences. It should clearly say which photo wins, why it wins, which photo is the sleeper/backup, which photo needs a retake, and the fastest upgrade.
 """,
     "best-angle-finder": """
 Mode-specific output:
 - Infer the most flattering angle from the attached face geometry and photo perspective.
 - If multiple photos are attached, compare the candidate angles and name the strongest candidate angle by candidate number in summary_text or detail_text.
-- If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. Treat each as an angle candidate and fill description_text, best_use_text, fun_label_text, strengths, weakness_text, fix_text, and vibe_tags.
+- If multiple photos are attached, return photo_rankings with exactly one item per visible candidate. Treat each as an angle candidate and fill description_text, best_use_text, fun_label_text, strengths, weakness_text, fix_text, caption_idea_text, and vibe_tags.
+- For each photo_rankings item, strengths + vibe_tags combined must contain no more than 3 short chip phrases total. Put extra personality and camera-direction detail into description_text, best_use_text, weakness_text, fix_text, caption_idea_text, metrics, and growth_opportunities instead of adding more chips.
+- photo_rankings text should never mention mesh, overlay, landmark, wireframe, or technical measurement comparison. Explain limitations using normal original-photo wording only.
 - Make the angle comparison entertaining but concrete: label each angle's role, e.g. "jawline angle", "honest front read", "low-angle warning", "soft social angle", translated naturally.
 - Return 6 rings using metric_id values: front, left, right, high-angle, low-angle, presence.
 - For every visible score in this mode, keep score fields normalized as 0..1 for progress, but write display_value/value_text as a 10-point number such as "8.3", not "0.83".
@@ -328,8 +363,8 @@ Mode-specific output:
 - Do not return metrics in section "capture_plan". Put avoid-angle, retake-plan, lens height, chin, shoulder, side-choice, and lighting direction into growth_opportunities instead.
 - summary_text must feel like a useful camera direction: 4-5 compact sentences explaining the best angle, what it does to the jawline/cheekbones/eyes, what angle to avoid, and how to retake it.
 - Each angle_breakdown detail_text must be 2-4 sentences. Include concrete language such as camera height, face turn degrees, chin position, shoulder angle, lens distance, and lighting direction when visible.
-- capture_plan must include a practical shot sequence users can try immediately, not generic praise.
-- Return 4-6 growth_opportunities around chin position, lens height, side choice, shoulder angle, lighting direction, and a quick comparison shot sequence.
+- The growth_opportunities text must include a practical shot sequence users can try immediately, not generic praise.
+- Return 5-7 growth_opportunities around best-angle role, avoid-angle warning, chin position, lens height, side choice, shoulder angle, lighting direction, and a quick comparison shot sequence.
 """,
     "dating-profile-score": """
 Mode-specific output:
@@ -427,7 +462,7 @@ def build_face_analysis_prompt(
     onboarding_context: dict[str, Any] | None = None,
 ) -> str:
     language = SUPPORTED_LOCALE_NAMES.get(locale, "natural American English")
-    metric_block = json.dumps(face_metrics or [], ensure_ascii=False, default=str)
+    metric_block = json.dumps(_public_metric_context(face_metrics or []), ensure_ascii=False, default=str)
     if photo_count > 1:
         photo_context = f"Analyze {photo_count} attached user photos in candidate order."
     elif photo_count == 1:
@@ -451,8 +486,8 @@ Grounding requirements:
 - Base the report on BOTH sources when both are present: visible evidence from the photo and measured scan/geometry values.
 - For ratio, symmetry, angle, and proportion claims, use the measured scan values first, then explain how the visible photo supports or limits that read.
 - For style, photo quality, expression, grooming, and profile-use claims, use visible photo evidence first, then use scan values only as supporting context.
-- If a face mesh, landmark overlay, wireframe, or geometry metadata is present, treat it as user-provided measurement context for this scan. Do not refuse, apologize, or say analysis is impossible merely because a mesh/landmark overlay exists.
-- Analyze the original attached photo first, then use mesh/landmark/geometry values as supporting data. If the overlay visually obscures part of the face, state the visible limitation briefly and still provide the best grounded report from the original photo and measured values.
+- If technical measurement context such as face geometry or landmarks is present, use it silently as supporting data. Do not refuse, apologize, or say analysis is impossible because measurement data exists.
+- Analyze and describe the original attached photo first. Never tell the user that a mesh, wireframe, landmark overlay, or technical overlay is visible, blocking details, or being compared against the photo. If the original photo itself is unclear, describe the visible issue plainly as photo clarity, crop, lighting, pose, or face visibility.
 - Do not write generic advice that could apply to any face. Each summary and expanded metric should connect at least one visible cue or one measured value to a concrete interpretation.
 - If scan values are missing or low-confidence, rely on the photo and phrase numeric/proportion reads as estimates without mentioning missing backend data.
 - If a visual impression conflicts with geometry, prefer the geometry for numeric ratios and the image for styling/aesthetic interpretation.
@@ -464,7 +499,8 @@ Product constraints:
 - Scores are appearance-coaching scores, not objective human worth.
 - Use natural language that feels like a premium mobile report: concise, but not shallow.
 - Never use the words dummy, placeholder, mock, fake, simulated, test scan, 더미, 가짜, or 임시 in any user-facing field. Treat the input as a real user photo report.
-- Do not mention internal implementation details such as ARKit, Vision, generated mesh, local cache, model fallback, or scan payload in user-facing copy.
+- Do not mention internal implementation details such as ARKit, Vision, generated mesh, wireframe, landmarks, overlays, geometry metadata, local cache, model fallback, or scan payload in user-facing copy.
+- Banned user-facing terms include: mesh, face mesh, wireframe, landmark, overlay, ARKit, Vision, geometry data, scan payload, 메시, 메쉬, 오버레이, 랜드마크, 와이어프레임, 기하 데이터. If those concepts are present internally, translate them into normal photo language such as face visibility, crop, lighting, angle, expression, or original photo clarity.
 - Do not mention the AI model/provider name in user-facing copy.
 - User-facing copy must sound native in {language}. Avoid literal translation, awkward borrowed English, and overlong sentences.
 - Every numeric display should include a short interpretation label, e.g. "6.8° · Positive", "1.71 · Balanced", "0.46 · Normal Range".

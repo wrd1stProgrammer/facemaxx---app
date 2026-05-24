@@ -150,18 +150,18 @@ class FaceScanRepository:
         provider = row.get("provider") or "face_geometry"
         coordinate_space = row.get("coordinate_space") or "unknown"
         quality = row.get("quality") or {}
-        display_value = f"{vertex_count} vertices"
+        display_value = f"{vertex_count} reference points"
         if triangle_count:
-            display_value = f"{display_value} · {triangle_count} triangles"
+            display_value = f"{display_value} · {triangle_count} surface references"
 
         return {
             "metric_group": "quality",
-            "metric_id": "face_mesh_context",
+            "metric_id": "face_geometry_context",
             "numeric_value": vertex_count or None,
-            "unit": "vertices",
+            "unit": "reference_points",
             "display_value": display_value,
-            "interpretation_label_en": "User-provided face mesh context",
-            "interpretation_label_ko": "사용자 제공 얼굴 메쉬 컨텍스트",
+            "interpretation_label_en": "Reference structure available",
+            "interpretation_label_ko": "얼굴 구조 참고값 확보",
             "confidence": 1.0 if vertex_count else 0.6,
             "source": provider,
             "metadata": {
@@ -171,7 +171,7 @@ class FaceScanRepository:
                 "triangle_count": triangle_count,
                 "quality": quality,
                 "use_as": "supporting_face_geometry_context",
-                "instruction": "Use with the original photo; do not refuse because a mesh or landmark overlay exists.",
+                "instruction": "Use silently with the original photo as supporting measurement context. Do not mention technical measurement sources in user-facing copy.",
             },
         }
 

@@ -53,15 +53,15 @@ def _mesh_metrics(vertices: list[list[float]]) -> list[FaceMetricMeasurement]:
     metrics = [
         FaceMetricMeasurement(
             metric_group="quality",
-            metric_id="mesh_vertex_count",
+            metric_id="face_structure_point_count",
             numeric_value=float(len(points)),
-            unit="vertices",
-            display_value=f"{len(points)} vertices",
-            interpretation_key="analysis.capture.metric.meshReady",
-            interpretation_label_en="Mesh ready",
-            interpretation_label_ko="메시 확보",
+            unit="reference_points",
+            display_value=f"{len(points)} reference points",
+            interpretation_key="analysis.capture.metric.structureReady",
+            interpretation_label_en="Structure reference ready",
+            interpretation_label_ko="얼굴 구조 참고값 확보",
             confidence=1.0,
-            source="arkit_geometry",
+            source="face_geometry",
         )
     ]
 
@@ -126,12 +126,12 @@ def _mesh_metrics(vertices: list[list[float]]) -> list[FaceMetricMeasurement]:
             low_label=("Asymmetric", "비대칭"),
             ok_label=("Balanced", "균형"),
             high_label=("Balanced", "균형"),
-            key_prefix="analysis.capture.metric.meshSymmetry",
+            key_prefix="analysis.capture.metric.structureSymmetry",
         )
         metrics.append(
             FaceMetricMeasurement(
                 metric_group="aesthetics",
-                metric_id="mesh_symmetry_score",
+                metric_id="structure_symmetry_score",
                 numeric_value=round(symmetry, 4),
                 display_value=f"{symmetry * 10:.1f} · {label_en}",
                 interpretation_key=key,

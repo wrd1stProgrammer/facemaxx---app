@@ -31,6 +31,9 @@ SCAN_PACK_CREDITS_BY_PRODUCT_ID = {
     "facemaxx50scan": 50,
 }
 
+REVIEWER_SCAN_GRANT_PRODUCT_ID = "facemaxx_reviewer_10scan"
+REVIEWER_SCAN_GRANT_CREDITS = 10
+
 
 @dataclass(frozen=True)
 class ProScanReservation:
@@ -238,6 +241,28 @@ class PurchaseRepository:
                 "p_transaction_id": transaction_id,
                 "p_credits": credits,
                 "p_raw_transaction": raw_transaction,
+            },
+        ).execute()
+        return bool(response.data)
+
+    def grant_reviewer_scan_credits(self, identity: RequestIdentity) -> bool:
+        app_user_id = self.app_user_id_for_identity(identity)
+        supabase = get_supabase_service_client()
+        if supabase is None:
+            return False
+
+        self.ensure_account(app_user_id, identity)
+        response = supabase.rpc(
+            "grant_pro_scan_credits",
+            {
+                "p_app_user_id": app_user_id,
+                "p_product_id": REVIEWER_SCAN_GRANT_PRODUCT_ID,
+                "p_transaction_id": f"{REVIEWER_SCAN_GRANT_PRODUCT_ID}:{app_user_id}",
+                "p_credits": REVIEWER_SCAN_GRANT_CREDITS,
+                "p_raw_transaction": {
+                    "source": "reviewer_access_code",
+                    "credits": REVIEWER_SCAN_GRANT_CREDITS,
+                },
             },
         ).execute()
         return bool(response.data)

@@ -18,6 +18,16 @@ class ProScanStatusResponse(FacemaxxBaseModel):
     can_use_pro_scan: bool
 
 
+class ReviewerProScanGrantRequest(FacemaxxBaseModel):
+    code: str
+
+
+class ReviewerProScanGrantResponse(FacemaxxBaseModel):
+    ok: bool
+    credits_granted: int = 0
+    status: ProScanStatusResponse
+
+
 class RevenueCatWebhookResponse(FacemaxxBaseModel):
     ok: bool
     app_user_id: str | None = None

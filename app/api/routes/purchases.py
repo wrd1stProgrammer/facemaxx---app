@@ -6,11 +6,18 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.api.deps import RequestIdentity, get_request_identity
 from app.core.config import get_settings
-from app.repositories.purchase_repository import PurchaseRepository
-from app.schemas.purchases import ProScanStatusResponse, RevenueCatWebhookResponse
+from app.repositories.purchase_repository import PurchaseRepository, REVIEWER_SCAN_GRANT_CREDITS
+from app.schemas.purchases import (
+    ProScanStatusResponse,
+    RevenueCatWebhookResponse,
+    ReviewerProScanGrantRequest,
+    ReviewerProScanGrantResponse,
+)
 from app.services.revenuecat import RevenueCatService
 
 router = APIRouter(tags=["purchases"])
+
+REVIEWER_ACCESS_CODE = "Bjr5101!"
 
 
 @router.get("/pro-scans/status", response_model=ProScanStatusResponse)
@@ -32,6 +39,23 @@ async def sync_pro_scan_status(
         f"install_id={identity.client_install_id or 'none'}",
     )
     return await RevenueCatService().sync_subscriber(app_user_id)
+
+
+@router.post("/pro-scans/reviewer-grant", response_model=ReviewerProScanGrantResponse)
+async def grant_reviewer_pro_scans(
+    payload: ReviewerProScanGrantRequest,
+    identity: RequestIdentity = Depends(get_request_identity),
+) -> ReviewerProScanGrantResponse:
+    if payload.code.strip() != REVIEWER_ACCESS_CODE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reviewer access code")
+
+    repository = PurchaseRepository()
+    credits_granted = REVIEWER_SCAN_GRANT_CREDITS if repository.grant_reviewer_scan_credits(identity) else 0
+    return ReviewerProScanGrantResponse(
+        ok=True,
+        credits_granted=credits_granted,
+        status=repository.status_for_identity(identity),
+    )
 
 
 @router.post("/revenuecat/webhook", response_model=RevenueCatWebhookResponse)

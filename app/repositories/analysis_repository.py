@@ -16,6 +16,7 @@ from app.schemas.analysis import (
     AnalysisRunSummaryResponse,
     LookArchetypeResult,
 )
+from app.services.ai.sanitizer import sanitize_analysis_result
 
 
 class AnalysisRepository:
@@ -111,6 +112,7 @@ class AnalysisRepository:
         result: AnalysisResultPayload,
         photo_ids: list[UUID] | None = None,
     ) -> None:
+        result = sanitize_analysis_result(result)
         supabase = get_supabase_service_client()
         if supabase is None:
             return
@@ -279,6 +281,7 @@ class AnalysisRepository:
         if raw_provider_response:
             try:
                 result = AnalysisResultPayload.model_validate(raw_provider_response)
+                result = sanitize_analysis_result(result)
             except Exception as exc:
                 print(f"Analysis run result hydration failed: {exc}")
 

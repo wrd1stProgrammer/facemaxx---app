@@ -13,6 +13,7 @@ from app.repositories.purchase_repository import PurchaseRepository
 from app.schemas.analysis import AnalysisRunResponse, CreateAnalysisRunRequest, MULTI_PHOTO_MINIMUMS
 from app.services.ai.base import ProviderAnalysisRequest, ProviderPhotoInput
 from app.services.ai.factory import get_face_analysis_provider
+from app.services.ai.sanitizer import sanitize_analysis_result
 
 
 PRO_SCAN_MODE_IDS = {
@@ -145,6 +146,7 @@ class AnalysisRunner:
                 "has_archetype=",
                 bool(result.look_archetype),
             )
+            result = sanitize_analysis_result(result)
         except asyncio.TimeoutError as exc:
             print("Facemaxx analysis provider timed out.")
             raise HTTPException(

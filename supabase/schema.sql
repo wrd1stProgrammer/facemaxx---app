@@ -569,7 +569,23 @@ create table if not exists public.analysis_photo_rankings (
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   unique (run_id, candidate_index),
-  unique (run_id, rank)
+  unique (run_id, rank),
+  constraint analysis_photo_rankings_chip_count_check
+    check (coalesce(cardinality(strengths), 0) + coalesce(cardinality(vibe_tags), 0) <= 3),
+  constraint analysis_photo_rankings_no_internal_terms_check
+    check (
+      not ((
+          coalesce(verdict, '') || ' ' ||
+          coalesce(reason_text, '') || ' ' ||
+          coalesce(description_text, '') || ' ' ||
+          coalesce(best_use_text, '') || ' ' ||
+          coalesce(fun_label_text, '') || ' ' ||
+          coalesce(weakness_text, '') || ' ' ||
+          coalesce(fix_text, '') || ' ' ||
+          coalesce(caption_idea_text, '')
+        ) ~* '(face[[:space:]]*mesh|mesh([[:space:]]*data)?|wireframe|landmark(s|[[:space:]]*overlay)?|overlay|arkit|apple[[:space:]]+vision|vision[[:space:]]+framework|geometry[[:space:]]+(metadata|data)|scan[[:space:]]+(payload|data)|메시|메쉬|오버레이|랜드마크|와이어프레임|기하(학)?[[:space:]]*데이터|스캔[[:space:]]*데이터)'
+      )
+    )
 );
 
 create index if not exists analysis_photo_rankings_run_rank_idx
