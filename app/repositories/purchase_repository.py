@@ -55,6 +55,19 @@ class ProScanReservation:
 
 class PurchaseRepository:
     def status_for_identity(self, identity: RequestIdentity) -> ProScanStatusResponse:
+        if identity.reviewer_demo_unlimited:
+            app_user_id = self.app_user_id_for_identity(identity)
+            return ProScanStatusResponse(
+                app_user_id=app_user_id,
+                has_active_pro_subscription=False,
+                free_trial_scan_available=False,
+                pro_scans_remaining=999999,
+                subscription_scan_limit=0,
+                subscription_scans_remaining=0,
+                consumable_pro_scans_remaining=999999,
+                can_use_pro_scan=True,
+            )
+
         return self.status_for_app_user_id(self.app_user_id_for_identity(identity), identity)
 
     def status_for_app_user_id(
@@ -119,6 +132,16 @@ class PurchaseRepository:
 
     def reserve_pro_scan(self, identity: RequestIdentity) -> ProScanReservation:
         app_user_id = self.app_user_id_for_identity(identity)
+        if identity.reviewer_demo_unlimited:
+            return ProScanReservation(
+                app_user_id=app_user_id,
+                allowed=True,
+                subscription_active=False,
+                free_trial_scan_available=False,
+                credits_remaining=999999,
+                consumed_source="reviewer_demo",
+            )
+
         supabase = get_supabase_service_client()
         if supabase is None:
             return ProScanReservation(

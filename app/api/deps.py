@@ -14,6 +14,7 @@ from app.db.supabase import get_supabase_service_client
 class RequestIdentity:
     user_id: str | None
     client_install_id: str | None
+    reviewer_demo_unlimited: bool = False
 
 
 def _normalized_uuid(value: str | None) -> str | None:
@@ -74,9 +75,23 @@ async def get_request_identity(
     authorization: Annotated[Optional[str], Header()] = None,
     x_facemaxx_install_id: Annotated[Optional[str], Header()] = None,
     x_facemaxx_user_id: Annotated[Optional[str], Header()] = None,
+    x_facemaxx_reviewer_demo: Annotated[Optional[str], Header()] = None,
+    x_facemaxx_reviewer_code: Annotated[Optional[str], Header()] = None,
 ) -> RequestIdentity:
     settings = get_settings()
     client_install_id = _normalized_uuid(x_facemaxx_install_id)
+    reviewer_demo_requested = (x_facemaxx_reviewer_demo or "").strip().lower() in {"1", "true", "yes"}
+
+    if reviewer_demo_requested:
+        expected_code = settings.reviewer_demo_access_code
+        received_code = (x_facemaxx_reviewer_code or "").strip()
+        if not settings.reviewer_demo_enabled or not expected_code or received_code != expected_code:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid reviewer demo access")
+        return RequestIdentity(
+            user_id=None,
+            client_install_id=client_install_id or settings.demo_user_id,
+            reviewer_demo_unlimited=True,
+        )
 
     if settings.auth_disabled:
         return RequestIdentity(

@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     auth_disabled: bool = True
     demo_user_id: str = "00000000-0000-0000-0000-000000000001"
+    reviewer_demo_enabled: bool = True
+    reviewer_demo_access_code: Optional[str] = "Bjr5101!"
 
     ai_provider: Literal["dummy", "gemini", "openai"] = "gemini"
     gemini_api_key: Optional[str] = None
