@@ -82,6 +82,20 @@ jobs:
           IMAGE="${{ steps.dockerhub.outputs.image }}:${{ github.sha }}"
           ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "IMAGE='$IMAGE' bash -se" <<'REMOTE'
             cd /opt/facemaxx
+            echo "Disk usage before Docker cleanup:"
+            df -h / /var/lib/docker /var/lib/containerd 2>/dev/null || df -h /
+            docker system df || true
+
+            # Keep named volumes such as photo-data, but remove old stopped
+            # containers, unused images, and cache so the new image can extract.
+            docker container prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+
+            echo "Disk usage after Docker cleanup:"
+            df -h / /var/lib/docker /var/lib/containerd 2>/dev/null || df -h /
+            docker system df || true
+
             tmp="$(mktemp)"
             if [ -f .env ]; then
               grep -v '^FACEMAXX_IMAGE=' .env > "$tmp"
@@ -91,6 +105,7 @@ jobs:
             chmod 600 .env
             docker compose pull
             docker compose up -d --remove-orphans
+            docker image prune -af || true
           REMOTE
 
       - name: Verify deployment
