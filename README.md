@@ -72,6 +72,33 @@ The route contract stays the same while provider internals can change.
 
 Provider keys are read from `GEMINI_API_KEY` or `OPENAI_API_KEY`. Use `AI_PROVIDER=gemini` for the current real-photo analysis flow, and switch back to `AI_PROVIDER=dummy` only when you intentionally want local placeholder responses.
 
+## Habitdot Motivation
+
+`POST /v1/habitdot/motivation` returns a short stateless motivation line for Habitdot. Because the app mounts the API router both with and without `API_PREFIX`, the same endpoint is also available at `POST /habitdot/motivation`.
+
+The endpoint uses server-side `GEMINI_API_KEY` when configured. If the key is missing or generation fails, it returns deterministic fallback copy with `provider="fallback"` and `model_name=null`.
+
+The iOS client should send `X-Facemaxx-Install-Id`; the route applies a small in-memory per-install/IP rate limit to protect Gemini usage. App-side caching should still keep normal usage to about one request per relevant daily habit state.
+
+Example payload:
+
+```json
+{
+  "locale": "ko",
+  "date": "2026-05-28",
+  "habits": [
+    {
+      "title": "아침 물 마시기",
+      "purpose": "하루를 가볍게 시작하기",
+      "color_hex": "#4CB3FF",
+      "completed_today": false,
+      "current_streak": 3,
+      "weekly_completion_count": 4
+    }
+  ]
+}
+```
+
 ## RevenueCat
 
 The iOS app uses the public RevenueCat SDK key, while FastAPI uses the server-side secret key for subscriber sync and webhook processing.
@@ -143,3 +170,4 @@ Example payload:
 - `POST /v1/face-scans`
 - `POST /v1/analysis-runs`
 - `GET /v1/analysis-runs/{run_id}`
+- `POST /v1/habitdot/motivation`
