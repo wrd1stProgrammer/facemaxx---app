@@ -12,6 +12,9 @@ class AccountRepository:
 
         if identity.user_id:
             self._delete_by_column(supabase, "analysis_runs", "user_id", identity.user_id)
+            self._delete_by_column(supabase, "habitdot_bug_reports", "user_id", identity.user_id)
+            self._delete_by_column(supabase, "habitdot_feedback", "user_id", identity.user_id)
+            self._delete_by_column(supabase, "habitdot_onboarding_responses", "user_id", identity.user_id)
             self._delete_by_column(supabase, "face_scan_captures", "user_id", identity.user_id)
             self._delete_by_column(supabase, "photos", "user_id", identity.user_id)
             self._delete_by_column(supabase, "user_onboarding_preferences", "user_id", identity.user_id)
@@ -22,6 +25,9 @@ class AccountRepository:
 
         if identity.client_install_id:
             self._delete_by_column(supabase, "analysis_runs", "client_install_id", identity.client_install_id)
+            self._delete_by_column(supabase, "habitdot_bug_reports", "client_install_id", identity.client_install_id)
+            self._delete_by_column(supabase, "habitdot_feedback", "client_install_id", identity.client_install_id)
+            self._delete_by_column(supabase, "habitdot_onboarding_responses", "client_install_id", identity.client_install_id)
             self._delete_by_column(supabase, "face_scan_captures", "client_install_id", identity.client_install_id)
             self._delete_by_column(supabase, "photos", "client_install_id", identity.client_install_id)
 

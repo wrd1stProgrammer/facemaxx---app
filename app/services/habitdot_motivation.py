@@ -19,7 +19,7 @@ class HabitdotMotivationService:
 
     async def generate(self, request: HabitdotMotivationRequest) -> HabitdotMotivationResponse:
         generated_at = datetime.now(UTC)
-        fallback_text = self._fallback_text(request)
+        fallback_text = self._clean_text(self._fallback_text(request), request.locale)
 
         if not self.settings.gemini_api_key:
             return self._response(fallback_text, generated_at)
@@ -55,7 +55,7 @@ class HabitdotMotivationService:
 
         config = types.GenerateContentConfig(
             temperature=0.7,
-            max_output_tokens=80,
+            max_output_tokens=42,
         )
         response, model_name = await self._generate_content_with_fallback(
             client=client,
@@ -131,8 +131,8 @@ class HabitdotMotivationService:
                 "오늘 미완료 습관이 있으면 완료된 습관 축하보다 미완료 습관을 우선하라.\n"
                 "어제도 미완료였거나 최근 잘 하다가 오늘 남아있는 습관 1~2개를 고르고, 오늘 할 행동으로 끝내라. 내일 얘기는 하지 마라.\n"
                 "'놓쳤다', '못했다', '실패' 같은 부정 표현은 쓰지 말고 '아직 남아있는', '오늘 할 수 있는' 톤으로 말해라.\n"
-                "조건: 습관명 1~2개만 자연스럽게 언급, 다음 행동이 분명해야 함, 1~2줄, 마크다운 금지, "
-                "따옴표 금지, 100자 이하, 과장 금지, 죄책감 유발 금지.\n"
+                "조건: 습관명 1~2개만 자연스럽게 언급, 다음 행동이 분명해야 함, 1줄 우선, 최대 2줄, 마크다운 금지, "
+                "따옴표 금지, JSON 금지, 중괄호 금지, text: 같은 키 이름 금지, 32자 이하, 과장 금지, 죄책감 유발 금지.\n"
                 f"JSON: {context}"
             )
 
@@ -143,7 +143,7 @@ class HabitdotMotivationService:
             "Choose 1-2 habits that are still open today, especially if they were also incomplete yesterday or recently consistent; end with today's next action. Do not talk about tomorrow.\n"
             "Avoid negative wording like missed, failed, or didn't; use a calm still open / can do today tone.\n"
             "Rules: naturally mention only 1-2 habit names, make the next action clear, one or two lines, "
-            "no markdown, no quotes, under 140 characters, no hype, no guilt.\n"
+            "no markdown, no quotes, no JSON, no braces, no text: key, under 70 characters, no hype, no guilt.\n"
             f"JSON: {context}"
         )
 
@@ -155,30 +155,30 @@ class HabitdotMotivationService:
 
         if request.locale == "en":
             if not habits:
-                return "No habit needs to be huge today.\nStart small and keep the promise."
+                return "Start tiny today. One clear step is enough."
             if not incomplete:
                 title = self._short_title(recent_sorted[0].title, 38)
-                return f"{title} is already carrying the week.\nLet today's finish count."
+                return f"{title} is carrying the week. Keep it light today."
             primary = yesterday_missed[0] if yesterday_missed else incomplete[0]
             title = self._short_title(primary.title, 34)
             secondary = next((habit for habit in incomplete if habit.title != primary.title), None)
             if secondary is not None:
                 second = self._short_title(secondary.title, 28)
-                return f"{title} first, then {second} if there is room.\nKeep today's step small."
-            return f"{title} is still open today.\nOne small start is enough."
+                return f"{title} first, then {second}. Keep it small today."
+            return f"{title} is still open today. One small start is enough."
 
         if not habits:
-            return "오늘도 한 걸음이면 충분해요.\n작게 시작하고 끝까지 가봐요."
+            return "오늘도 한 걸음이면 충분해요."
         if not incomplete:
-            title = self._short_title(recent_sorted[0].title, 16)
-            return f"{title} 흐름이 이번 주를 잘 받쳐주고 있어요.\n오늘도 충분히 쌓았습니다."
+            title = self._short_title(recent_sorted[0].title, 12)
+            return f"{title} 흐름이 좋아요. 오늘도 가볍게 이어가요."
         primary = yesterday_missed[0] if yesterday_missed else incomplete[0]
-        title = self._short_title(primary.title, 16)
+        title = self._short_title(primary.title, 12)
         secondary = next((habit for habit in incomplete if habit.title != primary.title), None)
         if secondary is not None:
-            second = self._short_title(secondary.title, 14)
-            return f"{title}부터 작게 시작하고, 여유가 있으면 {second}까지.\n오늘은 한 번이면 충분해요."
-        return f"어제도 남아있던 {title}, 오늘은 한 번만 이어가요.\n작게 해도 흐름은 돌아옵니다."
+            second = self._short_title(secondary.title, 10)
+            return f"{title}부터, 여유가 있으면 {second}까지."
+        return f"{title}, 오늘 한 번만 이어가요."
 
     @staticmethod
     def _recent_completed_count(habit) -> int:
@@ -202,19 +202,44 @@ class HabitdotMotivationService:
         )
 
     def _clean_text(self, text: str, locale: str) -> str:
+        text = self._extract_plain_text(text)
         lines = [self._clean_line(line) for line in text.splitlines()]
         lines = [line for line in lines if line]
         text = "\n".join(lines[:2])
         text = self._strip_wrapping_quotes(text)
-        limit = 140 if locale == "en" else 100
+        text = self._strip_text_key(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        limit = 70 if locale == "en" else 32
         return text[:limit].rstrip()
+
+    @staticmethod
+    def _extract_plain_text(text: str) -> str:
+        candidate = text.strip()
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict) and isinstance(parsed.get("text"), str):
+            return parsed["text"]
+
+        return HabitdotMotivationService._strip_text_key(candidate)
+
+    @staticmethod
+    def _strip_text_key(text: str) -> str:
+        text = text.strip()
+        text = re.sub(r"^\{\s*[\"']?text[\"']?\s*:\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"^[\"']?text[\"']?\s*:\s*", "", text, flags=re.IGNORECASE)
+        text = text.rstrip("}").strip()
+        return text
 
     @staticmethod
     def _clean_line(line: str) -> str:
         line = line.strip()
         line = re.sub(r"^[\-\*\d\.\)\s]+", "", line)
         line = line.replace("`", "").replace("*", "").replace("#", "")
-        line = re.sub(r"[\"'“”‘’「」『』]", "", line)
+        line = re.sub(r"[\"'“”‘’「」『』{}]", "", line)
+        line = HabitdotMotivationService._strip_text_key(line)
         return HabitdotMotivationService._strip_wrapping_quotes(line)
 
     @staticmethod
