@@ -1,0 +1,4 @@
+#include? "Secrets.xcconfig"
+
+// Replace with the production FastAPI URL before App Store release.
+FACEMAXX_API_BASE_URL = https:/$()/facemaxx.nostalgia-drive.com

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Facemaxx</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sikgates.Facemaxx.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>facemaxx</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>FacemaxxAPIBaseURL</key>
+	<string>$(FACEMAXX_API_BASE_URL)</string>
+	<key>FacemaxxAuthCallbackScheme</key>
+	<string>facemaxx</string>
+	<key>FacemaxxRevenueCatAPIKey</key>
+	<string>$(REVENUECAT_IOS_API_KEY)</string>
+	<key>FacemaxxSupabaseAnonKey</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>FacemaxxSupabaseURL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.lifestyle</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Facemaxx uses the camera when photo capture is enabled.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Facemaxx uses motion sensors for AR face tracking during camera scans.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Facemaxx uses your photo library when upload is enabled.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+</dict>
+</plist>

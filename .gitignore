@@ -5,3 +5,13 @@ __pycache__/
 *.py[cod]
 .env
 .DS_Store
+
+# Local secrets
+*.env
+!.env.example
+Facemaxx/Config/Secrets.xcconfig
+
+# Xcode local state
+DerivedData/
+*.xcuserstate
+xcuserdata/

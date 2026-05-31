@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx يستخدم الكاميرا لالتقاط صور مسح الوجه.";
+"NSMotionUsageDescription" = "Facemaxx يستخدم مستشعرات الحركة لتتبع الوجه بتقنية الواقع المعزز أثناء عمليات المسح بالكاميرا.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx يستخدم مكتبة الصور الخاصة بك عند تمكين التحميل.";

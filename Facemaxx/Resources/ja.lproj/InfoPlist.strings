@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx はカメラを使用して顔スキャン写真をキャプチャします。";
+"NSMotionUsageDescription" = "Facemaxx は、カメラ スキャン中の AR 顔追跡にモーション センサーを使用します。";
+"NSPhotoLibraryUsageDescription" = "Facemaxx は、アップロードが有効な場合に写真ライブラリを使用します。";

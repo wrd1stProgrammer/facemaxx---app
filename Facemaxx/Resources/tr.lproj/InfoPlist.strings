@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx yüz taramalı fotoğraflar çekmek için kamerayı kullanır.";
+"NSMotionUsageDescription" = "Facemaxx, kamera taramaları sırasında AR yüz takibi için hareket sensörlerini kullanır.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx, yükleme etkinleştirildiğinde fotoğraf kitaplığınızı kullanır.";

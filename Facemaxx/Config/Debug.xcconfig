@@ -1,0 +1,4 @@
+#include? "Secrets.xcconfig"
+
+// Debug builds currently target the deployed FastAPI server for real-device testing.
+FACEMAXX_API_BASE_URL = https:/$()/facemaxx.nostalgia-drive.com

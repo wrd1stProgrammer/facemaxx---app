@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx utilise l'appareil photo pour capturer des photos numérisées du visage.";
+"NSMotionUsageDescription" = "Facemaxx utilise des capteurs de mouvement pour le suivi du visage AR lors des numérisations de la caméra.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx utilise votre photothèque lorsque le téléchargement est activé.";

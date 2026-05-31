@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx usa a câmera para capturar fotos de digitalização facial.";
+"NSMotionUsageDescription" = "Facemaxx usa sensores de movimento para rastreamento facial AR durante varreduras de câmera.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx usa sua biblioteca de fotos quando o upload está ativado.";

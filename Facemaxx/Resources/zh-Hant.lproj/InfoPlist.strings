@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx 使用相機拍攝臉部掃描照片。";
+"NSMotionUsageDescription" = "Facemaxx 在相機掃描期間使用運動感光元件進行 AR 臉部追蹤。";
+"NSPhotoLibraryUsageDescription" = "Facemaxx 在啟用上傳時使用您的照片庫。";

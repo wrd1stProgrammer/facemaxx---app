@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx utilizza la fotocamera per acquisire foto con la scansione del volto.";
+"NSMotionUsageDescription" = "Facemaxx utilizza sensori di movimento per il rilevamento dei volti AR durante le scansioni della fotocamera.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx utilizza la tua libreria di foto quando il caricamento è abilitato.";

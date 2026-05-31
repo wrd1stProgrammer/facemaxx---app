@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx menggunakan kamera untuk mengambil foto pemindaian wajah.";
+"NSMotionUsageDescription" = "Facemaxx menggunakan sensor gerak untuk pelacakan wajah AR selama pemindaian kamera.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx menggunakan perpustakaan foto Anda saat unggahan diaktifkan.";

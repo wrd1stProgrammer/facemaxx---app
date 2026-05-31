@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx usa la cámara para capturar fotografías de escaneo facial.";
+"NSMotionUsageDescription" = "Facemaxx utiliza sensores de movimiento para el seguimiento facial AR durante los escaneos de la cámara.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx usa tu biblioteca de fotos cuando la carga está habilitada.";

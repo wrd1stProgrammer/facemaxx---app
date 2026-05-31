@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Facemaxx uses the camera to capture face scan photos.";
+"NSMotionUsageDescription" = "Facemaxx uses motion sensors for AR face tracking during camera scans.";
+"NSPhotoLibraryUsageDescription" = "Facemaxx uses your photo library when upload is enabled.";
