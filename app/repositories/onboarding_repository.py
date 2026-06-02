@@ -58,6 +58,8 @@ class OnboardingRepository:
             return self._response_from_request(request, persisted=False)
 
         age_range_id = request.age_range_id or self._age_range_id(request.age)
+        metadata = request.metadata if isinstance(request.metadata, dict) else {}
+        metadata = {**metadata, "locale": request.locale}
         now_iso = datetime.now(timezone.utc).isoformat()
         payload = {
             "user_id": user_id,
@@ -66,17 +68,17 @@ class OnboardingRepository:
             "age": request.age,
             "age_range_id": age_range_id,
             "completed_at": request.completed_at.isoformat(),
-            "metadata": request.metadata,
+            "metadata": metadata,
             "updated_at": now_iso,
         }
 
         try:
-            self._ensure_profile(supabase, user_id)
+            self._ensure_profile(supabase, user_id, request.locale)
             response = supabase.table("user_onboarding_preferences").upsert(
                 payload,
                 on_conflict="user_id",
             ).execute()
-            self._mirror_profile_preferences(supabase, user_id, request, age_range_id, now_iso)
+            self._mirror_profile_preferences(supabase, user_id, request, age_range_id, metadata, now_iso)
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -174,8 +176,8 @@ class OnboardingRepository:
         return context
 
     @staticmethod
-    def _ensure_profile(supabase, user_id: str) -> None:
-        supabase.table("profiles").upsert({"id": user_id}, on_conflict="id").execute()
+    def _ensure_profile(supabase, user_id: str, locale: str) -> None:
+        supabase.table("profiles").upsert({"id": user_id, "locale": locale}, on_conflict="id").execute()
 
     @staticmethod
     def _mirror_profile_preferences(
@@ -183,16 +185,17 @@ class OnboardingRepository:
         user_id: str,
         request: OnboardingPreferencesRequest,
         age_range_id: Optional[str],
+        metadata: dict[str, Any],
         updated_at: str,
     ) -> None:
         discovery_source_id = None
-        metadata = request.metadata if isinstance(request.metadata, dict) else {}
         raw_discovery_source_id = metadata.get("discovery_source")
         if isinstance(raw_discovery_source_id, str):
             discovery_source_id = raw_discovery_source_id
 
         profile_payload = {
             "id": user_id,
+            "locale": request.locale,
             "onboarding_selected_goal_ids": request.selected_goal_ids,
             "onboarding_gender_id": request.gender_id,
             "onboarding_age": request.age,
@@ -214,25 +217,30 @@ class OnboardingRepository:
         request: OnboardingPreferencesRequest,
         persisted: bool,
     ) -> OnboardingPreferencesResponse:
+        metadata = request.metadata if isinstance(request.metadata, dict) else {}
+        metadata = {**metadata, "locale": request.locale}
         return OnboardingPreferencesResponse(
             selected_goal_ids=request.selected_goal_ids,
             gender_id=request.gender_id,
             age=request.age,
             age_range_id=request.age_range_id or OnboardingRepository._age_range_id(request.age),
+            locale=request.locale,
             completed_at=request.completed_at,
-            metadata=request.metadata,
+            metadata=metadata,
             persisted=persisted,
         )
 
     @staticmethod
     def _response_from_row(row: dict[str, Any], persisted: bool) -> OnboardingPreferencesResponse:
+        metadata = row.get("metadata") or {}
         return OnboardingPreferencesResponse(
             selected_goal_ids=row.get("selected_goal_ids") or [],
             gender_id=row.get("gender_id"),
             age=row.get("age"),
             age_range_id=row.get("age_range_id") or OnboardingRepository._age_range_id(row.get("age")),
+            locale=metadata.get("locale"),
             completed_at=row.get("completed_at"),
-            metadata=row.get("metadata") or {},
+            metadata=metadata,
             persisted=persisted,
         )
 

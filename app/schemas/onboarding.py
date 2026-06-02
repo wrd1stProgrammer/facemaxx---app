@@ -20,6 +20,20 @@ OnboardingGoalID = Literal[
 ]
 OnboardingGenderID = Literal["male", "female", "other"]
 OnboardingAgeRangeID = Literal["18-24", "25-34", "35-44", "45+"]
+OnboardingLocale = Literal[
+    "en",
+    "ko",
+    "ja",
+    "de",
+    "es-419",
+    "zh-Hant",
+    "pt-BR",
+    "fr",
+    "it",
+    "id",
+    "tr",
+    "ar",
+]
 
 
 class OnboardingPreferencesRequest(FacemaxxBaseModel):
@@ -27,6 +41,7 @@ class OnboardingPreferencesRequest(FacemaxxBaseModel):
     gender_id: Optional[OnboardingGenderID] = None
     age: Optional[int] = Field(default=None, ge=13, le=70)
     age_range_id: Optional[OnboardingAgeRangeID] = None
+    locale: OnboardingLocale = "en"
     completed_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -45,6 +60,7 @@ class OnboardingPreferencesResponse(FacemaxxBaseModel):
     gender_id: Optional[str] = None
     age: Optional[int] = None
     age_range_id: Optional[str] = None
+    locale: Optional[str] = None
     completed_at: Optional[datetime] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     persisted: bool = False

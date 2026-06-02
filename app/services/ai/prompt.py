@@ -290,9 +290,14 @@ MODE_PROMPT_SPECS = {
 Mode-specific output:
 - Return shapes metrics in section "shapes" and ratio metrics in section "proportions".
 - Include exactly these shape metric_id values: face-shape, eye-shape, eyebrow-shape, lip-shape.
-- Include these proportion metric_id values in order when visible/estimable: canthal-tilt, eye-spacing-ratio, face-width-height-ratio, midface-ratio, philtrum-chin-ratio, eye-width-face-ratio, upper-lower-lip-ratio, eye-width-height-ratio, lower-full-face-ratio, eye-mouth-angle, face-depth-width-ratio, face-contour-width-height-ratio.
-- For values that are estimated from a single 2D photo rather than directly measured, say so in detail_text without weakening the report. Never leave value_text/detail_text blank.
-- Explain ratios as coaching context, not as a harsh score. Make each detail_text say what the measurement means, what the visible read suggests, and how to retake or present the face better.
+- Include these proportion metric_id values in order: canthal-tilt, eye-spacing-ratio, face-width-height-ratio, midface-ratio, philtrum-chin-ratio, eye-width-face-ratio, upper-lower-lip-ratio, eye-width-height-ratio, lower-full-face-ratio, eye-mouth-angle, face-depth-width-ratio, face-contour-width-height-ratio.
+- Do not omit the listed metrics just because a direct scan value is missing. Use measured values when available; otherwise estimate conservatively from the original photo and mark it as a photo-based estimate in natural language.
+- Every proportions detail_text must be about THIS user's face/photo, not a definition of the metric. Do not write only what the metric measures.
+- Use this order inside each detail_text: first state the user's actual value or visible read, then explain what it means for this user's facial impression, then give one concrete retake/presentation implication.
+- In Korean, write like "사진 기준으로 하안부-전체 얼굴 비율은 0.69에 가까워 하안부가 또렷하지만 얼굴 전체를 압도하지 않습니다..." rather than "하안부 높이를 전체 얼굴 높이와 비교한 값입니다."
+- If the metric is uncertain from one 2D photo, still give a useful user-specific read: "사진 기준 추정치로는..." then explain the visible effect and the practical implication.
+- value_text must include the user's number/shape/read plus a short interpretation label, for example "0.69 · 하안부 안정적", "45.7° · 하향 프레임 안정", or "Oval · 부드러운 윤곽".
+- summary_text must mention the strongest proportion read, the weakest/most improvable read, and the fastest photo retake improvement. Avoid generic praise.
 """,
     "aesthetics": """
 Mode-specific output:
@@ -512,9 +517,10 @@ Product constraints:
 - potential_score should usually be only 0.4-0.9 above overall_score. Use a bigger jump only when the fix is obvious and easy, such as crop tighter or move to softer light.
 - Every expandable metric must have a meaningful detail_text. Do not leave it blank and do not repeat the title.
 - For metric detail_text, write 2-4 compact sentences: what was measured, what the user's result suggests, and one practical photo/style/coaching implication. For Korean, write natural Korean, not translated machine-sounding fragments.
+- Do not make detail_text a glossary entry. A weak detail_text explains only the metric definition; a strong detail_text starts from the user's actual value, visible face/photo evidence, or estimated read, then explains the personal implication.
 - For summary_text, write 3-5 sentences with a clear overall read, top strengths, and the most useful next improvement. Avoid generic praise.
 - For glow-up-coach summary_text specifically, write 4-6 sentences. Make it feel like a complete FaceKit-style coaching read: overall impression, strongest facial signals, what currently limits the look in photos, the highest-impact next steps, and a grounded closing note.
-- For proportions detail_text, include the measurement logic or ratio meaning, the interpretation range/context, and why the user's value reads balanced/strong/soft/etc.
+- For proportions detail_text, lead with the user's value or visible read, not the measurement definition. Include the ratio meaning briefly only after the personal read, then explain why the user's value reads balanced/strong/soft/etc. and what to do with it.
 - For aesthetics detail_text, refer to visible evidence from the photo when possible, then explain how it affects the overall impression.
 - For coach_items, assessment_text and action_text must each be specific enough to stand alone. Use labels like "Assessment:" and "Plan:" in English, or "평가:" and "플랜:" in Korean.
 - Avoid one-word labels such as "Good", "Balanced", "Normal" as the entire explanation. Those are allowed in value_text/status_text only.
@@ -524,6 +530,8 @@ Product constraints:
 
 Quality examples for expandable detail_text:
 - "Face width ÷ face height. Your value sits close to the balanced range, so the face reads proportionate rather than overly long or overly wide. This supports a clean, stable impression in front-facing photos."
+- "Your lower-face ratio reads compact but still present, so the chin and mouth area supports the face without pulling attention downward. In the current photo, a slightly higher camera height would keep that balance while making the jawline look cleaner."
+- "사진 기준으로 하안부-전체 얼굴 비율은 0.69에 가까워 하안부가 또렷하지만 얼굴 전체를 압도하지 않습니다. 현재 사진에서는 턱선이 안정적으로 읽히므로, 카메라를 살짝 높이면 비율 장점이 더 깔끔하게 보입니다."
 - "평가: 피부 톤이 비교적 균일하고 큰 붉은기나 잡티가 강하게 보이지 않습니다. 플랜: 자연광에서 촬영하면 피부 결이 더 깔끔하게 보이고, 보습감 있는 베이스 관리가 장점을 더 살립니다."
 
 Use these exact title_key values when possible:
