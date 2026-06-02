@@ -21,6 +21,216 @@ class GeminiFaceAnalysisProvider:
         "dating-profile-score",
         "instagram-profile-score",
     }
+    proportions_required_metrics = [
+        {
+            "section": "shapes",
+            "metric_id": "face-shape",
+            "title_key": "analysis.aestheticsResults.shape.faceShape",
+            "icon_name": "face.smiling",
+            "sort_order": 10,
+            "ko_label": "얼굴형",
+            "ko_read": "전체 윤곽과 길이감이 균형 잡힌 방향",
+            "ko_effect": "정면 사진에서 안정적이고 부드러운 인상",
+            "en_label": "face shape",
+            "en_read": "a balanced overall outline and length",
+            "en_effect": "a stable, approachable front-photo impression",
+        },
+        {
+            "section": "shapes",
+            "metric_id": "eye-shape",
+            "title_key": "analysis.aestheticsResults.shape.eyeShape",
+            "icon_name": "eye.fill",
+            "sort_order": 20,
+            "ko_label": "눈 형태",
+            "ko_read": "눈매가 얼굴 중심 인상을 잡아 주는 방향",
+            "ko_effect": "시선이 얼굴 중앙에 자연스럽게 모이는 효과",
+            "en_label": "eye shape",
+            "en_read": "eyes that anchor the center of the face",
+            "en_effect": "a naturally centered gaze read",
+        },
+        {
+            "section": "shapes",
+            "metric_id": "eyebrow-shape",
+            "title_key": "analysis.aestheticsResults.shape.eyebrowShape",
+            "icon_name": "eyebrow",
+            "sort_order": 30,
+            "ko_label": "눈썹 형태",
+            "ko_read": "눈 위 프레임이 인상을 정리해 주는 방향",
+            "ko_effect": "눈매가 더 또렷하고 정돈돼 보이는 효과",
+            "en_label": "eyebrow shape",
+            "en_read": "a brow frame that organizes the eye area",
+            "en_effect": "a cleaner and more defined eye-area impression",
+        },
+        {
+            "section": "shapes",
+            "metric_id": "lip-shape",
+            "title_key": "analysis.aestheticsResults.shape.lipShape",
+            "icon_name": "mouth.fill",
+            "sort_order": 40,
+            "ko_label": "입술 형태",
+            "ko_read": "하안부 표정과 균형을 받쳐 주는 방향",
+            "ko_effect": "얼굴 하단이 과하게 무겁지 않고 자연스럽게 읽히는 효과",
+            "en_label": "lip shape",
+            "en_read": "a mouth shape that supports lower-face balance",
+            "en_effect": "a lower face that reads natural rather than heavy",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "canthal-tilt",
+            "title_key": "analysis.aestheticsResults.proportion.canthalTilt",
+            "icon_name": "arrow.left.and.right.circle",
+            "sort_order": 50,
+            "ko_label": "눈꼬리 기울기",
+            "ko_read": "눈매 흐름이 안정적인 방향",
+            "ko_effect": "시선과 눈 주변 인상이 더 선명해 보이는 효과",
+            "en_label": "canthal tilt",
+            "en_read": "a stable eye-line direction",
+            "en_effect": "a clearer eye-area impression",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "eye-spacing-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.eyeSpacingRatio",
+            "icon_name": "eye.fill",
+            "sort_order": 60,
+            "ko_label": "눈 간격 비율",
+            "ko_read": "눈 사이 간격이 얼굴 중앙 균형을 잡는 방향",
+            "ko_effect": "얼굴이 과하게 좁거나 퍼져 보이지 않는 안정감",
+            "en_label": "eye spacing ratio",
+            "en_read": "spacing that supports the center balance of the face",
+            "en_effect": "a stable read that avoids looking too narrow or too spread out",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "face-width-height-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.faceWidthHeightRatio",
+            "icon_name": "rectangle.fill",
+            "sort_order": 70,
+            "ko_label": "얼굴 너비-높이 비율",
+            "ko_read": "가로와 세로의 균형이 안정적인 방향",
+            "ko_effect": "얼굴이 지나치게 길거나 넓어 보이지 않는 정돈된 인상",
+            "en_label": "face width-height ratio",
+            "en_read": "a stable width-to-height balance",
+            "en_effect": "a composed face shape that avoids looking overly long or wide",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "midface-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.midfaceRatio",
+            "icon_name": "sun.max.fill",
+            "sort_order": 80,
+            "ko_label": "중안부 비율",
+            "ko_read": "중앙 얼굴 길이감이 전체 인상과 맞는 방향",
+            "ko_effect": "얼굴 중심부가 답답하지 않고 자연스럽게 이어지는 효과",
+            "en_label": "midface ratio",
+            "en_read": "a center-face length that fits the overall impression",
+            "en_effect": "a smoother read through the middle of the face",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "philtrum-chin-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.philtrumToChinRatio",
+            "icon_name": "mouth.fill",
+            "sort_order": 90,
+            "ko_label": "인중-턱 비율",
+            "ko_read": "입 주변과 턱 길이감이 하안부를 받쳐 주는 방향",
+            "ko_effect": "입과 턱 사이 균형이 자연스럽게 보이는 효과",
+            "en_label": "philtrum-chin ratio",
+            "en_read": "mouth-to-chin length that supports the lower face",
+            "en_effect": "a more natural balance around the mouth and chin",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "eye-width-face-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.eyeWidthFaceRatio",
+            "icon_name": "eye.circle.fill",
+            "sort_order": 100,
+            "ko_label": "눈 너비-얼굴 비율",
+            "ko_read": "눈 영역이 얼굴 폭 안에서 존재감 있게 보이는 방향",
+            "ko_effect": "눈이 작게 묻히지 않고 얼굴 중심 포인트가 되는 효과",
+            "en_label": "eye width-face ratio",
+            "en_read": "eyes with enough presence within the face width",
+            "en_effect": "an eye area that does not get lost in the face frame",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "upper-lower-lip-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.upperLipToLowerLip",
+            "icon_name": "mouth.fill",
+            "sort_order": 110,
+            "ko_label": "윗입술-아랫입술 비율",
+            "ko_read": "입술 상하 균형이 표정을 자연스럽게 받치는 방향",
+            "ko_effect": "입 주변 인상이 과하게 무겁지 않고 정돈되는 효과",
+            "en_label": "upper-lower lip ratio",
+            "en_read": "upper and lower lip balance that supports expression",
+            "en_effect": "a cleaner and more natural mouth-area read",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "eye-width-height-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.eyeWidthHeightRatio",
+            "icon_name": "eye.fill",
+            "sort_order": 120,
+            "ko_label": "눈 너비-높이 비율",
+            "ko_read": "눈매가 답답하지 않고 가로 흐름을 만드는 방향",
+            "ko_effect": "눈 주변이 더 또렷하고 시원하게 보이는 효과",
+            "en_label": "eye width-height ratio",
+            "en_read": "an eye shape with a clean horizontal flow",
+            "en_effect": "a clearer and more open eye-area impression",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "lower-full-face-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.lowerToFullFaceRatio",
+            "icon_name": "rectangle.portrait",
+            "sort_order": 130,
+            "ko_label": "하안부-전체 얼굴 비율",
+            "ko_read": "하안부가 존재감은 있지만 얼굴 전체를 압도하지 않는 방향",
+            "ko_effect": "턱과 입 주변이 안정적으로 받쳐 주는 인상",
+            "en_label": "lower-full face ratio",
+            "en_read": "a lower face that is present without overpowering the whole face",
+            "en_effect": "a stable mouth-and-chin foundation",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "eye-mouth-angle",
+            "title_key": "analysis.aestheticsResults.proportion.eyeToMouthAngle",
+            "icon_name": "angle",
+            "sort_order": 140,
+            "ko_label": "눈-입 각도",
+            "ko_read": "눈에서 입으로 이어지는 흐름이 안정적인 방향",
+            "ko_effect": "표정과 얼굴 중심선이 자연스럽게 이어지는 효과",
+            "en_label": "eye-mouth angle",
+            "en_read": "a stable visual flow from the eyes to the mouth",
+            "en_effect": "a more coherent expression and center-face read",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "face-depth-width-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.faceDepthWidthRatio",
+            "icon_name": "viewfinder",
+            "sort_order": 150,
+            "ko_label": "얼굴 깊이-너비 비율",
+            "ko_read": "너비 대비 입체감이 자연스럽게 보이는 방향",
+            "ko_effect": "얼굴이 평면적으로만 보이지 않고 더 입체적으로 읽히는 효과",
+            "en_label": "face depth-width ratio",
+            "en_read": "natural depth relative to face width",
+            "en_effect": "a more dimensional read instead of a flat photo impression",
+        },
+        {
+            "section": "proportions",
+            "metric_id": "face-contour-width-height-ratio",
+            "title_key": "analysis.aestheticsResults.proportion.faceContourWidthHeightRatio",
+            "icon_name": "rectangle.portrait",
+            "sort_order": 160,
+            "ko_label": "얼굴 윤곽 너비-높이 비율",
+            "ko_read": "외곽 윤곽의 가로세로 균형이 정돈된 방향",
+            "ko_effect": "프레임이 과하게 넓거나 길어 보이지 않는 효과",
+            "en_label": "face contour width-height ratio",
+            "en_read": "a cleaner width-to-height balance in the outer contour",
+            "en_effect": "a face frame that avoids reading too wide or too long",
+        },
+    ]
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -203,6 +413,8 @@ class GeminiFaceAnalysisProvider:
             for index, item in enumerate(self._as_list(data.get("metrics")))
             if isinstance(item, dict)
         ]
+        if request.mode_id == "proportions":
+            self._ensure_proportions_metrics(data, request)
         data["growth_opportunities"] = [
             self._normalize_growth_opportunity(item, index, request.locale)
             for index, item in enumerate(self._as_list(data.get("growth_opportunities")))
@@ -228,6 +440,154 @@ class GeminiFaceAnalysisProvider:
             else None
         )
         return data
+
+    def _ensure_proportions_metrics(self, data: dict, request: ProviderAnalysisRequest) -> None:
+        metrics = [
+            item
+            for item in self._as_list(data.get("metrics"))
+            if isinstance(item, dict)
+        ]
+        existing_ids = {
+            self._slug(item.get("metric_id"))
+            for item in metrics
+        }
+        measured_by_id = self._face_metric_lookup(request.face_metrics or [])
+
+        for spec in self.proportions_required_metrics:
+            metric_id = spec["metric_id"]
+            if metric_id in existing_ids:
+                continue
+            measured = measured_by_id.get(metric_id)
+            metrics.append(self._fallback_proportions_metric(spec, measured, request.locale))
+
+        metrics.sort(key=lambda item: self._int(item.get("sort_order"), 999))
+        data["metrics"] = metrics
+
+    def _fallback_proportions_metric(
+        self,
+        spec: dict[str, object],
+        measured: dict[str, object] | None,
+        locale: str,
+    ) -> dict:
+        metric_id = str(spec["metric_id"])
+        value_text = self._measured_value_text(measured, locale)
+        has_value = bool(value_text)
+        if not value_text:
+            value_text = self._estimated_value_text(spec, locale)
+
+        return {
+            "section": spec["section"],
+            "metric_id": metric_id,
+            "title_key": spec["title_key"],
+            "value_text": value_text,
+            "numeric_value": self._optional_float((measured or {}).get("numeric_value")),
+            "unit": self._optional_string((measured or {}).get("unit")),
+            "status_text": self._optional_string((measured or {}).get("interpretation_label_ko" if locale == "ko" else "interpretation_label_en")),
+            "detail_text": self._proportions_detail_text(spec, value_text, has_value, locale),
+            "icon_name": spec["icon_name"],
+            "value_tint": "#34D15C" if has_value else "#A7A7B2",
+            "sort_order": spec["sort_order"],
+        }
+
+    def _proportions_detail_text(
+        self,
+        spec: dict[str, object],
+        value_text: str,
+        has_measured_value: bool,
+        locale: str,
+    ) -> str:
+        if locale == "ko":
+            label = str(spec["ko_label"])
+            read = str(spec["ko_read"])
+            effect = str(spec["ko_effect"])
+            if has_measured_value:
+                return (
+                    f"{label}: 현재 결과는 {value_text}입니다. "
+                    f"이 값은 사용자 얼굴에서 {read}에 가까운 신호입니다. 실제 인상은 {effect} 쪽으로 보입니다. "
+                    "정면에 가까운 각도와 부드러운 조명에서 다시 촬영하면 이 비율의 장점이 더 선명하게 드러납니다."
+                )
+            return (
+                f"{label}: 현재 사진 기준으로는 {read}에 가깝습니다. "
+                f"사용자 얼굴에서 핵심 포인트는 {effect}입니다. 단순 지표 설명보다 실제 인상 해석에 더 가깝습니다. "
+                "정면 각도와 안정적인 조명에서 다시 찍으면 판단 정확도가 더 좋아집니다."
+            )
+
+        label = str(spec["en_label"])
+        read = str(spec["en_read"])
+        effect = str(spec["en_effect"])
+        if has_measured_value:
+            return (
+                f"Your {label} reads as {value_text} in this result. "
+                f"For your face, this points to {read}, creating {effect}. "
+                "A near-front camera angle with softer light would make this proportion read even more clearly."
+            )
+        return (
+            f"From this photo, your {label} appears closest to {read}. "
+            f"For your face, the practical effect is {effect}, not just a generic measurement definition. "
+            "A cleaner front-facing retake would make the read more precise."
+        )
+
+    def _estimated_value_text(self, spec: dict[str, object], locale: str) -> str:
+        if locale == "ko":
+            return f"사진 기준 추정 · {spec['ko_read']}"
+        return f"Photo estimate · {spec['en_read']}"
+
+    def _measured_value_text(self, measured: dict[str, object] | None, locale: str) -> str | None:
+        if not measured:
+            return None
+        display_value = self._optional_string(measured.get("display_value"))
+        if locale == "ko" and display_value and re.search(r"[가-힣]", display_value):
+            return display_value
+        if locale != "ko" and display_value:
+            return display_value
+
+        numeric_value = self._optional_float(measured.get("numeric_value"))
+        if locale == "ko" and numeric_value is not None:
+            label_ko = self._optional_string(measured.get("interpretation_label_ko"))
+            if label_ko:
+                return f"{self._format_metric_value(numeric_value, measured.get('unit'))} · {label_ko}"
+            return self._format_metric_value(numeric_value, measured.get("unit"))
+        if display_value:
+            return display_value
+
+        if numeric_value is None:
+            return None
+        label = (
+            self._optional_string(measured.get("interpretation_label_en"))
+            or self._optional_string(measured.get("interpretation_label_ko"))
+        )
+        if label:
+            return f"{numeric_value:.2f} · {label}"
+        return f"{numeric_value:.2f}"
+
+    def _format_metric_value(self, numeric_value: float, unit: object) -> str:
+        unit_text = self._optional_string(unit)
+        value_text = f"{numeric_value:.2f}".rstrip("0").rstrip(".")
+        if unit_text in {"degree", "degrees", "deg"}:
+            return f"{value_text}°"
+        if unit_text in {"percent", "%"}:
+            return f"{value_text}%"
+        return value_text
+
+    def _face_metric_lookup(self, face_metrics: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+        lookup: dict[str, dict[str, object]] = {}
+        aliases = {
+            "face-width-height-ratio": "face-width-height-ratio",
+            "face-depth-width-ratio": "face-depth-width-ratio",
+            "structure-symmetry-score": "symmetry",
+            "eye-spacing-ratio": "eye-spacing-ratio",
+            "canthal-tilt": "canthal-tilt",
+            "face-contour-width-height-ratio": "face-contour-width-height-ratio",
+        }
+        for item in face_metrics:
+            if not isinstance(item, dict):
+                continue
+            metric_id = self._slug(item.get("metric_id"))
+            lookup[metric_id] = item
+            alias = aliases.get(metric_id)
+            if alias:
+                lookup[alias] = item
+        return lookup
 
     @classmethod
     def _is_transient_model_error(cls, exc: Exception) -> bool:
