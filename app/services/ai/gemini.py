@@ -274,8 +274,113 @@ class GeminiFaceAnalysisProvider:
             config=config,
         )
         data = self._parse_json(response.text or "{}")
+        if request.mode_id == "proportions":
+            data = await self._repair_proportions_payload_if_needed(
+                client=client,
+                image_parts=image_parts,
+                request=request,
+                config=config,
+                data=data,
+            )
         data = self._normalize_payload(data, request, model_name=used_model_name)
         return AnalysisResultPayload.model_validate(data)
+
+    async def _repair_proportions_payload_if_needed(
+        self,
+        client,
+        image_parts: list[object],
+        request: ProviderAnalysisRequest,
+        config,
+        data: dict,
+    ) -> dict:
+        missing_ids = self._proportions_missing_metric_ids(data)
+        placeholder_count = self._proportions_placeholder_metric_count(data)
+        if not missing_ids and placeholder_count == 0:
+            return data
+
+        repair_prompt = build_face_analysis_prompt(
+            request.mode_id,
+            request.locale,
+            face_metrics=request.face_metrics,
+            photo_count=len(image_parts),
+            onboarding_context=request.onboarding_context,
+        )
+        repair_prompt += (
+            "\n\nCRITICAL REPAIR PASS:\n"
+            f"- The previous proportions response omitted these required metric_id values: {', '.join(missing_ids)}.\n"
+            f"- It also contained {placeholder_count} generic placeholder metric value(s).\n"
+            "- Return one complete JSON object for the same photo, including every required proportions metric_id.\n"
+            "- Do not output generic placeholder values such as \"Photo estimate\", \"a balanced overall outline\", "
+            "\"eyes that anchor\", or other metric-definition text as value_text.\n"
+            "- value_text must be a compact actual read from the user's photo, for example "
+            "\"Oval · soft outline\", \"Slight negative · calmer eye line\", or \"1.58 · broader frame\".\n"
+            "- detail_text must explain the visible read for this user's face/photo, not what the metric means.\n"
+        )
+
+        repair_contents: list[object] = [repair_prompt]
+        for index, image_part in enumerate(image_parts, start=1):
+            if len(image_parts) > 1:
+                repair_contents.append(f"Photo candidate {index}:")
+            repair_contents.append(image_part)
+
+        try:
+            repair_response, _ = await self._generate_content_with_fallback(
+                client=client,
+                contents=repair_contents,
+                config=config,
+            )
+            repaired_data = self._parse_json(repair_response.text or "{}")
+        except Exception as exc:
+            print("Facemaxx Gemini proportions repair failed:", repr(exc))
+            return data
+
+        repaired_missing_count = len(self._proportions_missing_metric_ids(repaired_data))
+        repaired_placeholder_count = self._proportions_placeholder_metric_count(repaired_data)
+        if (
+            repaired_missing_count < len(missing_ids)
+            or repaired_placeholder_count < placeholder_count
+        ):
+            return repaired_data
+        return data
+
+    def _proportions_missing_metric_ids(self, data: dict) -> list[str]:
+        required_ids = [str(spec["metric_id"]) for spec in self.proportions_required_metrics]
+        metrics = self._as_list((data or {}).get("metrics")) if isinstance(data, dict) else []
+        existing_ids = {
+            self._slug(item.get("metric_id") or item.get("id") or item.get("title"))
+            for item in metrics
+            if isinstance(item, dict)
+        }
+        return [metric_id for metric_id in required_ids if metric_id not in existing_ids]
+
+    def _proportions_placeholder_metric_count(self, data: dict) -> int:
+        metrics = self._as_list((data or {}).get("metrics")) if isinstance(data, dict) else []
+        placeholder_markers = (
+            "photo estimate",
+            "a balanced overall outline",
+            "eyes that anchor",
+            "a brow frame",
+            "a mouth shape",
+            "a stable width-to-height",
+            "a center-face length",
+            "mouth-to-chin length",
+            "eyes with enough presence",
+            "upper and lower lip balance",
+            "an eye shape with",
+            "a lower face that is present",
+            "a stable visual flow",
+            "natural depth relative",
+            "a cleaner width-to-height",
+        )
+        count = 0
+        for item in metrics:
+            if not isinstance(item, dict):
+                continue
+            value_text = str(item.get("value_text") or item.get("display_value") or "").lower()
+            detail_text = str(item.get("detail_text") or item.get("description") or "").lower()
+            if any(marker in value_text or marker in detail_text for marker in placeholder_markers):
+                count += 1
+        return count
 
     async def _generate_content_with_fallback(self, client, contents: list[object], config):
         attempts_per_model = max(1, self.settings.gemini_retry_attempts)
@@ -458,6 +563,8 @@ class GeminiFaceAnalysisProvider:
             if metric_id in existing_ids:
                 continue
             measured = measured_by_id.get(metric_id)
+            if measured is None:
+                continue
             metrics.append(self._fallback_proportions_metric(spec, measured, request.locale))
 
         metrics.sort(key=lambda item: self._int(item.get("sort_order"), 999))

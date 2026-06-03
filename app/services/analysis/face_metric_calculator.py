@@ -186,9 +186,16 @@ def _landmark_metrics(landmarks: dict[str, list[list[float]]]) -> list[FaceMetri
 
         tilt = _average_canthal_tilt(left_eye, right_eye)
         if tilt is not None:
-            label_en = "Positive" if tilt >= 2 else "Neutral" if tilt >= -2 else "Negative"
-            label_ko = "긍정 각도" if tilt >= 2 else "중립 각도" if tilt >= -2 else "하향 각도"
-            key_suffix = "positive" if tilt >= 2 else "neutral" if tilt >= -2 else "negative"
+            if abs(tilt) > 14:
+                label_en = "Angle affected"
+                label_ko = "촬영 각도 영향"
+                key_suffix = "angleAffected"
+                confidence = 0.45
+            else:
+                label_en = "Positive" if tilt >= 2 else "Neutral" if tilt >= -2 else "Negative"
+                label_ko = "긍정 각도" if tilt >= 2 else "중립 각도" if tilt >= -2 else "하향 각도"
+                key_suffix = "positive" if tilt >= 2 else "neutral" if tilt >= -2 else "negative"
+                confidence = 0.80
             metrics.append(
                 FaceMetricMeasurement(
                     metric_group="proportions",
@@ -199,7 +206,7 @@ def _landmark_metrics(landmarks: dict[str, list[list[float]]]) -> list[FaceMetri
                     interpretation_key=f"analysis.capture.metric.canthalTilt.{key_suffix}",
                     interpretation_label_en=label_en,
                     interpretation_label_ko=label_ko,
-                    confidence=0.80,
+                    confidence=confidence,
                     source="vision_landmarks",
                 )
             )
@@ -256,7 +263,8 @@ def _average_canthal_tilt(left_eye: list[tuple[float, float]], right_eye: list[t
     valid = [tilt for tilt in tilts if tilt is not None]
     if not valid:
         return None
-    return fmean(valid)
+    roll = _line_tilt(_center(left_eye), _center(right_eye))
+    return fmean(valid) - roll
 
 
 def _eye_tilt(points: list[tuple[float, float]]) -> float | None:
@@ -270,6 +278,13 @@ def _eye_tilt(points: list[tuple[float, float]]) -> float | None:
     if abs(dx) < 0.0001:
         return None
 
+    return _line_tilt(left, right)
+
+
+def _line_tilt(left: tuple[float, float], right: tuple[float, float]) -> float:
+    dx = right[0] - left[0]
+    if abs(dx) < 0.0001:
+        return 0
     return -degrees(atan2(right[1] - left[1], dx))
 
 

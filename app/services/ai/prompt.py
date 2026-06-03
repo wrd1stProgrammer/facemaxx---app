@@ -291,12 +291,12 @@ Mode-specific output:
 - Return shapes metrics in section "shapes" and ratio metrics in section "proportions".
 - Include exactly these shape metric_id values: face-shape, eye-shape, eyebrow-shape, lip-shape.
 - Include these proportion metric_id values in order: canthal-tilt, eye-spacing-ratio, face-width-height-ratio, midface-ratio, philtrum-chin-ratio, eye-width-face-ratio, upper-lower-lip-ratio, eye-width-height-ratio, lower-full-face-ratio, eye-mouth-angle, face-depth-width-ratio, face-contour-width-height-ratio.
-- Do not omit the listed metrics just because a direct scan value is missing. Use measured values when available; otherwise estimate conservatively from the original photo and mark it as a photo-based estimate in natural language.
+- Do not omit the listed metrics just because a direct scan value is missing. Use measured values when available; otherwise estimate conservatively from the original photo, but do not use "Photo estimate" or definition-like placeholder phrases as value_text.
 - Every proportions detail_text must be about THIS user's face/photo, not a definition of the metric. Do not write only what the metric measures.
 - Use this order inside each detail_text: first state the user's actual value or visible read, then explain what it means for this user's facial impression, then give one concrete retake/presentation implication.
 - In Korean, write like "사진 기준으로 하안부-전체 얼굴 비율은 0.69에 가까워 하안부가 또렷하지만 얼굴 전체를 압도하지 않습니다..." rather than "하안부 높이를 전체 얼굴 높이와 비교한 값입니다."
 - If the metric is uncertain from one 2D photo, still give a useful user-specific read: "사진 기준 추정치로는..." then explain the visible effect and the practical implication.
-- value_text must include the user's number/shape/read plus a short interpretation label, for example "0.69 · 하안부 안정적", "45.7° · 하향 프레임 안정", or "Oval · 부드러운 윤곽".
+- value_text must include the user's number/shape/read plus a short interpretation label, for example "0.69 · 하안부 안정적", "45.7° · 하향 프레임 안정", or "Oval · 부드러운 윤곽". Never write generic value_text such as "Photo estimate · a balanced overall outline", "Photo estimate · eyes that anchor...", or "Photo estimate · a mouth shape...".
 - summary_text must mention the strongest proportion read, the weakest/most improvable read, and the fastest photo retake improvement. Avoid generic praise.
 """,
     "aesthetics": """

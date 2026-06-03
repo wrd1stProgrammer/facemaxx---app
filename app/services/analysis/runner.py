@@ -29,7 +29,6 @@ PRO_SCAN_MODE_IDS = {
 
 FREE_TRIAL_MODE_IDS = {
     "proportions",
-    "aesthetics",
 }
 
 PROVIDER_TIMEOUT_SECONDS = 540
@@ -65,7 +64,7 @@ class AnalysisRunner:
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
                     detail={
                         "code": "free_trial_mode_locked",
-                        "message": "Free trial analysis is limited to proportions and aesthetics.",
+                        "message": "Free trial analysis is limited to proportions.",
                         "app_user_id": pro_scan_status.app_user_id,
                         "pro_scans_remaining": pro_scan_status.pro_scans_remaining,
                     },
