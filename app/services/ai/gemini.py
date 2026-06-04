@@ -21,6 +21,28 @@ class GeminiFaceAnalysisProvider:
         "dating-profile-score",
         "instagram-profile-score",
     }
+    proportions_placeholder_markers = (
+        "photo estimate",
+        "a balanced overall outline",
+        "eyes that anchor",
+        "a brow frame",
+        "a mouth shape",
+        "a stable width-to-height",
+        "a center-face length",
+        "mouth-to-chin length",
+        "eyes with enough presence",
+        "upper and lower lip balance",
+        "an eye shape with",
+        "a lower face that is present",
+        "a stable visual flow",
+        "natural depth relative",
+        "a cleaner width-to-height",
+        "metric definition",
+        "하안부 높이를 전체 얼굴 높이와 비교한 값입니다",
+        "비교한 값입니다",
+        "보는 지표입니다",
+        "판단하는 데 도움을 줍니다",
+    )
     proportions_required_metrics = [
         {
             "section": "shapes",
@@ -355,30 +377,11 @@ class GeminiFaceAnalysisProvider:
 
     def _proportions_placeholder_metric_count(self, data: dict) -> int:
         metrics = self._as_list((data or {}).get("metrics")) if isinstance(data, dict) else []
-        placeholder_markers = (
-            "photo estimate",
-            "a balanced overall outline",
-            "eyes that anchor",
-            "a brow frame",
-            "a mouth shape",
-            "a stable width-to-height",
-            "a center-face length",
-            "mouth-to-chin length",
-            "eyes with enough presence",
-            "upper and lower lip balance",
-            "an eye shape with",
-            "a lower face that is present",
-            "a stable visual flow",
-            "natural depth relative",
-            "a cleaner width-to-height",
-        )
         count = 0
         for item in metrics:
             if not isinstance(item, dict):
                 continue
-            value_text = str(item.get("value_text") or item.get("display_value") or "").lower()
-            detail_text = str(item.get("detail_text") or item.get("description") or "").lower()
-            if any(marker in value_text or marker in detail_text for marker in placeholder_markers):
+            if self._has_proportions_placeholder_text(item):
                 count += 1
         return count
 
@@ -520,6 +523,7 @@ class GeminiFaceAnalysisProvider:
         ]
         if request.mode_id == "proportions":
             self._ensure_proportions_metrics(data, request)
+            self._sanitize_proportions_template_metrics(data, request)
         data["growth_opportunities"] = [
             self._normalize_growth_opportunity(item, index, request.locale)
             for index, item in enumerate(self._as_list(data.get("growth_opportunities")))
@@ -570,6 +574,68 @@ class GeminiFaceAnalysisProvider:
         metrics.sort(key=lambda item: self._int(item.get("sort_order"), 999))
         data["metrics"] = metrics
 
+    def _sanitize_proportions_template_metrics(
+        self,
+        data: dict,
+        request: ProviderAnalysisRequest,
+    ) -> None:
+        metrics = [
+            item
+            for item in self._as_list(data.get("metrics"))
+            if isinstance(item, dict)
+        ]
+        measured_by_id = self._face_metric_lookup(request.face_metrics or [])
+        for item in metrics:
+            if not self._has_proportions_placeholder_text(item):
+                continue
+            spec = self._proportions_metric_spec(self._slug(item.get("metric_id")))
+            if spec is None:
+                value_text = self._estimated_unknown_value_text(request.locale)
+                item["value_text"] = value_text
+                item["detail_text"] = self._fallback_metric_detail(
+                    self._slug(item.get("metric_id")),
+                    value_text,
+                    None,
+                    request.locale,
+                )
+                item["value_tint"] = "#A7A7B2"
+                continue
+            measured = measured_by_id.get(str(spec["metric_id"]))
+            value_text = self._measured_value_text(measured, request.locale)
+            has_value = bool(value_text)
+            if not value_text:
+                value_text = self._estimated_value_text(spec, request.locale)
+            item["value_text"] = value_text
+            item["numeric_value"] = self._optional_float((measured or {}).get("numeric_value"))
+            item["unit"] = self._optional_string((measured or {}).get("unit"))
+            item["status_text"] = self._optional_string(
+                (measured or {}).get(
+                    "interpretation_label_ko" if request.locale == "ko" else "interpretation_label_en"
+                )
+            )
+            item["detail_text"] = self._proportions_detail_text(
+                spec,
+                value_text,
+                has_value,
+                request.locale,
+            )
+            item["value_tint"] = "#34D15C" if has_value else "#A7A7B2"
+
+    @classmethod
+    def _has_proportions_placeholder_text(cls, item: dict) -> bool:
+        value_text = str(item.get("value_text") or item.get("display_value") or "").lower()
+        detail_text = str(item.get("detail_text") or item.get("description") or "").lower()
+        return any(
+            marker in value_text or marker in detail_text
+            for marker in cls.proportions_placeholder_markers
+        )
+
+    def _proportions_metric_spec(self, metric_id: str) -> dict[str, object] | None:
+        for spec in self.proportions_required_metrics:
+            if spec["metric_id"] == metric_id:
+                return spec
+        return None
+
     def _fallback_proportions_metric(
         self,
         spec: dict[str, object],
@@ -614,9 +680,9 @@ class GeminiFaceAnalysisProvider:
                     "정면에 가까운 각도와 부드러운 조명에서 다시 촬영하면 이 비율의 장점이 더 선명하게 드러납니다."
                 )
             return (
-                f"{label}: 현재 사진 기준으로는 {read}에 가깝습니다. "
-                f"사용자 얼굴에서 핵심 포인트는 {effect}입니다. 단순 지표 설명보다 실제 인상 해석에 더 가깝습니다. "
-                "정면 각도와 안정적인 조명에서 다시 찍으면 판단 정확도가 더 좋아집니다."
+                f"{label}: 현재 사진만으로는 이 항목을 자신 있게 읽기 어렵습니다. "
+                "사용자 얼굴의 실제 균형을 더 정확히 보려면 정면에 가까운 각도, 균일한 조명, 덜 기울어진 구도가 필요합니다. "
+                "다음 촬영에서는 얼굴이 프레임 중앙에 오도록 맞추면 이 지표의 판단 신뢰도가 올라갑니다."
             )
 
         label = str(spec["en_label"])
@@ -629,15 +695,21 @@ class GeminiFaceAnalysisProvider:
                 "A near-front camera angle with softer light would make this proportion read even more clearly."
             )
         return (
-            f"From this photo, your {label} appears closest to {read}. "
-            f"For your face, the practical effect is {effect}, not just a generic measurement definition. "
-            "A cleaner front-facing retake would make the read more precise."
+            f"Your {label} needs a clearer photo before I can give a confident read. "
+            "The current image does not provide enough stable visual context for this metric. "
+            "Use a front-facing retake with even light and less tilt so this part of your face can be judged more accurately."
         )
 
     def _estimated_value_text(self, spec: dict[str, object], locale: str) -> str:
         if locale == "ko":
-            return f"사진 기준 추정 · {spec['ko_read']}"
-        return f"Photo estimate · {spec['en_read']}"
+            return "저신뢰 · 재촬영 권장"
+        return "Low confidence · retake recommended"
+
+    @staticmethod
+    def _estimated_unknown_value_text(locale: str) -> str:
+        if locale == "ko":
+            return "저신뢰 · 확인 필요"
+        return "Low confidence · needs review"
 
     def _measured_value_text(self, measured: dict[str, object] | None, locale: str) -> str | None:
         if not measured:
@@ -1277,17 +1349,29 @@ class GeminiFaceAnalysisProvider:
 
     @staticmethod
     def _fallback_metric_detail(metric_id: str, value_text: str | None, status_text: str | None, locale: str) -> str:
-        value_part = value_text or status_text or "this result"
+        value_part = value_text or status_text
         if locale == "ko":
+            if value_part:
+                return (
+                    f"{value_part}로 보이지만, 현재 사진만으로는 이 항목의 세부 판단을 과하게 단정하지 않는 편이 안전합니다. "
+                    "정면에 가까운 밝은 사진에서 다시 촬영하면 얼굴 구조와 표정 신호를 더 안정적으로 비교할 수 있습니다. "
+                    "다음 결과에서는 조명, 각도, 표정 차이를 함께 보면 개선 포인트가 더 분명해집니다."
+                )
             return (
-                f"{value_part}는 현재 얼굴 스캔과 사진 맥락을 바탕으로 해석한 결과입니다. "
-                f"{metric_id.replace('-', ' ')} 판독은 이 요소가 전체 인상에 어떤 영향을 주는지 설명합니다. "
-                "정면에 가까운 밝은 사진으로 다시 비교하면 변화가 더 안정적으로 보입니다."
+                "현재 사진만으로는 이 항목의 세부 판단을 자신 있게 제공하기 어렵습니다. "
+                "정면에 가까운 밝은 사진에서 다시 촬영하면 얼굴 구조와 표정 신호를 더 안정적으로 비교할 수 있습니다. "
+                "다음 결과에서는 조명, 각도, 표정 차이를 함께 보면 개선 포인트가 더 분명해집니다."
+            )
+        if value_part:
+            return (
+                f"{value_part} is the visible read, but this photo does not give enough context for a strong personalized detail. "
+                "Use a centered, well-lit retake with less tilt so the face structure and expression can be compared more reliably. "
+                "The next scan should make the practical improvement point clearer."
             )
         return (
-            f"{value_part} is interpreted from the current face scan and photo. "
-            f"The {metric_id.replace('-', ' ')} reading helps explain how this feature affects the overall impression. "
-            "Use a centered, well-lit retake to compare changes more reliably."
+            "This photo does not give enough context for a strong personalized detail on this item. "
+            "Use a centered, well-lit retake with less tilt so the face structure and expression can be compared more reliably. "
+            "The next scan should make the practical improvement point clearer."
         )
 
     @staticmethod
@@ -1299,11 +1383,11 @@ class GeminiFaceAnalysisProvider:
     @staticmethod
     def _fallback_coach_assessment(locale: str) -> str:
         if locale == "ko":
-            return "평가: 현재 얼굴 스캔에서 이 요소는 비교적 명확하게 읽힙니다."
-        return "Assessment: This feature reads clearly from the current face scan."
+            return "평가: 현재 사진만으로는 이 요소를 과하게 단정하지 않는 편이 안전합니다."
+        return "Assessment: This photo does not give enough context for a strong personalized read."
 
     @staticmethod
     def _fallback_coach_action(locale: str) -> str:
         if locale == "ko":
-            return "플랜: 균일한 조명에서 다시 촬영하고 다음 스캔과 비교한 뒤 루틴을 조정하세요."
-        return "Plan: Retake in even light and compare future scans before changing your routine."
+            return "플랜: 균일한 조명과 정면에 가까운 각도로 다시 촬영한 뒤 결과를 비교하세요."
+        return "Plan: Retake with even light and a near-front angle before making a routine change."
