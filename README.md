@@ -59,6 +59,7 @@ Supabase is still used for database metadata. Supabase Storage is only used when
 - `look_archetypes`, `look_archetype_traits`, `look_archetype_sections`, `look_archetype_bullets`: shareable archetype result structure.
 - `localized_strings`: optional server-managed i18n strings for English/Korean and future locales.
 - `user_progress_snapshots`, `user_analysis_summary`: progress-tab summary data.
+- `habitdot_install_metrics`: Habitdot install-level counters, including total paywall entries.
 
 ## AI Provider
 
@@ -171,3 +172,4 @@ Example payload:
 - `POST /v1/analysis-runs`
 - `GET /v1/analysis-runs/{run_id}`
 - `POST /v1/habitdot/motivation`
+- `POST /v1/habitdot/paywall-view`

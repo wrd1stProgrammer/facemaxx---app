@@ -13,6 +13,7 @@ from app.schemas.habitdot import (
     HabitdotMotivationRequest,
     HabitdotMotivationResponse,
     HabitdotOnboardingRequest,
+    HabitdotPaywallViewRequest,
     HabitdotPersistedResponse,
 )
 from app.services.habitdot_motivation import HabitdotMotivationService
@@ -79,6 +80,25 @@ async def save_habitdot_bug_report(
     )
 
 
+@router.post("/paywall-view", response_model=HabitdotPersistedResponse)
+async def record_habitdot_paywall_view(
+    request: HabitdotPaywallViewRequest,
+    raw_request: Request,
+    x_facemaxx_install_id: Annotated[str | None, Header()] = None,
+) -> HabitdotPersistedResponse:
+    _enforce_rate_limit(
+        f"paywall:{_rate_limit_key(raw_request, x_facemaxx_install_id)}",
+        per_minute_limit=30,
+        per_day_limit=500,
+    )
+    identity = _install_identity(x_facemaxx_install_id)
+    return HabitdotRepository().record_paywall_view(
+        identity=identity,
+        request=request,
+        inferred_country_code=_country_from_headers(raw_request),
+    )
+
+
 def _install_identity(install_id: str | None) -> RequestIdentity:
     normalized = (install_id or "").strip()
     if not normalized:
@@ -116,7 +136,11 @@ def _rate_limit_key(request: Request, install_id: str | None) -> str:
     return f"ip:{host}"
 
 
-def _enforce_rate_limit(key: str) -> None:
+def _enforce_rate_limit(
+    key: str,
+    per_minute_limit: int = _PER_MINUTE_LIMIT,
+    per_day_limit: int = _PER_DAY_LIMIT,
+) -> None:
     now = datetime.now(UTC)
     one_day_ago = now - timedelta(days=1)
     one_minute_ago = now - timedelta(minutes=1)
@@ -126,10 +150,10 @@ def _enforce_rate_limit(key: str) -> None:
         requests.popleft()
 
     per_minute_count = sum(1 for item in requests if item >= one_minute_ago)
-    if per_minute_count >= _PER_MINUTE_LIMIT or len(requests) >= _PER_DAY_LIMIT:
+    if per_minute_count >= per_minute_limit or len(requests) >= per_day_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Habitdot motivation rate limit exceeded",
+            detail="Habitdot rate limit exceeded",
         )
 
     requests.append(now)

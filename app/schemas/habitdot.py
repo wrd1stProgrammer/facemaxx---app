@@ -169,6 +169,31 @@ class HabitdotBugReportRequest(FacemaxxBaseModel):
         return value
 
 
+class HabitdotPaywallViewRequest(FacemaxxBaseModel):
+    locale: Optional[str] = Field(default=None, max_length=32)
+    country_code: Optional[str] = Field(default=None, max_length=8)
+    time_zone: Optional[str] = Field(default=None, max_length=64)
+    app_version: Optional[str] = Field(default=None, max_length=32)
+    build_number: Optional[str] = Field(default=None, max_length=32)
+    platform: str = Field(default="ios", max_length=32)
+
+    @field_validator(
+        "locale",
+        "country_code",
+        "time_zone",
+        "app_version",
+        "build_number",
+        "platform",
+        mode="before",
+    )
+    @classmethod
+    def strip_paywall_text(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
 class HabitdotPersistedResponse(FacemaxxBaseModel):
     persisted: bool
     id: Optional[str] = None
+    count: Optional[int] = None

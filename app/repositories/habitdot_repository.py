@@ -10,6 +10,7 @@ from app.schemas.habitdot import (
     HabitdotBugReportRequest,
     HabitdotFeedbackRequest,
     HabitdotOnboardingRequest,
+    HabitdotPaywallViewRequest,
     HabitdotPersistedResponse,
 )
 
@@ -95,6 +96,37 @@ class HabitdotRepository:
         }
         return self._insert("habitdot_bug_reports", payload)
 
+    def record_paywall_view(
+        self,
+        identity: RequestIdentity,
+        request: HabitdotPaywallViewRequest,
+        inferred_country_code: str | None = None,
+    ) -> HabitdotPersistedResponse:
+        supabase = get_supabase_service_client()
+        if supabase is None or identity.client_install_id is None:
+            return HabitdotPersistedResponse(persisted=False)
+
+        params = {
+            "p_client_install_id": identity.client_install_id,
+            "p_locale": request.locale,
+            "p_country_code": self._normalized_country(request.country_code),
+            "p_inferred_country_code": self._normalized_country(inferred_country_code),
+            "p_time_zone": request.time_zone,
+            "p_app_version": request.app_version,
+            "p_build_number": request.build_number,
+            "p_platform": request.platform,
+        }
+
+        try:
+            response = supabase.rpc("increment_habitdot_paywall_view", params).execute()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="habitdot_install_metrics table is not installed. Run the Supabase migration.",
+            ) from exc
+
+        return HabitdotPersistedResponse(persisted=True, count=self._paywall_count(response.data))
+
     @staticmethod
     def _insert(table: str, payload: dict) -> HabitdotPersistedResponse:
         supabase = get_supabase_service_client()
@@ -112,6 +144,28 @@ class HabitdotRepository:
         rows = response.data or []
         row_id = str(rows[0].get("id")) if rows and rows[0].get("id") else None
         return HabitdotPersistedResponse(persisted=True, id=row_id)
+
+    @staticmethod
+    def _paywall_count(value) -> int | None:
+        if isinstance(value, int):
+            return value
+
+        if not isinstance(value, list) or not value:
+            return None
+
+        first = value[0]
+        if isinstance(first, int):
+            return first
+
+        if not isinstance(first, dict):
+            return None
+
+        for key in ("increment_habitdot_paywall_view", "count"):
+            raw_count = first.get(key)
+            if isinstance(raw_count, int):
+                return raw_count
+
+        return None
 
     @staticmethod
     def _normalized_country(value: str | None) -> str | None:
