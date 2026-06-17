@@ -10,6 +10,8 @@ from app.schemas.flirtist import (
     FlirtistGenerateRequest,
     FlirtistGoalRequest,
     FlirtistOCRRequest,
+    FlirtistPickupLinesRequest,
+    FlirtistPickupLinesResponse,
     FlirtistProfileRequest,
     FlirtistResponse,
 )
@@ -35,6 +37,11 @@ async def analyze_chat(request: FlirtistChatRequest) -> FlirtistResponse:
 @router.post("/generate-replies", response_model=FlirtistResponse)
 async def generate_replies(request: FlirtistGenerateRequest) -> FlirtistResponse:
     return FlirtistService().generate_replies(request)
+
+
+@router.post("/pickup-lines", response_model=FlirtistPickupLinesResponse)
+async def pickup_lines(request: FlirtistPickupLinesRequest) -> FlirtistPickupLinesResponse:
+    return FlirtistService().generate_pickup_lines(request)
 
 
 @router.post("/check-draft", response_model=FlirtistResponse)

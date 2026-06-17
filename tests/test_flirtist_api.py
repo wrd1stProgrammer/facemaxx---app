@@ -7,7 +7,14 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.schemas.flirtist import FlirtistChatRequest, FlirtistMessage, FlirtistOCRRequest, FlirtistResponse
+from app.schemas.flirtist import (
+    FlirtistChatRequest,
+    FlirtistMessage,
+    FlirtistOCRRequest,
+    FlirtistPickupLinesRequest,
+    FlirtistPickupLinesResponse,
+    FlirtistResponse,
+)
 from app.services.flirtist_config import FlirtistAIConfig
 from app.services.flirtist_provider import FlirtistAIProviderGateway
 
@@ -80,6 +87,25 @@ class FlirtistApiTest(unittest.TestCase):
         self.assertRegex(combined_reply_text, re.compile("[가-힣]"))
         self.assertRegex(combined_reason_text, re.compile("[가-힣]"))
         self.assertNotIn("pickup line", combined_reply_text.lower())
+
+    def test_pickup_lines_returns_exactly_twenty_lines_for_a_situation(self) -> None:
+        # Given
+        payload = {
+            "locale": "en-US",
+            "situation": "I want to open a conversation with someone reading at a quiet bookstore.",
+        }
+
+        # When
+        response = self.client.post("/api/flirtist/pickup-lines", json=payload)
+
+        # Then
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["language"], "en")
+        self.assertEqual(data["locale"], "en-US")
+        self.assertEqual(len(data["lines"]), 20)
+        self.assertTrue(all(isinstance(line, str) and line.strip() for line in data["lines"]))
+        self.assertIn("book", " ".join(data["lines"]).lower())
 
     def test_analyze_chat_rejects_empty_request_with_validation_error(self) -> None:
         # Given
@@ -238,6 +264,46 @@ class FlirtistApiTest(unittest.TestCase):
         self.assertNotIn("raw-sensitive-screenshot-base64", transport.prompt)
         self.assertIn("imageBase64", transport.prompt)
         self.assertIn("omitted", transport.prompt.lower())
+
+    def test_provider_gateway_normalizes_pickup_lines_json_contract(self) -> None:
+        # Given
+        class FixedTransport:
+            prompt = ""
+
+            def complete_text(self, *, provider, prompt, config) -> str:
+                self.prompt = prompt
+                lines = [f"Bookstore opener {index}" for index in range(1, 21)]
+                return '{"lines":' + repr(lines).replace("'", '"') + "}"
+
+        config = FlirtistAIConfig(
+            requested_provider="openai",
+            effective_provider="openai",
+            openai_model="gpt-test",
+            anthropic_model="claude-test",
+            gemini_model="gemini-test",
+        )
+        fallback = FlirtistPickupLinesResponse(
+            situation="bookstore",
+            lines=[f"Fallback {index}" for index in range(1, 21)],
+            language="en",
+            locale="en-US",
+        )
+        request = FlirtistPickupLinesRequest(
+            locale="en-US",
+            situation="Open a conversation at a bookstore.",
+        )
+        transport = FixedTransport()
+
+        # When
+        result = FlirtistAIProviderGateway(config, transport=transport).complete_pickup_lines(
+            request=request,
+            fallback=fallback,
+        )
+
+        # Then
+        self.assertEqual(len(result.lines), 20)
+        self.assertEqual(result.lines[0], "Bookstore opener 1")
+        self.assertIn("exactly 20", transport.prompt.lower())
 
     @staticmethod
     def _fallback_response() -> FlirtistResponse:

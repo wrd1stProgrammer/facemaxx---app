@@ -15,6 +15,8 @@ from app.schemas.flirtist import (
     FlirtistGenerateRequest,
     FlirtistGoalRequest,
     FlirtistOCRRequest,
+    FlirtistPickupLinesRequest,
+    FlirtistPickupLinesResponse,
     FlirtistProfileRequest,
     FlirtistResponse,
 )
@@ -33,6 +35,7 @@ FlirtistAIAction: TypeAlias = Literal[
     "profile_coach",
     "goal_coach",
     "ocr_chat",
+    "pickup_lines",
 ]
 FlirtistAIRequest: TypeAlias = (
     FlirtistChatRequest
@@ -41,6 +44,7 @@ FlirtistAIRequest: TypeAlias = (
     | FlirtistProfileRequest
     | FlirtistGoalRequest
     | FlirtistOCRRequest
+    | FlirtistPickupLinesRequest
 )
 
 
@@ -88,6 +92,30 @@ class FlirtistAIProviderGateway:
                 config=self._config,
             )
             return _response_from_text(text, fallback=fallback, provider=provider)
+        except (FlirtistProviderError, ValidationError, json.JSONDecodeError):
+            return fallback
+
+    def complete_pickup_lines(
+        self,
+        *,
+        request: FlirtistPickupLinesRequest,
+        fallback: FlirtistPickupLinesResponse,
+    ) -> FlirtistPickupLinesResponse:
+        provider = self._config.effective_provider
+        match provider:
+            case "mock":
+                return fallback
+            case "openai" | "anthropic" | "gemini":
+                pass
+            case unreachable:
+                assert_never(unreachable)
+        try:
+            text = self._transport.complete_text(
+                provider=provider,
+                prompt=_pickup_lines_prompt(request=request, fallback=fallback),
+                config=self._config,
+            )
+            return _pickup_lines_from_text(text, fallback=fallback, provider=provider)
         except (FlirtistProviderError, ValidationError, json.JSONDecodeError):
             return fallback
 
@@ -199,11 +227,25 @@ def _request_json_for_prompt(request: FlirtistAIRequest) -> str:
             | FlirtistDraftRequest()
             | FlirtistProfileRequest()
             | FlirtistGoalRequest()
+            | FlirtistPickupLinesRequest()
         ):
             pass
         case unreachable:
             assert_never(unreachable)
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _pickup_lines_prompt(*, request: FlirtistPickupLinesRequest, fallback: FlirtistPickupLinesResponse) -> str:
+    return "\n".join(
+        [
+            "You are Flirtist, a dating-app pickup line writer for consenting adult dating contexts.",
+            "Return one JSON object only. No markdown. The JSON must include a lines array with exactly 20 strings.",
+            "Make every line specific to the user's situation. Keep it playful, natural, and non-explicit.",
+            "Avoid coercion, harassment, minors, stalking, or sexually explicit pressure.",
+            f"Request JSON: {_request_json_for_prompt(request)}",
+            f"Fallback contract JSON: {fallback.model_dump_json()}",
+        ]
+    )
 
 
 def _response_from_text(
@@ -218,6 +260,20 @@ def _response_from_text(
     base = fallback.model_dump(mode="json")
     base.update(data)
     return FlirtistResponse.model_validate(base)
+
+
+def _pickup_lines_from_text(
+    text: str,
+    *,
+    fallback: FlirtistPickupLinesResponse,
+    provider: FlirtistProvider,
+) -> FlirtistPickupLinesResponse:
+    if not text.strip():
+        raise FlirtistProviderError(provider=provider, reason="empty provider response")
+    data = _json_object_from_text(text)
+    base = fallback.model_dump(mode="json")
+    base.update(data)
+    return FlirtistPickupLinesResponse.model_validate(base)
 
 
 def _json_object_from_text(text: str):

@@ -41,6 +41,26 @@ class FlirtistGenerateRequest(FlirtistChatRequest):
     tone: Optional[str] = Field(default=None, max_length=64)
 
 
+class FlirtistPickupLinesRequest(FacemaxxBaseModel):
+    language: Optional[FlirtistLanguage] = None
+    locale: str = Field(default="en-US", min_length=2, max_length=16)
+    situation: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("locale", "situation", mode="before")
+    @classmethod
+    def strip_text(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class FlirtistPickupLinesResponse(FacemaxxBaseModel):
+    situation: str
+    lines: list[str] = Field(min_length=20, max_length=20)
+    language: FlirtistLanguage
+    locale: str
+
+
 class FlirtistDraftRequest(FacemaxxBaseModel):
     language: Optional[FlirtistLanguage] = None
     locale: str = Field(default="en-US", min_length=2, max_length=16)
