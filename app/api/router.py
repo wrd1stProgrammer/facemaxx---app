@@ -4,6 +4,7 @@ from app.api.routes import (
     account,
     analysis,
     face_scans,
+    flirtist,
     habitdot,
     health,
     modes,
@@ -22,3 +23,4 @@ api_router.include_router(onboarding.router)
 api_router.include_router(account.router)
 api_router.include_router(purchases.router)
 api_router.include_router(habitdot.router)
+api_router.include_router(flirtist.router)

@@ -100,6 +100,28 @@ Example payload:
 }
 ```
 
+## Flirtist Dating Coach
+
+Flirtist endpoints are mounted with and without `API_PREFIX`, so local clients can call either `/api/flirtist/...` or `/v1/api/flirtist/...`.
+
+- `POST /api/flirtist/analyze-chat`: situation read, interest score, risk flags, next move, suggested replies.
+- `POST /api/flirtist/generate-replies`: locale-aware replies and explanations.
+- `POST /api/flirtist/check-draft`: draft rewrite plus safety blocking for minor, explicit, coercive, or stalking content.
+- `POST /api/flirtist/profile-coach`: dating profile strengths, fixes, bio options, and DM hooks.
+- `POST /api/flirtist/goal-coach`: next-step coaching for a dating goal.
+- `POST /api/flirtist/ocr-chat`: screenshot/OCR handoff shape for chat extraction.
+
+Provider selection is independent from the Facemaxx face-analysis provider:
+
+```env
+FLIRTIST_AI_PROVIDER=mock
+FLIRTIST_OPENAI_API_KEY=
+FLIRTIST_ANTHROPIC_API_KEY=
+FLIRTIST_GEMINI_API_KEY=
+```
+
+If the selected provider key is absent, Flirtist falls back to deterministic mock responses while preserving the response contract.
+
 ## RevenueCat
 
 The iOS app uses the public RevenueCat SDK key, while FastAPI uses the server-side secret key for subscriber sync and webhook processing.
