@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.schemas.analysis import PhotoOut
-from app.schemas.flirtist_product import FlirtistProductSessionRequest, FlirtistProductSessionResponse
+from app.schemas.flirtist_product import (
+    FlirtistCoachChatRequest,
+    FlirtistProductSessionRequest,
+    FlirtistProductSessionResponse,
+)
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage
 from app.services.flirtist_product_image_storage import FlirtistStoredImage
 from app.services.flirtist_product_service import FlirtistProductService
@@ -137,6 +141,33 @@ class FlirtistProductApiTest(unittest.TestCase):
         # Then
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured_client_install_ids, [install_id])
+
+    def test_session_upload_accepts_install_id_when_supabase_auth_is_enabled(self) -> None:
+        # Given
+        install_id = "11111111-2222-3333-4444-555555555555"
+        settings = SimpleNamespace(
+            auth_disabled=False,
+            reviewer_demo_enabled=False,
+            reviewer_demo_access_code=None,
+            demo_user_id="00000000-0000-0000-0000-000000000001",
+        )
+        payload = {
+            "mode": "reply_coach",
+            "source": "manual",
+            "locale": "ko-KR",
+            "text": "상대: 오늘 회사가 정신이 하나도 없었어",
+        }
+
+        # When
+        with patch("app.api.deps.get_settings", return_value=settings):
+            response = self.client.post(
+                "/api/flirtist/sessions",
+                json=payload,
+                headers={"X-Facemaxx-Install-Id": install_id},
+            )
+
+        # Then
+        self.assertEqual(response.status_code, 200)
 
     def test_image_storage_uses_install_id_for_photo_record_when_screenshot_is_stored(self) -> None:
         # Given
@@ -275,6 +306,38 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.assertEqual(data["message"]["role"], "assistant")
         self.assertGreater(len(data["message"]["text"]), 20)
         self.assertGreaterEqual(len(data["suggestions"]), 2)
+
+    def test_coach_fallback_is_specific_to_latest_message_and_context(self) -> None:
+        # Given
+        class NoopAI:
+            def complete_coach_chat(
+                self,
+                *,
+                request: FlirtistCoachChatRequest,
+                fallback,
+            ):
+                return fallback
+
+        service = FlirtistProductService(ai=NoopAI())
+        coffee_request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="커피숍에서 어떻게 말 걸까?",
+            context="나는 연애 경험이 적고 부담 없는 대화를 선호해.",
+        )
+        date_request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="첫 데이트 후 뭐라고 보내?",
+            context="나는 연애 경험이 적고 부담 없는 대화를 선호해.",
+        )
+
+        # When
+        coffee_response = service.coach_chat(coffee_request)
+        date_response = service.coach_chat(date_request)
+
+        # Then
+        self.assertNotEqual(coffee_response.message.text, date_response.message.text)
+        self.assertIn("커피", coffee_response.message.text)
+        self.assertIn("데이트", date_response.message.text)
 
 
 if __name__ == "__main__":

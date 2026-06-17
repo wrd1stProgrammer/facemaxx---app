@@ -93,6 +93,9 @@ async def get_request_identity(
             reviewer_demo_unlimited=True,
         )
 
+    if client_install_id and not authorization:
+        return RequestIdentity(user_id=None, client_install_id=client_install_id)
+
     if settings.auth_disabled:
         return RequestIdentity(
             user_id=None,

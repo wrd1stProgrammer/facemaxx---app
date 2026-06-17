@@ -21,6 +21,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_product_ai import FlirtistProductAI
+from app.services.flirtist_product_coach import coach_answer, coach_suggestions
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage, FlirtistStoredImage
 from app.services.flirtist_product_repository import FlirtistProductRepository
 
@@ -81,8 +82,8 @@ class FlirtistProductService:
         language = _language(request.language, request.locale)
         fallback = FlirtistCoachChatResponse(
             sessionId=request.sessionId or _new_id("coach"),
-            message=FlirtistCoachMessage(role="assistant", text=_coach_answer(language)),
-            suggestions=_coach_suggestions(language),
+            message=FlirtistCoachMessage(role="assistant", text=coach_answer(language, request)),
+            suggestions=coach_suggestions(language, request),
         )
         return self._ai.complete_coach_chat(request=request, fallback=fallback)
 
@@ -239,14 +240,3 @@ def _analysis_card(language: FlirtistLanguage, messages: list[FlirtistPreviewMes
         compatibilityScore=72,
     )
 
-
-def _coach_answer(language: FlirtistLanguage) -> str:
-    if language == "ko":
-        return "좋아요. 지금은 밀어붙이기보다 상대가 답하기 쉬운 낮은 압도의 제안이 좋아요. 마지막 메시지를 한 번 공감하고, 날짜는 하나만 가볍게 열어두세요."
-    return "Good read. After a slow chat, keep the move low-pressure: acknowledge her week, make one simple invite, and leave an easy out so it feels relaxed."
-
-
-def _coach_suggestions(language: FlirtistLanguage) -> list[str]:
-    if language == "ko":
-        return ["이 상황에서 보낼 문장 만들어줘", "상대가 늦게 답할 때 대처법", "부담스럽지 않은 데이트 제안"]
-    return ["Write the exact message", "Practice if she says maybe", "Make it more playful"]

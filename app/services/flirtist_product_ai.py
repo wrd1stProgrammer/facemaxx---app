@@ -44,7 +44,7 @@ class FlirtistProductAI:
         request: FlirtistReplyStyleRequest,
         fallback: FlirtistReplyStyleResponse,
     ) -> FlirtistReplyStyleResponse:
-        text = self._complete_json_text(prompt=_style_prompt(request, fallback), image_url=None)
+        text = self._complete_json_text(prompt=_style_prompt(request, fallback), image_url=None, max_output_tokens=700)
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistReplyStyleResponse)
@@ -55,12 +55,12 @@ class FlirtistProductAI:
         request: FlirtistCoachChatRequest,
         fallback: FlirtistCoachChatResponse,
     ) -> FlirtistCoachChatResponse:
-        text = self._complete_json_text(prompt=_coach_prompt(request, fallback), image_url=None)
+        text = self._complete_json_text(prompt=_coach_prompt(request, fallback), image_url=None, max_output_tokens=450)
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistCoachChatResponse)
 
-    def _complete_json_text(self, *, prompt: str, image_url: str | None) -> str | None:
+    def _complete_json_text(self, *, prompt: str, image_url: str | None, max_output_tokens: int = 1400) -> str | None:
         if self._config.effective_provider != "openai":
             return None
         try:
@@ -72,7 +72,7 @@ class FlirtistProductAI:
             api_key = _openai_key()
             if api_key is None:
                 return None
-            client = OpenAI(api_key=api_key)
+            client = OpenAI(api_key=api_key, timeout=25.0)
             content = [{"type": "input_text", "text": prompt}]
             if image_url:
                 content.append(
@@ -84,6 +84,7 @@ class FlirtistProductAI:
             response = client.responses.create(
                 model=self._config.openai_model,
                 input=[{"role": "user", "content": content}],
+                max_output_tokens=max_output_tokens,
             )
             return response.output_text or None
         except (OpenAIError, AttributeError):
@@ -121,6 +122,9 @@ def _coach_prompt(request: FlirtistCoachChatRequest, fallback: FlirtistCoachChat
         [
             "You are a private 1:1 dating practice coach inside Flirtist.",
             "Answer like an Instagram DM coach: concise, specific, warm, and actionable.",
+            "Focus on the latest user message. If the history has prior assistant answers, do not repeat them.",
+            "Use context as durable private user profile information, but never quote it back verbatim.",
+            "Keep the assistant message under 90 words and make it visibly different for different user messages.",
             "Return one JSON object only. Include an assistant message and 2-5 suggested next user prompts.",
             "Refuse manipulation, stalking, coercion, minors, or explicit sexual pressure.",
             f"Request JSON: {request.model_dump_json()}",

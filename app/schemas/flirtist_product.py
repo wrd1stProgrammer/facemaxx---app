@@ -130,7 +130,15 @@ class FlirtistCoachChatRequest(FacemaxxBaseModel):
     language: Optional[FlirtistLanguage] = None
     locale: str = Field(default="en-US", min_length=2, max_length=16)
     message: str = Field(min_length=1, max_length=4000)
+    context: Optional[str] = Field(default=None, max_length=2000)
     history: list[FlirtistCoachMessage] = Field(default_factory=list, max_length=40)
+
+    @field_validator("locale", "message", "context", mode="before")
+    @classmethod
+    def strip_text_fields(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class FlirtistCoachChatResponse(FacemaxxBaseModel):
