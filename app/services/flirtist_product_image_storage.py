@@ -23,7 +23,13 @@ class FlirtistProductImageStorage:
     def __init__(self, photo_repository: PhotoRepository | None = None) -> None:
         self._photo_repository = photo_repository or PhotoRepository()
 
-    def store_session_image(self, request: FlirtistProductSessionRequest) -> FlirtistStoredImage | None:
+    def store_session_image(
+        self,
+        request: FlirtistProductSessionRequest,
+        *,
+        user_id: str | None = None,
+        client_install_id: str | None = None,
+    ) -> FlirtistStoredImage | None:
         if not request.imageBase64:
             return None
 
@@ -58,8 +64,8 @@ class FlirtistProductImageStorage:
             ) from exc
 
         photo = self._photo_repository.upload_photo(
-            user_id=None,
-            client_install_id=None,
+            user_id=user_id,
+            client_install_id=client_install_id or settings.demo_user_id,
             content=content,
             filename="flirtist-screenshot.jpg",
             mime_type=request.imageMimeType or "image/jpeg",

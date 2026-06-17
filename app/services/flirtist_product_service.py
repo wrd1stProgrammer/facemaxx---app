@@ -36,8 +36,18 @@ class FlirtistProductService:
         self._image_storage = image_storage or FlirtistProductImageStorage()
         self._repository = repository or FlirtistProductRepository()
 
-    def create_session(self, request: FlirtistProductSessionRequest) -> FlirtistProductSessionResponse:
-        stored_image = self._image_storage.store_session_image(request)
+    def create_session(
+        self,
+        request: FlirtistProductSessionRequest,
+        *,
+        user_id: str | None = None,
+        client_install_id: str | None = None,
+    ) -> FlirtistProductSessionResponse:
+        stored_image = self._image_storage.store_session_image(
+            request,
+            user_id=user_id,
+            client_install_id=client_install_id,
+        )
         fallback = _fallback_session(request, stored_image)
         response = self._ai.complete_session(
             request=request,
@@ -55,6 +65,8 @@ class FlirtistProductService:
             request=request,
             response=response,
             stored_image=stored_image,
+            user_id=user_id,
+            client_install_id=client_install_id,
         )
         return response.model_copy(update={"saved": True, "serverPersisted": persisted})
 

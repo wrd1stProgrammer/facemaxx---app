@@ -1,4 +1,8 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+
+from app.api.deps import RequestIdentity, get_request_identity
 
 from app.schemas.flirtist import (
     FlirtistChatRequest,
@@ -54,8 +58,15 @@ async def ocr_chat(request: FlirtistOCRRequest) -> FlirtistResponse:
 
 
 @router.post("/sessions", response_model=FlirtistProductSessionResponse)
-async def create_product_session(request: FlirtistProductSessionRequest) -> FlirtistProductSessionResponse:
-    return FlirtistProductService().create_session(request)
+async def create_product_session(
+    request: FlirtistProductSessionRequest,
+    identity: Annotated[RequestIdentity, Depends(get_request_identity)],
+) -> FlirtistProductSessionResponse:
+    return FlirtistProductService().create_session(
+        request,
+        user_id=identity.user_id,
+        client_install_id=identity.client_install_id,
+    )
 
 
 @router.post("/reply-style", response_model=FlirtistReplyStyleResponse)

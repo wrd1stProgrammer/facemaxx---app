@@ -14,12 +14,16 @@ class FlirtistProductRepository:
         request: FlirtistProductSessionRequest,
         response: FlirtistProductSessionResponse,
         stored_image: FlirtistStoredImage | None,
+        user_id: str | None = None,
+        client_install_id: str | None = None,
     ) -> bool:
         client = get_supabase_service_client()
         if client is None:
             return False
         payload = {
             "id": response.sessionId,
+            "user_id": user_id,
+            "client_install_id": client_install_id,
             "mode": response.mode,
             "source": response.source,
             "locale": response.locale,

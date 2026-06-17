@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import re
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.schemas.analysis import PhotoOut
 from app.schemas.flirtist_product import FlirtistProductSessionRequest, FlirtistProductSessionResponse
+from app.services.flirtist_product_image_storage import FlirtistProductImageStorage
 from app.services.flirtist_product_image_storage import FlirtistStoredImage
 from app.services.flirtist_product_service import FlirtistProductService
 
 
 class FlirtistProductApiTest(unittest.TestCase):
     def setUp(self) -> None:
-        def fake_store_session_image(request: FlirtistProductSessionRequest) -> FlirtistStoredImage | None:
+        def fake_store_session_image(
+            request: FlirtistProductSessionRequest,
+            *,
+            user_id: str | None = None,
+            client_install_id: str | None = None,
+        ) -> FlirtistStoredImage | None:
             if not request.imageBase64:
                 return None
             return FlirtistStoredImage(
@@ -89,6 +97,101 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.assertNotIn(payload["imageBase64"], data["title"])
         self.assertTrue(data["imageUrl"].startswith("https://res.cloudinary.com/"))
 
+    def test_session_upload_passes_install_id_header_to_image_storage(self) -> None:
+        # Given
+        install_id = "11111111-2222-3333-4444-555555555555"
+        captured_client_install_ids: list[str | None] = []
+
+        def fake_store_session_image(
+            request: FlirtistProductSessionRequest,
+            *,
+            user_id: str | None = None,
+            client_install_id: str | None = None,
+        ) -> FlirtistStoredImage | None:
+            captured_client_install_ids.append(client_install_id)
+            return FlirtistStoredImage(
+                url="https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg",
+                storage_path="flirtist/test.jpg",
+                mime_type=request.imageMimeType,
+            )
+
+        payload = {
+            "mode": "reply_coach",
+            "source": "screenshot",
+            "locale": "ko-KR",
+            "imageBase64": "aW1hZ2U=",
+            "imageMimeType": "image/jpeg",
+        }
+
+        # When
+        with patch(
+            "app.services.flirtist_product_image_storage.FlirtistProductImageStorage.store_session_image",
+            side_effect=fake_store_session_image,
+        ):
+            response = self.client.post(
+                "/api/flirtist/sessions",
+                json=payload,
+                headers={"X-Facemaxx-Install-Id": install_id},
+            )
+
+        # Then
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured_client_install_ids, [install_id])
+
+    def test_image_storage_uses_install_id_for_photo_record_when_screenshot_is_stored(self) -> None:
+        # Given
+        self.image_patch.stop()
+        install_id = "11111111-2222-3333-4444-555555555555"
+
+        class CapturingPhotoRepository:
+            captured_client_install_id: str | None = None
+
+            def upload_photo(
+                self,
+                user_id: str | None,
+                client_install_id: str | None,
+                content: bytes,
+                filename: str | None,
+                mime_type: str | None,
+                width: int | None,
+                height: int | None,
+            ) -> PhotoOut:
+                self.captured_client_install_id = client_install_id
+                return PhotoOut(
+                    id="22222222-2222-2222-2222-222222222222",
+                    storage_bucket="cloudinary",
+                    storage_path="https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg",
+                    mime_type=mime_type,
+                    width=width,
+                    height=height,
+                    sha256=None,
+                )
+
+        repository = CapturingPhotoRepository()
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            imageBase64="aW1hZ2U=",
+            imageMimeType="image/jpeg",
+        )
+        settings = SimpleNamespace(
+            image_storage_provider="cloudinary",
+            cloudinary_configured=True,
+            demo_user_id="00000000-0000-0000-0000-000000000001",
+        )
+
+        # When
+        with patch("app.services.flirtist_product_image_storage.get_settings", return_value=settings):
+            stored_image = FlirtistProductImageStorage(photo_repository=repository).store_session_image(
+                request,
+                client_install_id=install_id,
+            )
+
+        # Then
+        self.assertEqual(repository.captured_client_install_id, install_id)
+        self.assertEqual(stored_image.url, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
+
     def test_product_service_sends_cloudinary_url_to_openai_when_screenshot_is_submitted(self) -> None:
         # Given
         class CapturingAI:
@@ -111,11 +214,19 @@ class FlirtistProductApiTest(unittest.TestCase):
                 request: FlirtistProductSessionRequest,
                 response: FlirtistProductSessionResponse,
                 stored_image: FlirtistStoredImage | None,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
             ) -> bool:
                 return False
 
         class FixedImageStorage:
-            def store_session_image(self, request: FlirtistProductSessionRequest) -> FlirtistStoredImage | None:
+            def store_session_image(
+                self,
+                request: FlirtistProductSessionRequest,
+                *,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
+            ) -> FlirtistStoredImage | None:
                 return FlirtistStoredImage(
                     url="https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg",
                     storage_path="flirtist/test.jpg",
