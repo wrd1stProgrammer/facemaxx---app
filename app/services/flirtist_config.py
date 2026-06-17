@@ -35,7 +35,7 @@ def load_flirtist_ai_config() -> FlirtistAIConfig:
 
 
 def _provider(raw: str | None, settings: Settings) -> FlirtistProvider:
-    default_provider = "openai" if settings.openai_api_key else "mock"
+    default_provider = "openai" if os.environ.get("FLIRTIST_OPENAI_API_KEY") or settings.openai_api_key else "mock"
     normalized = (raw or default_provider).strip().lower()
     aliases: dict[str, FlirtistProvider] = {
         "openai": "openai",

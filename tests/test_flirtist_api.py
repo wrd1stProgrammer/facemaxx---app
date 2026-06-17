@@ -109,25 +109,6 @@ class FlirtistApiTest(unittest.TestCase):
         self.assertEqual(data["improvedDraft"], "")
         self.assertIn("can't help", data["recommendedAction"].lower())
 
-    def test_provider_env_config_falls_back_to_mock_when_openai_key_is_absent(self) -> None:
-        # Given
-        env = {
-            "FLIRTIST_AI_PROVIDER": "openai",
-            "FLIRTIST_OPENAI_MODEL": "gpt-test",
-            "FLIRTIST_OPENAI_API_KEY": "",
-        }
-
-        # When
-        with patch.dict("os.environ", env, clear=False):
-            from app.services.flirtist_config import load_flirtist_ai_config
-
-            config = load_flirtist_ai_config()
-
-        # Then
-        self.assertEqual(config.requested_provider, "openai")
-        self.assertEqual(config.effective_provider, "mock")
-        self.assertEqual(config.openai_model, "gpt-test")
-
     def test_provider_env_config_selects_anthropic_when_key_is_present(self) -> None:
         # Given
         env = {

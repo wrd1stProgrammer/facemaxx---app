@@ -114,13 +114,15 @@ Flirtist endpoints are mounted with and without `API_PREFIX`, so local clients c
 Provider selection is independent from the Facemaxx face-analysis provider:
 
 ```env
-FLIRTIST_AI_PROVIDER=mock
+AI_PROVIDER=gemini
+FLIRTIST_AI_PROVIDER=openai
 FLIRTIST_OPENAI_API_KEY=
+FLIRTIST_OPENAI_MODEL=gpt-5-mini
 FLIRTIST_ANTHROPIC_API_KEY=
 FLIRTIST_GEMINI_API_KEY=
 ```
 
-If the selected provider key is absent, Flirtist falls back to deterministic mock responses while preserving the response contract.
+If `FLIRTIST_AI_PROVIDER` is omitted but `FLIRTIST_OPENAI_API_KEY` exists, Flirtist defaults to OpenAI. If the selected provider key is absent, Flirtist falls back to deterministic mock responses while preserving the response contract. `/health` reports both the global `ai_provider` and Flirtist's `flirtist_ai_provider`.
 
 ## RevenueCat
 
