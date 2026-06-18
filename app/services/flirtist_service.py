@@ -171,32 +171,42 @@ def _why(language: str) -> list[str]:
 
 
 def _pickup_lines(language: str, situation: str) -> list[str]:
-    situation_hint = situation.rstrip(".!?")[:72]
+    situation_hint = situation.rstrip(".!?")[:96]
     if language == "ko":
+        contextual = (
+            "혹시 방해가 아니라면 잠깐만 물어봐도 돼요? 분위기가 좋아 보여서 그냥 지나가기 아쉬웠어요."
+            if situation_hint
+            else "혹시 잠깐 말 걸어도 괜찮을까요? 분위기가 좋아 보여서 그냥 지나가기 아쉬웠어요."
+        )
         return [
-            f"{situation_hint} 상황이면, 당신 취향부터 물어보는 게 제일 자연스러울 것 같아요.",
-            "혹시 이 근처에서 제일 괜찮은 커피를 아는 사람처럼 보이는데, 맞나요?",
-            "말 걸 타이밍을 재고 있었는데, 지금이 제일 자연스러운 것 같아서요.",
-            "오늘 제 목표는 좋은 대화 하나 만드는 건데, 당신이 도와줄래요?",
-            "이 책보다 당신 취향이 더 궁금해졌어요.",
-            "잠깐만요, 웃는 분위기가 좋아서 인사 안 하면 후회할 것 같았어요.",
-            "여기 처음 왔는데, 당신이 고른 메뉴가 정답 같아 보여요.",
-            "혹시 짧은 대화 하나 나눠도 괜찮을까요? 부담은 두고 왔어요.",
-            "당신 분위기가 좋아서, 이름 정도는 알고 가고 싶었어요.",
+            contextual,
+            "혹시 여기 자주 오세요? 처음이라 괜찮은 거 하나만 추천받아도 될까요?",
+            "말 걸까 말까 하다가, 안 걸면 더 어색하게 후회할 것 같아서 왔어요.",
+            "방금 고르신 거 맛있어 보여서요. 저도 같은 걸로 가도 실패 없을까요?",
+            "혼자 계신 분위기가 좋아 보여서 조심스럽게 왔어요. 잠깐 인사해도 될까요?",
+            "혹시 방해가 아니면, 지금 보고 계신 거 물어봐도 돼요?",
+            "여기서 제일 자연스럽게 말 거는 방법을 찾다가 그냥 솔직하게 왔어요.",
+            "짧게만 말할게요. 분위기가 좋아 보여서 이름 정도는 알고 가고 싶었어요.",
+            "혹시 좋은 대화 좋아하세요? 제가 지금 하나 시작해보고 싶은데요.",
+            "처음 보는 사람한테 말 거는 게 쉬운 일은 아닌데, 오늘은 한번 해보고 싶었어요.",
+            "제가 메뉴보다 사람 보는 눈이 더 좋은 편인지 확인해봐도 될까요?",
             "지금 대화 시작하면 어색할까요, 아니면 꽤 괜찮은 우연일까요?",
-            "내가 좋은 질문을 하나 찾고 있었는데, 당신 취향부터 물어봐도 될까요?",
-            "오늘 제일 괜찮은 선택이 이쪽으로 인사하는 거였으면 좋겠네요.",
-            "혹시 이 순간을 자연스럽게 만드는 능력도 있으세요?",
-            "당신에게 어울리는 첫마디를 고르다가 그냥 솔직하게 왔어요.",
-            "여기서 제일 흥미로운 건 메뉴가 아니라 당신인 것 같아요.",
-            "짧게만 말할게요. 당신이 눈에 띄어서 인사하고 싶었어요.",
-            "내가 방금 좋은 핑계를 잃어버렸는데, 그냥 인사해도 될까요?",
-            "혹시 좋은 대화 좋아하세요? 제가 지금 하나 시작해보려는데요.",
-            "처음 보는 사람한테 말 걸기 어렵지만, 당신은 예외로 하고 싶었어요.",
-            "오늘 우연을 하나 만들고 싶은데, 같이 해볼래요?",
+            "괜찮으시면 딱 한 가지 질문만 해도 돼요? 여기서 뭐가 제일 좋았어요?",
+            "웃는 분위기가 좋아 보여서요. 그냥 지나가면 오늘 계속 생각날 것 같았어요.",
+            "혹시 잠깐만요. 말 걸 핑계를 찾다가 핑계가 필요 없을 것 같아서 왔어요.",
+            "저 오늘 새로운 사람한테 자연스럽게 말 걸기 연습 중인데, 점수 후하게 주실래요?",
+            "이 공간이랑 잘 어울리셔서요. 어떤 취향인지 조금 궁금해졌어요.",
+            "부담스럽지 않게 딱 한마디만 할게요. 눈에 띄어서 인사하고 싶었어요.",
+            "혹시 대화가 별로면 바로 퇴장할게요. 근데 시작은 해봐도 될까요?",
+            "오늘 우연 하나쯤 만들어도 괜찮은 날이면, 제가 먼저 인사해도 될까요?",
         ]
+    contextual = (
+        f"That bit about {situation_hint} made me curious. Mind if I ask you one quick question?"
+        if situation_hint
+        else "Would it be okay if I said hi? You seemed interesting enough that walking past felt like the awkward option."
+    )
     return [
-        f"Since this is about {situation_hint}, I have to ask what caught your eye first.",
+        contextual,
         "I was looking for a smooth opener, but honestly, hi felt better.",
         "This place is nice, but your taste might be the part I actually want a recommendation on.",
         "Quick question: are you always this easy to notice, or did I pick a lucky day?",
@@ -204,10 +214,10 @@ def _pickup_lines(language: str, situation: str) -> list[str]:
         "You seem like someone who could make a short conversation worth remembering.",
         "I need an unbiased opinion: is starting a conversation right now charming or mildly brave?",
         "I was trying to think of the perfect line, then decided a real hello was better.",
-        "If your vibe had a review, I would at least give it five stars for making me curious.",
+        "You seemed interesting enough that I wanted to risk a slightly awkward hello.",
         "I am not usually this direct, but you made not saying hello feel like the weirder choice.",
         "You look like you have a good answer to a simple question: coffee or dessert first?",
-        "I had a whole line ready, but your smile made it retire early.",
+        "I had a line ready, but this felt better: hi, I wanted to meet you.",
         "Would it be too forward to ask what made you choose this spot?",
         "I am collecting good moments today. This felt like one worth starting.",
         "You seem interesting enough that I am willing to risk a slightly awkward hello.",

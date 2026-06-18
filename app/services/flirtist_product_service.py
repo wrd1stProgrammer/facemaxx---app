@@ -80,7 +80,7 @@ class FlirtistProductService:
         language = _language(request.language, request.locale)
         fallback = FlirtistReplyStyleResponse(
             sessionId=request.sessionId or _new_id("flt"),
-            replyCoaching=_reply_coaching(language, request.style, focus=request.focus or request.baseReply),
+            replyCoaching=_reply_coaching(language, request.style, focus=request.focus),
         )
         response = self._ai.complete_style(request=request, fallback=fallback)
         return response.model_copy(update={"replyCoaching": _ensure_reply_packs(response.replyCoaching, language)})
@@ -169,7 +169,7 @@ def _preview_messages(language: FlirtistLanguage, text: str | None) -> list[Flir
 def _ensure_reply_packs(coaching: FlirtistReplyCoaching, language: FlirtistLanguage) -> FlirtistReplyCoaching:
     if coaching.replyPacks:
         return coaching
-    packs = _reply_packs(language, focus=coaching.summary)
+    packs = _reply_packs(language)
     return coaching.model_copy(update={"replyPacks": packs})
 
 
@@ -234,43 +234,43 @@ def _reply_texts(language: FlirtistLanguage, style: str, focus: str | None) -> l
         match style:
             case "nsfw":
                 return [
-                    f"{focus_hint}솔직히 말하면, 너랑 있으면 퇴근길도 너무 빨리 끝날 것 같아.",
-                    f"{focus_hint}오늘 고생한 건 알겠는데, 내가 옆에 있었으면 좀 더 위험하게 웃겼을걸.",
-                    f"{focus_hint}잠깐만, 이런 말 해도 되면 너랑 커피보다 더 오래 보고 싶어졌어.",
-                    f"{focus_hint}너랑 있으면 얌전한 척이 오래 못 갈 것 같은데, 그래도 괜찮아?",
-                    f"{focus_hint}오늘은 커피 핑계로 만나고, 다음엔 핑계 없이 보고 싶어.",
+                    f"{focus_hint}이런 말 조심해야 하는데, 네 얘기 들으니까 더 보고 싶어졌어.",
+                    f"{focus_hint}오늘 힘 빠졌겠다. 내가 옆에 있었으면 좀 덜 얌전하게 웃겨줬을 텐데.",
+                    f"{focus_hint}지금은 쉬는 게 먼저인데, 나중에 보면 꽤 위험하게 재밌을 것 같아.",
+                    f"{focus_hint}너랑 있으면 괜히 장난이 더 세질 것 같은데, 그거 괜찮아?",
+                    f"{focus_hint}오늘은 푹 쉬고, 컨디션 돌아오면 나랑 조금 더 가까이 얘기하자.",
                 ]
             case "flirty":
                 return [
-                    f"{focus_hint}그럼 오늘 고생한 기념으로, 퇴근 후에 우리 같이 커피 한잔할래?",
-                    f"{focus_hint}네 하루가 정신없었다면, 내가 가볍게 웃겨줄 차례인 것 같은데?",
-                    f"{focus_hint}오늘 살아남은 보상으로 나랑 커피 쿠폰 하나 쓰자.",
-                    f"{focus_hint}피곤한 하루엔 좋은 사람 하나쯤 만나도 되잖아. 내가 후보 해도 돼?",
-                    f"{focus_hint}그 얘기 들으니까 괜히 챙겨주고 싶어졌어. 커피로 시작할까?",
+                    f"{focus_hint}그 정도면 오늘은 쉬어야겠다. 괜찮아지면 내가 기분 전환 시켜줄게.",
+                    f"{focus_hint}오늘 정신없었으면, 이번 주엔 내가 좀 편한 시간 만들어줘도 돼?",
+                    f"{focus_hint}듣기만 해도 빡세다. 나중에 잠깐 만나서 머리 식히자.",
+                    f"{focus_hint}오늘 하루는 회사가 가져갔으니까, 남은 시간은 네가 좀 편했으면 좋겠다.",
+                    f"{focus_hint}고생했네. 컨디션 괜찮을 때 나랑 맛있는 거 먹으면서 풀자.",
                 ]
             case "witty":
                 return [
-                    f"{focus_hint}회사에서 살아 돌아온 사람에게는 커피 훈장이 필요합니다. 수여식 갈래?",
-                    f"{focus_hint}오늘 업무 난이도 높았으면, 퇴근 후 대화 난이도는 내가 낮춰볼게.",
-                    f"{focus_hint}정신없는 하루엔 정신 있는 커피 한 잔이 법적으로 필요해 보여.",
-                    f"{focus_hint}퇴근 성공이면 이미 오늘의 주인공인데, 커피까지 하면 엔딩 좋겠다.",
-                    f"{focus_hint}그 정도면 오늘은 누가 커피 사줘도 무죄야. 내가 할게.",
+                    f"{focus_hint}오늘 난이도 너무 높았네. 일단 생존 축하부터 해야겠다.",
+                    f"{focus_hint}그 정도면 퇴근이 아니라 탈출인데? 무사 귀환 축하해.",
+                    f"{focus_hint}오늘 회사가 보스전이었으면, 보상 장면은 내가 챙겨도 돼?",
+                    f"{focus_hint}지금은 대단한 말보다 누워 있기 버튼이 필요해 보인다.",
+                    f"{focus_hint}오늘은 아무것도 안 해도 무죄야. 대신 나중에 썰은 들어야겠어.",
                 ]
             case "romantic":
                 return [
-                    f"{focus_hint}오늘 하루 복잡했겠다. 잠깐이라도 편하게 웃을 수 있게 내가 커피 사줄게.",
-                    f"{focus_hint}그런 날엔 말 많은 위로보다 조용히 같이 있어주는 게 낫더라. 시간 되면 보자.",
-                    f"{focus_hint}오늘 고생한 너한테 작은 쉼표 하나 만들어주고 싶어.",
-                    f"{focus_hint}퇴근길이 조금 가벼워지게, 내가 좋은 대화 하나 준비해둘게.",
-                    f"{focus_hint}힘든 하루 끝에 내가 떠오를 수 있으면 꽤 좋을 것 같아.",
+                    f"{focus_hint}그런 날엔 긴 말보다 편하게 쉬는 게 먼저지. 나중에 천천히 얘기 들어줄게.",
+                    f"{focus_hint}오늘 하루가 좀 버거웠겠다. 무리하지 말고, 괜찮아지면 내가 같이 있어줄게.",
+                    f"{focus_hint}힘든 얘기인데도 말해줘서 좋아. 지금은 네가 좀 편했으면 좋겠다.",
+                    f"{focus_hint}오늘은 그냥 쉬어. 나중에 컨디션 돌아오면 얼굴 보고 얘기하자.",
+                    f"{focus_hint}그 얘기 들으니까 괜히 마음 쓰이네. 오늘은 너부터 챙겨.",
                 ]
             case _:
                 return [
-                    f"{focus_hint}오늘 고생했어. 퇴근 후에 가볍게 커피 한잔할래?",
-                    f"{focus_hint}정신없는 하루였겠다. 잠깐 쉬어갈 겸 이번 주에 커피 어때?",
-                    f"{focus_hint}그 얘기 들으니까 네 하루가 좀 궁금해졌어. 편하면 커피하면서 들려줘.",
-                    f"{focus_hint}오늘은 무리하지 말고, 괜찮아지면 나랑 가볍게 만나자.",
-                    f"{focus_hint}수고했어. 내가 커피로 하루 마무리 도와줘도 돼?",
+                    f"{focus_hint}오늘 진짜 정신없었겠다. 일단 푹 쉬고, 괜찮아지면 얘기 더 들려줘.",
+                    f"{focus_hint}듣기만 해도 피곤하다. 지금은 쉬고, 나중에 편할 때 이어서 얘기하자.",
+                    f"{focus_hint}그 정도면 오늘은 아무것도 안 해도 인정이야. 무리하지 마.",
+                    f"{focus_hint}고생 많았네. 컨디션 괜찮아지면 잠깐 기분 전환하러 나가자.",
+                    f"{focus_hint}말해줘서 고마워. 오늘은 일단 쉬고, 나중에 편하게 얘기하자.",
                 ]
     match style:
         case "nsfw":
@@ -359,7 +359,7 @@ def _focus_hint(language: FlirtistLanguage, focus: str | None) -> str:
     clipped = focus.strip().replace("\n", " ")[:28]
     if not clipped:
         return ""
-    return f"{clipped} 얘기라면, " if language == "ko" else f"With {clipped} in mind, "
+    return "" if language == "ko" else f"With {clipped} in mind, "
 
 
 def _analysis_card(language: FlirtistLanguage, messages: list[FlirtistPreviewMessage]) -> FlirtistAnalysisCard:

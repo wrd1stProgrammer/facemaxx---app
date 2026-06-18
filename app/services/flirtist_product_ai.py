@@ -100,6 +100,9 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
             "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
             "The server will expand style packs after your response, so keep the JSON compact and focused on the visible situation.",
+            "For Korean reply_coach, write replies like a native Korean KakaoTalk/Instagram DM. Avoid 당신, stiff translations, generic coffee templates, and phrases like 고생한 기념 unless the chat naturally supports them.",
+            "For Korean reply_coach, preserve the relationship tone from the screenshot: 존댓말 vs 반말, warmth, humor level, and how close they seem.",
+            "For English reply_coach, avoid canned pickup-line clichés. Use the actual visible context and produce copy-ready text, not coaching advice.",
             "Refuse unsafe dating manipulation, stalking, coercion, minors, or explicit sexual pressure.",
             f"Request JSON without image: {request.model_dump_json(exclude={'imageBase64'})}",
             f"Cloudinary image URL: {fallback.imageUrl or 'none'}",
@@ -113,6 +116,8 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
         [
             "Rewrite the dating reply in the requested style. Return one JSON object only.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
+            "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
+            "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
             "If focus is provided, weave that word or phrase into the alternatives naturally.",
             "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
