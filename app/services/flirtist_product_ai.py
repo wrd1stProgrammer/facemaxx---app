@@ -37,7 +37,12 @@ class FlirtistProductAI:
         fallback: FlirtistProductSessionResponse,
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
-        text = self._complete_json_text(prompt=_session_prompt(request, fallback), image_url=image_url, max_output_tokens=1800)
+        text = self._complete_json_text(
+            prompt=_session_prompt(request, fallback),
+            image_url=image_url,
+            response_model=FlirtistProductSessionResponse,
+            max_output_tokens=1800,
+        )
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistProductSessionResponse)
@@ -48,7 +53,12 @@ class FlirtistProductAI:
         request: FlirtistReplyStyleRequest,
         fallback: FlirtistReplyStyleResponse,
     ) -> FlirtistReplyStyleResponse:
-        text = self._complete_json_text(prompt=_style_prompt(request, fallback), image_url=None, max_output_tokens=1800)
+        text = self._complete_json_text(
+            prompt=_style_prompt(request, fallback),
+            image_url=None,
+            response_model=FlirtistReplyStyleResponse,
+            max_output_tokens=1800,
+        )
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistReplyStyleResponse)
@@ -59,12 +69,24 @@ class FlirtistProductAI:
         request: FlirtistCoachChatRequest,
         fallback: FlirtistCoachChatResponse,
     ) -> FlirtistCoachChatResponse:
-        text = self._complete_json_text(prompt=_coach_prompt(request, fallback), image_url=None, max_output_tokens=450)
+        text = self._complete_json_text(
+            prompt=_coach_prompt(request, fallback),
+            image_url=None,
+            response_model=FlirtistCoachChatResponse,
+            max_output_tokens=450,
+        )
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistCoachChatResponse)
 
-    def _complete_json_text(self, *, prompt: str, image_url: str | None, max_output_tokens: int = 1400) -> str | None:
+    def _complete_json_text(
+        self,
+        *,
+        prompt: str,
+        image_url: str | None,
+        response_model: type[ProductModel],
+        max_output_tokens: int = 1400,
+    ) -> str | None:
         if self._config.effective_provider != "openai":
             return None
         try:
@@ -89,7 +111,7 @@ class FlirtistProductAI:
                 model=self._config.openai_model,
                 input=[{"role": "user", "content": content}],
                 max_output_tokens=max_output_tokens,
-                text={"format": {"type": "json_object"}},
+                text=_response_text_format(response_model),
             )
             return response.output_text or None
         except (OpenAIError, AttributeError) as exc:
@@ -103,12 +125,14 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
         [
             "You are Flirtist, a bilingual dating situation coach. Return one JSON object only.",
             "If a Cloudinary screenshot URL is attached, read the visible chat/profile content from the image.",
+            "If transcript text is provided, treat it as authoritative OCR. Infer the latest actionable exchange from the whole transcript, not only the final short reaction.",
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
             "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
+            "When the latest message is a short yes/좋아/조아네/heart after the user suggested meeting, food, a city, or contacting later, answer the accepted plan directly.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh replies from the chat.",
             "Quality bar for every reply: 1) references the exact situation without quoting the whole message, 2) sounds like a real text, 3) gives the other person an easy next response, 4) does not suddenly escalate intimacy, 5) is specific enough that it would be wrong for a different chat.",
             "The server will expand style packs after your response, so keep the JSON compact and focused on the visible situation.",
@@ -133,6 +157,7 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
             "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",
+            "If the context includes an accepted plan, city, food, or meetup, every alternative must mention that concrete plan instead of generic emotional support.",
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
@@ -169,6 +194,17 @@ def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]
     except (ValidationError, json.JSONDecodeError, AttributeError) as exc:
         LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
         return fallback
+
+
+def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
+    return {
+        "format": {
+            "type": "json_schema",
+            "name": model.__name__,
+            "schema": model.model_json_schema(),
+            "strict": False,
+        }
+    }
 
 
 def _json_object_from_text(text: str):

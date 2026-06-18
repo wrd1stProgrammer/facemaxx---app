@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import assert_never
 
 from app.services.flirtist_product_reply_context import ReplyContext, focus_or_topic
+from app.services.flirtist_product_reply_texts_ko_plans import ko_plans_table
 
 
 def ko_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list[str]:
@@ -16,7 +17,9 @@ def ko_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
             table = _ko_reaction_table(topic)
         case "affection":
             table = _ko_affection_table(topic)
-        case "plans" | "generic":
+        case "plans":
+            table = ko_plans_table(topic)
+        case "generic":
             table = _ko_generic_table(topic)
         case unreachable:
             assert_never(unreachable)

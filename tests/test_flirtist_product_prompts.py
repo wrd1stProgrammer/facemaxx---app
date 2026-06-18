@@ -5,7 +5,7 @@ import unittest
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistReplyStyleRequest
 from app.schemas.flirtist_product import FlirtistReplyStyleResponse
-from app.services.flirtist_product_ai import _session_prompt, _style_prompt
+from app.services.flirtist_product_ai import _response_text_format, _session_prompt, _style_prompt
 from app.services.flirtist_product_reply_fallback import reply_coaching
 from app.services.flirtist_product_service import FlirtistProductService
 from tests.test_flirtist_product_fallback import NoopAI, NoopImageStorage, NoopRepository
@@ -64,6 +64,18 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("<copy-ready reply text>", prompt)
         self.assertEqual(prompt.count("그 말 괜히 좋네"), 1)
         self.assertNotIn("갑자기 그렇게 말하면", prompt)
+
+    def test_openai_response_format_uses_json_schema_not_loose_json_object(self) -> None:
+        # When
+        text_format = _response_text_format(FlirtistReplyStyleResponse)
+
+        # Then
+        assert isinstance(text_format, dict)
+        json_format = text_format["format"]
+        assert isinstance(json_format, dict)
+        self.assertEqual(json_format["type"], "json_schema")
+        self.assertEqual(json_format["name"], "FlirtistReplyStyleResponse")
+        self.assertIn("schema", json_format)
 
 
 if __name__ == "__main__":

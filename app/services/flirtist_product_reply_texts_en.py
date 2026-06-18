@@ -50,7 +50,9 @@ def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
             table = _en_reaction_table(topic)
         case "affection":
             table = _en_affection_table(topic)
-        case "fatigue" | "plans" | "generic":
+        case "plans":
+            table = _en_plans_table(topic)
+        case "fatigue" | "generic":
             table = _en_generic_table(topic)
         case unreachable:
             assert_never(unreachable)
@@ -133,6 +135,46 @@ def _en_affection_table(topic: str) -> dict[str, list[str]]:
             "That is sweet in a quiet way. Tell me the moment.",
             "Now I am smiling at my phone a little.",
             "I like being part of your day, even randomly.",
+        ],
+    }
+
+
+def _en_plans_table(topic: str) -> dict[str, list[str]]:
+    return {
+        "genuine": [
+            f"Perfect, then {topic} is officially on my list. Text me before you come.",
+            "Deal. If you come through, I will pick somewhere good.",
+            "I am holding you to that. Give me a heads-up and I will plan the food.",
+            "Sounds good. I will make sure you do not waste a meal when you visit.",
+            "Okay, then this is a real plan now. Message me before you come.",
+        ],
+        "nsfw": [
+            "Careful, if you give me advance notice I might make that visit a little too fun.",
+            "Come hungry and curious. I can handle the rest.",
+            "If you text me before you come, I will make the plan worth it.",
+            "That sounds like a dangerous amount of fun for a casual visit.",
+            "I can behave over food. After that, no promises.",
+        ],
+        "flirty": [
+            "Deal. Text me before you come and I will make it worth the trip.",
+            "I like that plan. I already want to pick the place.",
+            "If you visit, I am absolutely stealing a little of your time.",
+            "Okay, then I owe you good food and better company.",
+            "Text me before you come. I want first dibs on your schedule.",
+        ],
+        "witty": [
+            "Trip clause accepted. Advance notice required for proper food operations.",
+            "Deal recorded. I am now your unofficial local food department.",
+            "Okay, but surprise visits may be charged one extra dessert.",
+            "I will need three business days to become the perfect local guide.",
+            "Food plan unlocked. Do not forget to claim it.",
+        ],
+        "romantic": [
+            "I would like that. Text me before you come and we can make it a real plan.",
+            "That sounds nice. I would enjoy showing you somewhere good.",
+            "I like the idea of seeing you here and taking our time over food.",
+            "Come when you can. I will save a good place for us.",
+            "That would make me happy. Let me know before you come.",
         ],
     }
 

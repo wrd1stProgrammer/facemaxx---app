@@ -102,9 +102,15 @@ def _has_low_value_phrase(lowered: str) -> bool:
         "얘기 조금 더 듣고 싶어",
         "쪽으로 더 얘기",
         "편할 때 이어서",
+        "편하게 해주는 게 좋더라",
+        "네 속도에 맞춰서",
+        "나는 잘 듣고 싶어",
         "tell me more when",
         "i want to hear more about",
         "more about that when",
+        "i like when you tell me things like that",
+        "i like hearing your thoughts at your pace",
+        "that felt honest",
     )
     return any(phrase in lowered for phrase in weak_phrases)
 

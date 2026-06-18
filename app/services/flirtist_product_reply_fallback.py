@@ -10,7 +10,8 @@ from app.schemas.flirtist_product import (
     FlirtistReplyOption,
     FlirtistReplyPack,
 )
-from app.services.flirtist_product_reply_context import ReplyContext, ReplyScenario
+from app.services.flirtist_product_reply_context import ReplyContext
+from app.services.flirtist_product_reply_context_builder import reply_context_from_messages
 from app.services.flirtist_product_reply_texts_en import en_reply_texts
 from app.services.flirtist_product_reply_texts_ko import ko_reply_texts
 
@@ -65,81 +66,7 @@ def reply_packs(
 
 
 def _reply_context(language: FlirtistLanguage, messages: list[FlirtistPreviewMessage]) -> ReplyContext:
-    last_them = next((message.text for message in reversed(messages) if message.role == "them"), "")
-    if not last_them:
-        last_them = next((message.text for message in reversed(messages) if message.role != "system"), "")
-    return ReplyContext(
-        scenario=_scenario(language, last_them),
-        topic=_topic(language, last_them),
-        last_them=last_them,
-    )
-
-
-def _scenario(language: FlirtistLanguage, text: str) -> ReplyScenario:
-    lowered = text.lower()
-    if language == "ko":
-        if _contains_any(lowered, ("붙", "합격", "성공", "해냈", "드디어", "끝났다", "축하")):
-            return "celebration"
-        if _contains_any(lowered, ("회사", "퇴근", "피곤", "힘들", "정신", "야근", "빡세", "지쳤")):
-            return "fatigue"
-        if _contains_any(lowered, ("커피", "밥", "만나", "보자", "데이트", "술")):
-            return "plans"
-        if _contains_any(lowered, ("보고 싶", "보고싶", "좋아", "설레", "귀엽", "생각났", "생각났어")):
-            return "affection"
-        if _contains_any(lowered, ("영화", "드라마", "노래", "봤", "재밌", "맛있", "좋았", "별로")):
-            return "reaction"
-        return "generic"
-    if _contains_any(lowered, ("passed", "accepted", "finally", "done", "won", "celebrate", "congrats")):
-        return "celebration"
-    if _contains_any(lowered, ("work", "tired", "chaotic", "exhausted", "rough", "busy", "drained")):
-        return "fatigue"
-    if _contains_any(lowered, ("coffee", "dinner", "date", "meet", "movie", "drinks")):
-        return "plans"
-    if _contains_any(lowered, ("miss", "like you", "cute", "thinking of you", "thought of you", "on my mind", "crossed my mind")):
-        return "affection"
-    if _contains_any(lowered, ("movie", "watched", "saw", "show", "song", "fun", "interesting", "liked", "loved")):
-        return "reaction"
-    return "generic"
-
-
-def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
-    return any(needle in text for needle in needles)
-
-
-def _topic(language: FlirtistLanguage, text: str) -> str:
-    lowered = text.lower()
-    if language == "ko":
-        if "회계" in lowered and "시험" in lowered:
-            return "회계 시험"
-        if "시험" in lowered:
-            return "시험"
-        if "영화" in lowered:
-            return "그 영화"
-        if "드라마" in lowered:
-            return "그 드라마"
-        if "노래" in lowered:
-            return "그 노래"
-        if "생각" in lowered:
-            return "생각난 순간"
-        if "회사" in lowered or "퇴근" in lowered:
-            return "오늘 하루"
-    else:
-        if "accounting exam" in lowered:
-            return "your accounting exam"
-        if "exam" in lowered:
-            return "your exam"
-        if "movie" in lowered or "watched" in lowered or "saw" in lowered:
-            return "the movie"
-        if "show" in lowered:
-            return "the show"
-        if "song" in lowered:
-            return "the song"
-        if "thought of you" in lowered or "on my mind" in lowered or "crossed my mind" in lowered:
-            return "that moment"
-        if "work" in lowered:
-            return "your day"
-    clipped = " ".join(text.split())[:36]
-    return clipped or "그 얘기"
+    return reply_context_from_messages(language, messages)
 
 
 def _reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, str]]:
@@ -149,14 +76,14 @@ def _reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, s
             ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
             ("flirty", "Flirty", "Get Flirty Reply", "heart.fill"),
             ("witty", "Witty", "Get Witty Reply", "sparkles"),
-            ("romantic", "Romantic", "Get Romantic Reply", "rose.fill"),
+            ("romantic", "Romantic", "Get Romantic Reply", "heart.circle.fill"),
         ]
     return [
         ("genuine", "Genuine", "Get Genuine Reply", "bolt.fill"),
         ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
         ("flirty", "Flirty", "Get Flirty Reply", "heart.fill"),
         ("witty", "Witty", "Get Witty Reply", "sparkles"),
-        ("romantic", "Romantic", "Get Romantic Reply", "rose.fill"),
+        ("romantic", "Romantic", "Get Romantic Reply", "heart.circle.fill"),
     ]
 
 
@@ -180,7 +107,9 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "상대가 피곤함을 공유했으니 공감 한 줄 뒤에 부담 낮은 다음 흐름을 붙이세요."
             case "affection":
                 return "상대가 호감 섞인 말을 꺼냈으니 그 뉘앙스를 받아주고, 왜 생각났는지 가볍게 물어보세요."
-            case "plans" | "reaction" | "generic":
+            case "plans":
+                return "상대가 만남이나 연락 제안을 받아줬으니 약속이 살아나게 구체적으로 이어가세요."
+            case "reaction" | "generic":
                 return "상대가 꺼낸 말을 되짚고, 가볍게 더 말하기 쉬운 답장을 보내세요."
             case unreachable:
                 assert_never(unreachable)
@@ -191,7 +120,9 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "They shared a rough day, so validate it before adding a low-pressure next step."
         case "affection":
             return "They gave a small signal of affection, so receive it warmly and ask what sparked it."
-        case "plans" | "reaction" | "generic":
+        case "plans":
+            return "They accepted a meetup or contact plan, so make that plan feel concrete and easy to continue."
+        case "reaction" | "generic":
             return "Mirror their actual topic and make the next reply easy to answer."
         case unreachable:
             assert_never(unreachable)
@@ -206,7 +137,9 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "부담 없이 답하기 쉬운 한 문장으로 보내세요."
             case "affection":
                 return "좋다는 반응을 짧게 보여주고, 생각난 순간을 물어보세요."
-            case "plans" | "reaction" | "generic":
+            case "plans":
+                return "장소나 약속을 한 번 더 살려서 답하기 쉬운 한 문장으로 보내세요."
+            case "reaction" | "generic":
                 return "상대가 방금 말한 단어를 그대로 살려서 짧게 보내세요."
             case unreachable:
                 assert_never(unreachable)
@@ -217,7 +150,9 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "Keep it warm, specific, and low-pressure."
         case "affection":
             return "Receive the signal, then ask what made them think of you."
-        case "plans" | "reaction" | "generic":
+        case "plans":
+            return "Keep the plan concrete and give them one easy next step."
+        case "reaction" | "generic":
             return "Use their actual topic and ask for one small continuation."
         case unreachable:
             assert_never(unreachable)

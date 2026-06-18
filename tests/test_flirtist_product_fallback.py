@@ -141,6 +141,41 @@ class FlirtistProductFallbackTest(unittest.TestCase):
         self.assertNotIn("Message", reply_text)
         self.assertRegex(reply_text, "영화|재밌|반응|스포")
 
+    def test_reply_fallback_uses_accepted_meetup_context_after_short_positive_reply(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        all_reply_text = " ".join(
+            reply.text
+            for pack in response.replyCoaching.replyPacks
+            for reply in pack.replies
+        )
+        self.assertRegex(all_reply_text, "광주|맛난|맛있는|연락|만나")
+        self.assertNotIn("무슨 상황", all_reply_text)
+        self.assertNotIn("나는 이런 얘기 편하게 해주는 게 좋더라", all_reply_text)
+
 
 class NoopAI:
     def complete_session(
