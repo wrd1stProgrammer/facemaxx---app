@@ -21,8 +21,10 @@ from app.schemas.flirtist_product import (
 from app.services.flirtist_product_ai import FlirtistProductAI
 from app.services.flirtist_product_coach import coach_answer, coach_suggestions
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage, FlirtistStoredImage
+from app.services.flirtist_product_reply_quality import repair_reply_coaching
 from app.services.flirtist_product_repository import FlirtistProductRepository
 from app.services.flirtist_product_reply_fallback import ensure_reply_packs, reply_coaching
+from app.services.flirtist_product_transcript import clean_preview_messages, preview_messages
 
 
 class FlirtistProductService:
@@ -55,13 +57,13 @@ class FlirtistProductService:
             image_url=stored_image.url if stored_image else None,
         )
         if response.replyCoaching:
+            language = _language(response.language, response.locale)
+            chat_preview = clean_preview_messages(language, response.chatPreview)
+            coaching = ensure_reply_packs(response.replyCoaching, language, chat_preview)
             response = response.model_copy(
                 update={
-                    "replyCoaching": ensure_reply_packs(
-                        response.replyCoaching,
-                        _language(response.language, response.locale),
-                        response.chatPreview,
-                    )
+                    "chatPreview": chat_preview,
+                    "replyCoaching": repair_reply_coaching(coaching, language, chat_preview),
                 }
             )
         if stored_image:
@@ -82,13 +84,14 @@ class FlirtistProductService:
 
     def regenerate_reply(self, request: FlirtistReplyStyleRequest) -> FlirtistReplyStyleResponse:
         language = _language(request.language, request.locale)
-        messages = _preview_messages(language, request.context)
+        messages = preview_messages(language, request.context)
         fallback = FlirtistReplyStyleResponse(
             sessionId=request.sessionId or _new_id("flt"),
             replyCoaching=reply_coaching(language, request.style, messages, focus=request.focus),
         )
         response = self._ai.complete_style(request=request, fallback=fallback)
-        return response.model_copy(update={"replyCoaching": ensure_reply_packs(response.replyCoaching, language, messages)})
+        coaching = ensure_reply_packs(response.replyCoaching, language, messages)
+        return response.model_copy(update={"replyCoaching": repair_reply_coaching(coaching, language, messages)})
 
     def coach_chat(self, request: FlirtistCoachChatRequest) -> FlirtistCoachChatResponse:
         language = _language(request.language, request.locale)
@@ -105,7 +108,7 @@ def _fallback_session(
     stored_image: FlirtistStoredImage | None,
 ) -> FlirtistProductSessionResponse:
     language = _language(request.language, request.locale)
-    chat_preview = _preview_messages(language, request.text)
+    chat_preview = preview_messages(language, request.text)
     base = {
         "sessionId": _new_id("flt"),
         "mode": request.mode,
@@ -149,26 +152,6 @@ def _title(language: FlirtistLanguage, request: FlirtistProductSessionRequest) -
     if request.source == "screenshot":
         return "Screenshot reply coach" if language == "en" else "스크린샷 답장 코칭"
     return "Manual text reply coach" if language == "en" else "텍스트 답장 코칭"
-
-
-def _preview_messages(language: FlirtistLanguage, text: str | None) -> list[FlirtistPreviewMessage]:
-    if not text:
-        return [
-            FlirtistPreviewMessage(role="system", text="Screenshot uploaded" if language == "en" else "스크린샷 업로드됨")
-        ]
-    messages: list[FlirtistPreviewMessage] = []
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        lowered = line.lower()
-        if lowered.startswith(("me:", "나:", "저:")):
-            messages.append(FlirtistPreviewMessage(role="me", text=line.split(":", 1)[1].strip()))
-        elif lowered.startswith(("them:", "상대:", "그쪽:")):
-            messages.append(FlirtistPreviewMessage(role="them", text=line.split(":", 1)[1].strip()))
-        else:
-            messages.append(FlirtistPreviewMessage(role="them", text=line))
-    return messages or [FlirtistPreviewMessage(role="system", text=text[:500])]
 
 
 def _analysis_card(language: FlirtistLanguage, messages: list[FlirtistPreviewMessage]) -> FlirtistAnalysisCard:

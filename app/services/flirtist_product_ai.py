@@ -19,6 +19,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
+from app.services.flirtist_product_transcript import sanitized_transcript_text
 
 ProductModel = TypeVar("ProductModel", bound=FacemaxxBaseModel)
 LOGGER = logging.getLogger(__name__)
@@ -96,19 +97,23 @@ class FlirtistProductAI:
 
 
 def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistProductSessionResponse) -> str:
+    prompt_request = request.model_copy(update={"text": sanitized_transcript_text(request.text)})
     return "\n".join(
         [
             "You are Flirtist, a bilingual dating situation coach. Return one JSON object only.",
             "If a Cloudinary screenshot URL is attached, read the visible chat/profile content from the image.",
+            "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
             "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
+            "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
+            "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
             "The server will expand style packs after your response, so keep the JSON compact and focused on the visible situation.",
             "For Korean reply_coach, write replies like a native Korean KakaoTalk/Instagram DM. Avoid 당신, stiff translations, generic coffee templates, and phrases like 고생한 기념 unless the chat naturally supports them.",
             "For Korean reply_coach, preserve the relationship tone from the screenshot: 존댓말 vs 반말, warmth, humor level, and how close they seem.",
             "For English reply_coach, avoid canned pickup-line clichés. Use the actual visible context and produce copy-ready text, not coaching advice.",
             "Refuse unsafe dating manipulation, stalking, coercion, minors, or explicit sexual pressure.",
-            f"Request JSON without image: {request.model_dump_json(exclude={'imageBase64'})}",
+            f"Request JSON without image: {prompt_request.model_dump_json(exclude={'imageBase64'})}",
             f"Cloudinary image URL: {fallback.imageUrl or 'none'}",
             f"Fallback contract JSON: {fallback.model_dump_json()}",
         ]
@@ -116,16 +121,19 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
 
 
 def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplyStyleResponse) -> str:
+    prompt_request = request.model_copy(update={"context": sanitized_transcript_text(request.context) or request.context})
     return "\n".join(
         [
             "Rewrite the dating reply in the requested style. Return one JSON object only.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
+            "Ignore OCR placeholders and UI chrome such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
+            "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
             "If focus is provided, weave that word or phrase into the alternatives naturally.",
             "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
-            f"Request JSON: {request.model_dump_json()}",
+            f"Request JSON: {prompt_request.model_dump_json()}",
             f"Fallback contract JSON: {fallback.model_dump_json()}",
         ]
     )

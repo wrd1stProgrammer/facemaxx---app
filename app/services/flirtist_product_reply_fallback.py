@@ -70,7 +70,7 @@ def _reply_context(language: FlirtistLanguage, messages: list[FlirtistPreviewMes
         last_them = next((message.text for message in reversed(messages) if message.role != "system"), "")
     return ReplyContext(
         scenario=_scenario(language, last_them),
-        topic=_topic(last_them),
+        topic=_topic(language, last_them),
         last_them=last_them,
     )
 
@@ -82,10 +82,12 @@ def _scenario(language: FlirtistLanguage, text: str) -> ReplyScenario:
             return "celebration"
         if _contains_any(lowered, ("회사", "퇴근", "피곤", "힘들", "정신", "야근", "빡세", "지쳤")):
             return "fatigue"
-        if _contains_any(lowered, ("커피", "밥", "만나", "보자", "데이트", "영화", "술")):
+        if _contains_any(lowered, ("커피", "밥", "만나", "보자", "데이트", "술")):
             return "plans"
         if _contains_any(lowered, ("보고 싶", "좋아", "설레", "귀엽", "생각났")):
             return "affection"
+        if _contains_any(lowered, ("영화", "드라마", "노래", "봤", "재밌", "맛있", "좋았", "별로")):
+            return "reaction"
         return "generic"
     if _contains_any(lowered, ("passed", "accepted", "finally", "done", "won", "celebrate", "congrats")):
         return "celebration"
@@ -95,6 +97,8 @@ def _scenario(language: FlirtistLanguage, text: str) -> ReplyScenario:
         return "plans"
     if _contains_any(lowered, ("miss", "like you", "cute", "thinking of you")):
         return "affection"
+    if _contains_any(lowered, ("movie", "watched", "saw", "show", "song", "fun", "interesting", "liked", "loved")):
+        return "reaction"
     return "generic"
 
 
@@ -102,7 +106,34 @@ def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
     return any(needle in text for needle in needles)
 
 
-def _topic(text: str) -> str:
+def _topic(language: FlirtistLanguage, text: str) -> str:
+    lowered = text.lower()
+    if language == "ko":
+        if "회계" in lowered and "시험" in lowered:
+            return "회계 시험"
+        if "시험" in lowered:
+            return "시험"
+        if "영화" in lowered:
+            return "그 영화"
+        if "드라마" in lowered:
+            return "그 드라마"
+        if "노래" in lowered:
+            return "그 노래"
+        if "회사" in lowered or "퇴근" in lowered:
+            return "오늘 하루"
+    else:
+        if "accounting exam" in lowered:
+            return "your accounting exam"
+        if "exam" in lowered:
+            return "your exam"
+        if "movie" in lowered or "watched" in lowered or "saw" in lowered:
+            return "the movie"
+        if "show" in lowered:
+            return "the show"
+        if "song" in lowered:
+            return "the song"
+        if "work" in lowered:
+            return "your day"
     clipped = " ".join(text.split())[:36]
     return clipped or "그 얘기"
 
@@ -143,7 +174,7 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "상대가 좋은 소식을 공유했으니 먼저 진심으로 축하하고, 자연스럽게 더 이어가세요."
             case "fatigue":
                 return "상대가 피곤함을 공유했으니 공감 한 줄 뒤에 부담 낮은 다음 흐름을 붙이세요."
-            case "plans" | "affection" | "generic":
+            case "plans" | "affection" | "reaction" | "generic":
                 return "상대가 꺼낸 말을 되짚고, 가볍게 더 말하기 쉬운 답장을 보내세요."
             case unreachable:
                 assert_never(unreachable)
@@ -152,7 +183,7 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "They shared a win, so lead with a real congratulations and an easy next step."
         case "fatigue":
             return "They shared a rough day, so validate it before adding a low-pressure next step."
-        case "plans" | "affection" | "generic":
+        case "plans" | "affection" | "reaction" | "generic":
             return "Mirror their actual topic and make the next reply easy to answer."
         case unreachable:
             assert_never(unreachable)
@@ -165,7 +196,7 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "축하를 먼저 보내고, 상대가 더 말하고 싶게 한 문장만 붙이세요."
             case "fatigue":
                 return "부담 없이 답하기 쉬운 한 문장으로 보내세요."
-            case "plans" | "affection" | "generic":
+            case "plans" | "affection" | "reaction" | "generic":
                 return "상대가 방금 말한 단어를 그대로 살려서 짧게 보내세요."
             case unreachable:
                 assert_never(unreachable)
@@ -174,7 +205,7 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "Congratulate them first, then leave one warm opening."
         case "fatigue":
             return "Keep it warm, specific, and low-pressure."
-        case "plans" | "affection" | "generic":
+        case "plans" | "affection" | "reaction" | "generic":
             return "Use their actual topic and ask for one small continuation."
         case unreachable:
             assert_never(unreachable)

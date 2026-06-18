@@ -4,6 +4,10 @@ import unittest
 
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistProductSessionResponse
+from app.schemas.flirtist_product import FlirtistReplyCoaching
+from app.schemas.flirtist_product import FlirtistReplyOption
+from app.schemas.flirtist_product import FlirtistReplyStyleRequest
+from app.schemas.flirtist_product import FlirtistReplyStyleResponse
 from app.services.flirtist_product_service import FlirtistProductService
 
 
@@ -39,6 +43,104 @@ class FlirtistProductFallbackTest(unittest.TestCase):
         self.assertNotIn("회사", reply_text)
         self.assertNotIn("힘 빠졌겠다", pack_text)
 
+    def test_reply_fallback_ignores_ocr_message_placeholder(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text="Them: 어제 말한 영화 봤어 진짜 재밌더라\nMe: 오 진짜? 어땠어?\nMessage...",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        preview_text = " ".join(message.text for message in response.chatPreview)
+        reply_text = " ".join(reply.text for reply in response.replyCoaching.replies)
+        self.assertNotIn("Message", preview_text)
+        self.assertNotIn("Message", reply_text)
+        self.assertRegex(reply_text, "영화|장면|추천|스포|봐야")
+        self.assertNotIn("얘기 조금 더 듣고 싶어", reply_text)
+
+    def test_provider_reply_with_ui_placeholder_is_replaced_with_contextual_reply(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoisyProviderAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text="Them: 어제 말한 영화 봤어 진짜 재밌더라\nMe: 오 진짜? 어땠어?\nMessage...",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        reply_text = " ".join(reply.text for reply in response.replyCoaching.replies)
+        self.assertNotIn("Message", reply_text)
+        self.assertRegex(reply_text, "영화|재밌|궁금|얘기")
+
+    def test_english_reply_fallback_does_not_echo_first_person_context_as_topic(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="en-US",
+            text="Them: I finally passed my accounting exam\nMe: no way congrats\nMessage...",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        reply_text = " ".join(reply.text for reply in response.replyCoaching.replies)
+        self.assertNotIn("Message", reply_text)
+        self.assertNotIn("after I finally passed", reply_text)
+        self.assertRegex(reply_text.lower(), "congrats|celebrat|proud|exam")
+
+    def test_style_regeneration_replaces_ui_placeholder_reply(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoisyProviderAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistReplyStyleRequest(
+            locale="ko-KR",
+            context="Them: 어제 말한 영화 봤어 진짜 재밌더라\nMe: 오 진짜? 어땠어?\nMessage...",
+            baseReply="Message... 얘기 조금 더 듣고 싶어.",
+            style="nsfw",
+        )
+
+        # When
+        response = service.regenerate_reply(request)
+
+        # Then
+        reply_text = " ".join(reply.text for reply in response.replyCoaching.replies)
+        self.assertNotIn("Message", reply_text)
+        self.assertRegex(reply_text, "영화|재밌|반응|스포")
+
 
 class NoopAI:
     def complete_session(
@@ -49,6 +151,64 @@ class NoopAI:
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
         return fallback
+
+
+class NoisyProviderAI:
+    def complete_session(
+        self,
+        *,
+        request: FlirtistProductSessionRequest,
+        fallback: FlirtistProductSessionResponse,
+        image_url: str | None,
+    ) -> FlirtistProductSessionResponse:
+        assert fallback.replyCoaching is not None
+        noisy = FlirtistReplyOption(
+            id="reply_noisy",
+            style="genuine",
+            text="Message... 얘기 조금 더 듣고 싶어. 편할 때 이어서 말해줘.",
+            whyItWorks="Looks valid but leaks OCR UI chrome.",
+            aiObviousness=12,
+            pressure=18,
+            replyLikelihood=84,
+        )
+        return fallback.model_copy(
+            update={
+                "replyCoaching": FlirtistReplyCoaching(
+                    headline=fallback.replyCoaching.headline,
+                    summary=fallback.replyCoaching.summary,
+                    nextMove=fallback.replyCoaching.nextMove,
+                    replies=[noisy],
+                    replyPacks=[],
+                )
+            }
+        )
+
+    def complete_style(
+        self,
+        *,
+        request: FlirtistReplyStyleRequest,
+        fallback: FlirtistReplyStyleResponse,
+    ) -> FlirtistReplyStyleResponse:
+        noisy = FlirtistReplyOption(
+            id="reply_style_noisy",
+            style=request.style,
+            text="Message... 얘기 들으니까 괜히 더 궁금해졌어.",
+            whyItWorks="Looks valid but leaks OCR UI chrome.",
+            aiObviousness=12,
+            pressure=18,
+            replyLikelihood=84,
+        )
+        return fallback.model_copy(
+            update={
+                "replyCoaching": FlirtistReplyCoaching(
+                    headline=fallback.replyCoaching.headline,
+                    summary=fallback.replyCoaching.summary,
+                    nextMove=fallback.replyCoaching.nextMove,
+                    replies=[noisy],
+                    replyPacks=[],
+                )
+            }
+        )
 
 
 class NoopImageStorage:

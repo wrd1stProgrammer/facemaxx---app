@@ -11,9 +11,9 @@ def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
         case "celebration":
             table = {
                 "genuine": [
-                    f"That is huge. I am genuinely happy for you, especially after {topic}.",
+                    "That is huge. I am genuinely happy for you.",
                     "Finally being done must feel amazing. You deserve to enjoy that win tonight.",
-                    "I knew you had it in you. That is absolutely worth celebrating.",
+                    f"Passing {topic} is absolutely worth celebrating.",
                     "I am smiling at my phone right now. Big congrats.",
                     "That kind of win deserves more than a text, but this is my start: I am proud of you.",
                 ],
@@ -46,11 +46,53 @@ def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
                     "That win deserves a soft night and someone being fully happy for you.",
                 ],
             }
+        case "reaction":
+            table = _en_reaction_table(topic)
         case "fatigue" | "plans" | "affection" | "generic":
             table = _en_generic_table(topic)
         case unreachable:
             assert_never(unreachable)
     return table.get(style, table["genuine"])
+
+
+def _en_reaction_table(topic: str) -> dict[str, list[str]]:
+    return {
+        "genuine": [
+            f"Okay, now I am curious about {topic}. What made it that good?",
+            "No spoilers, but give me the one-line pitch.",
+            "That reaction makes me want to watch it too. Best part?",
+            "I trust that review more than a trailer. What did you like most?",
+            "That sounds worth adding to my list. What kind of vibe was it?",
+        ],
+        "nsfw": [
+            "Careful, hearing you get excited about something is very distracting.",
+            f"I want the {topic} review, but I might be more interested in watching your reaction.",
+            "No spoilers. I would rather hear it from you in person.",
+            "That little burst of excitement is unfairly cute.",
+            "If your recommendation is that convincing, I may need a private screening.",
+        ],
+        "flirty": [
+            f"If {topic} passed your test, I should probably watch it. Want to compare notes after?",
+            "Now I want your full recommendation list.",
+            "That made me curious about your taste. Give me one more pick.",
+            "I like how excited you sound. That alone kind of sells it.",
+            "I will watch it if I get your commentary after.",
+        ],
+        "witty": [
+            "That is a dangerous review. My watchlist just got longer.",
+            "No-spoiler sales pitch, go.",
+            "Okay, critic mode activated. What score are we giving it?",
+            "This sounds like a recommendation with evidence. I respect it.",
+            "You cannot say it was that good and leave me with no details.",
+        ],
+        "romantic": [
+            "I like hearing what you get excited about. What stayed with you after?",
+            "That makes me want to know your taste better.",
+            "Tell me the part you loved most. I like seeing how you see things.",
+            "The way you said that makes me want to watch it through your eyes.",
+            "Next time, I would like to hear the full review from you properly.",
+        ],
+    }
 
 
 def _en_generic_table(topic: str) -> dict[str, list[str]]:

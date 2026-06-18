@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-ReplyScenario = Literal["celebration", "fatigue", "plans", "affection", "generic"]
+ReplyScenario = Literal["celebration", "fatigue", "plans", "affection", "reaction", "generic"]
 
 
 @dataclass(frozen=True, slots=True)
