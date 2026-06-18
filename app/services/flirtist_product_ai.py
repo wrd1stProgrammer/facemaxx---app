@@ -33,7 +33,7 @@ class FlirtistProductAI:
         fallback: FlirtistProductSessionResponse,
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
-        text = self._complete_json_text(prompt=_session_prompt(request, fallback), image_url=image_url, max_output_tokens=3400)
+        text = self._complete_json_text(prompt=_session_prompt(request, fallback), image_url=image_url, max_output_tokens=1800)
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistProductSessionResponse)
@@ -72,7 +72,7 @@ class FlirtistProductAI:
             api_key = _openai_key()
             if api_key is None:
                 return None
-            client = OpenAI(api_key=api_key, timeout=25.0)
+            client = OpenAI(api_key=api_key, timeout=45.0)
             content = [{"type": "input_text", "text": prompt}]
             if image_url:
                 content.append(
@@ -98,9 +98,8 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "If a Cloudinary screenshot URL is attached, read the visible chat/profile content from the image.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
-            "For reply_coach, replyCoaching.replyPacks must include 5 packs: genuine, nsfw, flirty, witty, romantic.",
-            "Each reply pack should contain 5 short replies. Keep nsfw bold but non-explicit, consensual, and never sexually pressuring.",
-            "Set replyCoaching.replies to the genuine pack unless the request clearly asks for another style.",
+            "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
+            "The server will expand style packs after your response, so keep the JSON compact and focused on the visible situation.",
             "Refuse unsafe dating manipulation, stalking, coercion, minors, or explicit sexual pressure.",
             f"Request JSON without image: {request.model_dump_json(exclude={'imageBase64'})}",
             f"Cloudinary image URL: {fallback.imageUrl or 'none'}",
