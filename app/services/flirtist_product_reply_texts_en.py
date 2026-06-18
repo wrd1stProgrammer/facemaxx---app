@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from typing import assert_never
+
+from app.services.flirtist_product_reply_context import ReplyContext, focus_or_topic
+
+
+def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list[str]:
+    topic = focus_or_topic(context.topic, focus)
+    match context.scenario:
+        case "celebration":
+            table = {
+                "genuine": [
+                    f"That is huge. I am genuinely happy for you, especially after {topic}.",
+                    "Finally being done must feel amazing. You deserve to enjoy that win tonight.",
+                    "I knew you had it in you. That is absolutely worth celebrating.",
+                    "I am smiling at my phone right now. Big congrats.",
+                    "That kind of win deserves more than a text, but this is my start: I am proud of you.",
+                ],
+                "nsfw": [
+                    "Careful, good news makes me want to celebrate you in person.",
+                    "That win deserves a dangerous amount of attention from me.",
+                    "I can say congrats politely, but I would rather say it closer.",
+                    "You being proud of yourself is unfairly attractive.",
+                    "Let me know when I am allowed to make that celebration less innocent.",
+                ],
+                "flirty": [
+                    "That deserves a proper celebration. Can I be part of it?",
+                    "Huge congrats. I think a victory drink with me is only fair.",
+                    "You did the hard part, so I can handle the celebration plan.",
+                    "I want to hear the full story while buying you something good.",
+                    "That win looks good on you. Let me celebrate it with you.",
+                ],
+                "witty": [
+                    "Achievement unlocked. Now we need a reward scene.",
+                    "You beat the boss level. I volunteer as the celebration side quest.",
+                    "That is not just news, that is scoreboard material.",
+                    "The correct response is obviously applause and snacks.",
+                    "I will keep this brief: legend behavior.",
+                ],
+                "romantic": [
+                    "I am really happy for you. I hope you let yourself feel proud tonight.",
+                    "That is such good news. I wish I could see your face while you tell me.",
+                    "You worked for this, and I am glad it finally paid off.",
+                    "I love that you shared that with me. Congratulations, really.",
+                    "That win deserves a soft night and someone being fully happy for you.",
+                ],
+            }
+        case "fatigue" | "plans" | "affection" | "generic":
+            table = _en_generic_table(topic)
+        case unreachable:
+            assert_never(unreachable)
+    return table.get(style, table["genuine"])
+
+
+def _en_generic_table(topic: str) -> dict[str, list[str]]:
+    return {
+        "genuine": [
+            f"I want to hear more about {topic} when you feel like talking.",
+            "That makes me curious about your side of it.",
+            "I like this conversation. Tell me a little more.",
+            "I am listening. What was that like for you?",
+            "That is the kind of thing I would rather hear properly.",
+        ],
+        "nsfw": [
+            "Careful, that made me more curious than I planned to be.",
+            "This conversation could get dangerously fun if we keep going.",
+            "I like this tension a little too much.",
+            "I can keep behaving, but you are not making it easy.",
+            "Tell me more before I start flirting worse.",
+        ],
+        "flirty": [
+            "Now I am curious about you in a way I should probably admit.",
+            "I like how this conversation feels. Keep going?",
+            "That makes me want to steal more of your time.",
+            "You have my attention now.",
+            "I would rather hear this from you in person.",
+        ],
+        "witty": [
+            "Okay, that needs a second episode.",
+            "You cannot drop that and expect no follow-up questions.",
+            "I am officially invested now.",
+            "That is a dangerous amount of curiosity you just created.",
+            "I was normal before this message, probably.",
+        ],
+        "romantic": [
+            "I like when you tell me things like that.",
+            "That makes me want to understand you better.",
+            "No rush. I like hearing your thoughts at your pace.",
+            "That felt honest. I appreciate that.",
+            "I am glad you shared that with me.",
+        ],
+    }

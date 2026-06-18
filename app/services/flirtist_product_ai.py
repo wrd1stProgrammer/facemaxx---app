@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from typing import TypeVar
@@ -20,6 +21,7 @@ from app.schemas.flirtist_product import (
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
 
 ProductModel = TypeVar("ProductModel", bound=FacemaxxBaseModel)
+LOGGER = logging.getLogger(__name__)
 
 
 class FlirtistProductAI:
@@ -85,9 +87,11 @@ class FlirtistProductAI:
                 model=self._config.openai_model,
                 input=[{"role": "user", "content": content}],
                 max_output_tokens=max_output_tokens,
+                text={"format": {"type": "json_object"}},
             )
             return response.output_text or None
-        except (OpenAIError, AttributeError):
+        except (OpenAIError, AttributeError) as exc:
+            LOGGER.warning("Flirtist product OpenAI completion failed: %s", exc)
             return None
 
 
@@ -149,7 +153,8 @@ def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]
         base = fallback.model_dump(mode="json")
         base.update(payload)
         return model.model_validate(base)
-    except (ValidationError, json.JSONDecodeError, AttributeError):
+    except (ValidationError, json.JSONDecodeError, AttributeError) as exc:
+        LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
         return fallback
 
 
