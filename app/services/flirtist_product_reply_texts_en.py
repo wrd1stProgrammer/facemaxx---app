@@ -48,7 +48,9 @@ def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
             }
         case "reaction":
             table = _en_reaction_table(topic)
-        case "fatigue" | "plans" | "affection" | "generic":
+        case "affection":
+            table = _en_affection_table(topic)
+        case "fatigue" | "plans" | "generic":
             table = _en_generic_table(topic)
         case unreachable:
             assert_never(unreachable)
@@ -95,14 +97,54 @@ def _en_reaction_table(topic: str) -> dict[str, list[str]]:
     }
 
 
+def _en_affection_table(topic: str) -> dict[str, list[str]]:
+    return {
+        "genuine": [
+            "Wait, now I need to know what made you think of me.",
+            "That is weirdly sweet. What was the moment?",
+            "I like that. Tell me the funny part though.",
+            "You cannot say I randomly crossed your mind and then not explain.",
+            "That little detail is cute. What sparked it?",
+        ],
+        "nsfw": [
+            "Careful, saying I was on your mind gives me ideas.",
+            "That is a dangerous thing to tell me without details.",
+            "Now I am going to wonder exactly what kind of thought it was.",
+            "If I was on your mind, I am going to need the full story.",
+            "That message is a little too good at getting my attention.",
+        ],
+        "flirty": [
+            "I like being the random thought of the day. What triggered it?",
+            "That made me smile more than it should have.",
+            "Okay, that is cute. What were you doing when I popped up?",
+            "I will take being remembered, especially if there is a funny story attached.",
+            "That sounds like the start of a good story. Tell me.",
+        ],
+        "witty": [
+            "I need the case file: time, place, and why I appeared.",
+            "Was this a compliment or an incident report?",
+            "I accept this mysterious cameo. Please explain the plot.",
+            "That is too vague. I need the director's cut.",
+            "Randomly thinking of me is either sweet or suspicious. Which one?",
+        ],
+        "romantic": [
+            "That is the kind of small message that stays with me.",
+            "I like knowing I crossed your mind. What was happening?",
+            "That is sweet in a quiet way. Tell me the moment.",
+            "Now I am smiling at my phone a little.",
+            "I like being part of your day, even randomly.",
+        ],
+    }
+
+
 def _en_generic_table(topic: str) -> dict[str, list[str]]:
     return {
         "genuine": [
-            f"I want to hear more about {topic} when you feel like talking.",
-            "That makes me curious about your side of it.",
-            "I like this conversation. Tell me a little more.",
-            "I am listening. What was that like for you?",
-            "That is the kind of thing I would rather hear properly.",
+            "Wait, I need the context. What happened right before that?",
+            "That sounds like there is a story behind it. What happened?",
+            "Okay, you have my attention. What was the moment?",
+            "I want the one-sentence backstory now.",
+            "That is specific enough that I need details.",
         ],
         "nsfw": [
             "Careful, that made me more curious than I planned to be.",

@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from typing import TypeVar
+from typing import TypeAlias, TypeVar
 
 from pydantic import ValidationError
 
@@ -22,6 +22,7 @@ from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_conf
 from app.services.flirtist_product_transcript import sanitized_transcript_text
 
 ProductModel = TypeVar("ProductModel", bound=FacemaxxBaseModel)
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 LOGGER = logging.getLogger(__name__)
 
 
@@ -108,14 +109,16 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
+            "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh replies from the chat.",
+            "Quality bar for every reply: 1) references the exact situation without quoting the whole message, 2) sounds like a real text, 3) gives the other person an easy next response, 4) does not suddenly escalate intimacy, 5) is specific enough that it would be wrong for a different chat.",
             "The server will expand style packs after your response, so keep the JSON compact and focused on the visible situation.",
             "For Korean reply_coach, write replies like a native Korean KakaoTalk/Instagram DM. Avoid 당신, stiff translations, generic coffee templates, and phrases like 고생한 기념 unless the chat naturally supports them.",
-            "For Korean reply_coach, preserve the relationship tone from the screenshot: 존댓말 vs 반말, warmth, humor level, and how close they seem.",
+            "For Korean reply_coach, preserve the relationship tone from the screenshot: 존댓말 vs 반말, warmth, humor level, and how close they seem. Prefer short, alive Korean that reacts to the specific trigger instead of quoting the whole incoming message.",
             "For English reply_coach, avoid canned pickup-line clichés. Use the actual visible context and produce copy-ready text, not coaching advice.",
             "Refuse unsafe dating manipulation, stalking, coercion, minors, or explicit sexual pressure.",
             f"Request JSON without image: {prompt_request.model_dump_json(exclude={'imageBase64'})}",
             f"Cloudinary image URL: {fallback.imageUrl or 'none'}",
-            f"Fallback contract JSON: {fallback.model_dump_json()}",
+            f"Response contract JSON: {_contract_json(fallback)}",
         ]
     )
 
@@ -128,13 +131,15 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
             "Ignore OCR placeholders and UI chrome such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
+            "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
+            "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
             "If focus is provided, weave that word or phrase into the alternatives naturally.",
             "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
             f"Request JSON: {prompt_request.model_dump_json()}",
-            f"Fallback contract JSON: {fallback.model_dump_json()}",
+            f"Response contract JSON: {_contract_json(fallback)}",
         ]
     )
 
@@ -177,6 +182,51 @@ def _json_object_from_text(text: str):
     if not isinstance(value, dict):
         raise json.JSONDecodeError("provider response is not a JSON object", text, 0)
     return value
+
+
+def _contract_json(fallback: ProductModel) -> str:
+    payload = fallback.model_dump(mode="json")
+    if isinstance(fallback, FlirtistProductSessionResponse):
+        payload["chatPreview"] = [
+            {"role": "them", "text": "<visible chat message>"},
+            {"role": "me", "text": "<visible chat message>"},
+        ]
+        if payload.get("replyCoaching") is not None:
+            payload["replyCoaching"] = _reply_coaching_contract()
+        if payload.get("analysisCard") is not None:
+            payload["analysisCard"] = "<analysisCard object matching schema>"
+    elif isinstance(fallback, FlirtistReplyStyleResponse):
+        payload["replyCoaching"] = _reply_coaching_contract(include_pack=True)
+    elif isinstance(fallback, FlirtistCoachChatResponse):
+        payload["message"] = {"role": "assistant", "text": "<short coach answer>"}
+        payload["suggestions"] = ["<next user prompt>"]
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _reply_coaching_contract(*, include_pack: bool = False) -> dict[str, JsonValue]:
+    option = {
+        "id": "reply_ai_1",
+        "style": "genuine",
+        "text": "<copy-ready reply text>",
+        "whyItWorks": "<one reason>",
+        "aiObviousness": 10,
+        "pressure": 20,
+        "replyLikelihood": 80,
+    }
+    pack = {
+        "style": "genuine",
+        "label": "Genuine",
+        "buttonTitle": "Get Genuine Reply",
+        "iconName": "bolt.fill",
+        "replies": [option],
+    }
+    return {
+        "headline": "<short title>",
+        "summary": "<short situation read>",
+        "nextMove": "<one next step>",
+        "replies": [option],
+        "replyPacks": [pack] if include_pack else [],
+    }
 
 
 def _openai_key() -> str | None:
