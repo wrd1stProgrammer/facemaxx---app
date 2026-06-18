@@ -33,7 +33,7 @@ class FlirtistProductAI:
         fallback: FlirtistProductSessionResponse,
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
-        text = self._complete_json_text(prompt=_session_prompt(request, fallback), image_url=image_url)
+        text = self._complete_json_text(prompt=_session_prompt(request, fallback), image_url=image_url, max_output_tokens=3400)
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistProductSessionResponse)
@@ -44,7 +44,7 @@ class FlirtistProductAI:
         request: FlirtistReplyStyleRequest,
         fallback: FlirtistReplyStyleResponse,
     ) -> FlirtistReplyStyleResponse:
-        text = self._complete_json_text(prompt=_style_prompt(request, fallback), image_url=None, max_output_tokens=700)
+        text = self._complete_json_text(prompt=_style_prompt(request, fallback), image_url=None, max_output_tokens=1800)
         if text is None:
             return fallback
         return _merge_response(text, fallback, FlirtistReplyStyleResponse)
@@ -98,6 +98,9 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "If a Cloudinary screenshot URL is attached, read the visible chat/profile content from the image.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
+            "For reply_coach, replyCoaching.replyPacks must include 5 packs: genuine, nsfw, flirty, witty, romantic.",
+            "Each reply pack should contain 5 short replies. Keep nsfw bold but non-explicit, consensual, and never sexually pressuring.",
+            "Set replyCoaching.replies to the genuine pack unless the request clearly asks for another style.",
             "Refuse unsafe dating manipulation, stalking, coercion, minors, or explicit sexual pressure.",
             f"Request JSON without image: {request.model_dump_json(exclude={'imageBase64'})}",
             f"Cloudinary image URL: {fallback.imageUrl or 'none'}",
@@ -111,6 +114,9 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
         [
             "Rewrite the dating reply in the requested style. Return one JSON object only.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
+            "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
+            "If focus is provided, weave that word or phrase into the alternatives naturally.",
+            "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
             f"Request JSON: {request.model_dump_json()}",
             f"Fallback contract JSON: {fallback.model_dump_json()}",
         ]

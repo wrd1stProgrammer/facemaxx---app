@@ -52,11 +52,20 @@ class FlirtistReplyOption(FacemaxxBaseModel):
     replyLikelihood: int = Field(ge=0, le=100)
 
 
+class FlirtistReplyPack(FacemaxxBaseModel):
+    style: str = Field(min_length=2, max_length=40)
+    label: str = Field(min_length=2, max_length=40)
+    buttonTitle: str = Field(min_length=2, max_length=80)
+    iconName: str = Field(min_length=2, max_length=60)
+    replies: list[FlirtistReplyOption] = Field(min_length=1, max_length=8)
+
+
 class FlirtistReplyCoaching(FacemaxxBaseModel):
     headline: str
     summary: str
     nextMove: str
-    replies: list[FlirtistReplyOption] = Field(min_length=1, max_length=6)
+    replies: list[FlirtistReplyOption] = Field(min_length=1, max_length=8)
+    replyPacks: list[FlirtistReplyPack] = Field(default_factory=list, max_length=5)
 
 
 class FlirtistInterestBreakdown(FacemaxxBaseModel):
@@ -106,6 +115,7 @@ class FlirtistReplyStyleRequest(FacemaxxBaseModel):
     context: str = Field(min_length=1, max_length=8000)
     baseReply: str = Field(min_length=1, max_length=1200)
     style: str = Field(min_length=2, max_length=40)
+    focus: Optional[str] = Field(default=None, max_length=120)
 
 
 class FlirtistReplyStyleResponse(FacemaxxBaseModel):
