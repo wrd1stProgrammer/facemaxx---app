@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
+from app.schemas.flirtist_product import FlirtistCoachMessage
 from app.schemas.flirtist_product import FlirtistCoachChatResponse
 from app.services.flirtist_product_service import FlirtistProductService
 
@@ -78,10 +79,62 @@ class FlirtistProductCoachApiTest(unittest.TestCase):
         # Then
         self.assertEqual(len(response_texts), len(requests))
         self.assertEqual(len(response_suggestions), len(requests))
-        self.assertIn("프로필/사진 칭찬", responses[0].message.text)
-        self.assertIn("연락 빈도 조율", responses[1].message.text)
-        self.assertIn("고백 타이밍", responses[2].message.text)
-        self.assertIn("부담 낮은 플러팅", responses[3].message.text)
+        self.assertRegex(responses[0].message.text, "사진|분위기|칭찬")
+        self.assertRegex(responses[1].message.text, "연락|속도|텀")
+        self.assertRegex(responses[2].message.text, "고백|확인|타이밍")
+        self.assertRegex(responses[3].message.text, "플러팅|장난|부담")
+
+    def test_coach_fallback_gives_concrete_bar_approach_without_echoing_prompt(self) -> None:
+        # Given
+        service = FlirtistProductService(ai=NoopAI())
+        request = FlirtistCoachChatRequest(locale="ko-KR", message="헌팅포차에서 어케 말걸지")
+
+        # When
+        response = service.coach_chat(request)
+
+        # Then
+        text = response.message.text
+        self.assertRegex(text, "헌팅포차|포차|술집|옆자리|친구")
+        self.assertRegex(text, "불편|괜찮|한마디|말")
+        self.assertNotIn("'헌팅포차에서 어케 말걸지'", text)
+        self.assertNotIn("한 번에 관계를 밀어붙이기보다", text)
+        self.assertNotIn("작은 다음 행동", text)
+
+    def test_coach_fallback_uses_previous_context_for_generic_followup(self) -> None:
+        # Given
+        service = FlirtistProductService(ai=NoopAI())
+        request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="그니까 뭐라보낼까",
+            history=[
+                FlirtistCoachMessage(role="user", text="2년전 썸녀랑 술 먹고싶은데 뭐라 보내"),
+                FlirtistCoachMessage(role="assistant", text="오랜만이면 바로 약속부터 밀지 마."),
+            ],
+        )
+
+        # When
+        response = service.coach_chat(request)
+
+        # Then
+        text = response.message.text
+        self.assertRegex(text, "오랜만|술|한잔|근황")
+        self.assertNotIn("'그니까 뭐라보낼까'", text)
+        self.assertNotIn("한 번에 관계를 밀어붙이기보다", text)
+
+    def test_low_value_provider_coach_response_is_repaired(self) -> None:
+        # Given
+        service = FlirtistProductService(ai=LowValueCoachAI())
+        request = FlirtistCoachChatRequest(locale="ko-KR", message="2년전 썸녀랑 술 먹고싶은데 뭐라 보내")
+
+        # When
+        response = service.coach_chat(request)
+
+        # Then
+        text = response.message.text
+        self.assertRegex(text, "오랜만|술|한잔|근황")
+        self.assertNotIn("'2년전 썸녀랑 술 먹고싶은데 뭐라 보내'", text)
+        self.assertNotIn("한 번에 관계를 밀어붙이기보다", text)
+        self.assertNotIn("작은 다음 행동", text)
 
 
 class NoopAI:
@@ -92,6 +145,28 @@ class NoopAI:
         fallback: FlirtistCoachChatResponse,
     ) -> FlirtistCoachChatResponse:
         return fallback
+
+
+class LowValueCoachAI:
+    def complete_coach_chat(
+        self,
+        *,
+        request: FlirtistCoachChatRequest,
+        fallback: FlirtistCoachChatResponse,
+    ) -> FlirtistCoachChatResponse:
+        return fallback.model_copy(
+            update={
+                "message": fallback.message.model_copy(
+                    update={
+                        "text": (
+                            f"'{request.message}' 상황에서는 한 번에 관계를 밀어붙이기보다, "
+                            "상대가 편하게 선택할 수 있는 작은 다음 행동이 좋아요. "
+                            "마지막에는 질문 하나만 남기고, 답이 늦어도 추가 확인 메시지는 보내지 마세요."
+                        )
+                    }
+                )
+            }
+        )
 
 
 if __name__ == "__main__":

@@ -3,9 +3,12 @@ from __future__ import annotations
 import unittest
 
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
+from app.schemas.flirtist_product import FlirtistCoachChatRequest
+from app.schemas.flirtist_product import FlirtistCoachChatResponse
+from app.schemas.flirtist_product import FlirtistCoachMessage
 from app.schemas.flirtist_product import FlirtistReplyStyleRequest
 from app.schemas.flirtist_product import FlirtistReplyStyleResponse
-from app.services.flirtist_product_ai import _response_text_format, _session_prompt, _style_prompt
+from app.services.flirtist_product_ai import _coach_prompt, _response_text_format, _session_prompt, _style_prompt
 from app.services.flirtist_product_reply_fallback import reply_coaching
 from app.services.flirtist_product_service import FlirtistProductService
 from tests.test_flirtist_product_fallback import NoopAI, NoopImageStorage, NoopRepository
@@ -76,6 +79,29 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertEqual(json_format["type"], "json_schema")
         self.assertEqual(json_format["name"], "FlirtistReplyStyleResponse")
         self.assertIn("schema", json_format)
+
+    def test_coach_prompt_blocks_echoed_user_questions_and_template_filler(self) -> None:
+        # Given
+        request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="그니까 뭐라보낼까",
+            history=[FlirtistCoachMessage(role="user", text="2년전 썸녀랑 술 먹고싶은데 뭐라 보내")],
+        )
+        fallback = FlirtistCoachChatResponse(
+            sessionId="coach_prompt_test",
+            message=FlirtistCoachMessage(role="assistant", text="오랜만이면 가볍게 열어봐."),
+            suggestions=["더 짧게"],
+        )
+
+        # When
+        prompt = _coach_prompt(request, fallback)
+
+        # Then
+        self.assertIn("Do not quote", prompt)
+        self.assertIn("그니까 뭐라보낼까", prompt)
+        self.assertIn("previous meaningful user message", prompt)
+        self.assertIn("Avoid templated coaching filler", prompt)
+        self.assertIn("copy-ready line or spoken opener", prompt)
 
 
 if __name__ == "__main__":
