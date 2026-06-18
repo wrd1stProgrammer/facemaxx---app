@@ -155,3 +155,4 @@ class FlirtistCoachChatResponse(FacemaxxBaseModel):
     sessionId: str
     message: FlirtistCoachMessage
     suggestions: list[str] = Field(min_length=1, max_length=5)
+    memorySummary: Optional[str] = Field(default=None, max_length=1200)

@@ -121,6 +121,38 @@ class FlirtistProductCoachApiTest(unittest.TestCase):
         self.assertNotIn("'그니까 뭐라보낼까'", text)
         self.assertNotIn("한 번에 관계를 밀어붙이기보다", text)
 
+    def test_coach_response_returns_compact_memory_summary(self) -> None:
+        # Given
+        service = FlirtistProductService(ai=NoopAI())
+        request = FlirtistCoachChatRequest(locale="ko-KR", message="2년전 썸녀랑 술 먹고싶은데 뭐라 보내")
+
+        # When
+        response = service.coach_chat(request)
+
+        # Then
+        self.assertIsNotNone(response.memorySummary)
+        assert response.memorySummary is not None
+        self.assertLessEqual(len(response.memorySummary), 900)
+        self.assertRegex(response.memorySummary, "2년|썸|술|한잔|오랜만")
+
+    def test_coach_fallback_uses_memory_when_recent_history_is_missing(self) -> None:
+        # Given
+        service = FlirtistProductService(ai=NoopAI())
+        request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="그니까 뭐라보낼까",
+            context="Coach memory:\n- 2년 전 썸녀에게 오랜만에 연락해서 술 한잔 제안하려 함.",
+            history=[],
+        )
+
+        # When
+        response = service.coach_chat(request)
+
+        # Then
+        text = response.message.text
+        self.assertRegex(text, "오랜만|술|한잔|근황")
+        self.assertNotIn("'그니까 뭐라보낼까'", text)
+
     def test_low_value_provider_coach_response_is_repaired(self) -> None:
         # Given
         service = FlirtistProductService(ai=LowValueCoachAI())

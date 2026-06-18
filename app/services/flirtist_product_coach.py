@@ -6,6 +6,7 @@ from app.schemas.flirtist import FlirtistLanguage
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
 from app.schemas.flirtist_product import FlirtistCoachChatResponse
 from app.schemas.flirtist_product import FlirtistCoachMessage
+from app.services.flirtist_product_coach_memory import coach_memory_source_text
 from app.services.flirtist_product_coach_ko import ko_answer, ko_intent, ko_suggestions
 
 LOW_VALUE_COACH_PHRASES: Final = (
@@ -68,6 +69,9 @@ def _effective_message(request: FlirtistCoachChatRequest) -> str:
         candidate = _normalized(item.text)
         if candidate and not _is_generic_followup(candidate):
             return candidate
+    memory = _normalized(coach_memory_source_text(request.context))
+    if memory:
+        return memory
     return message
 
 

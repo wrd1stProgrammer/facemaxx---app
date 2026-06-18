@@ -20,6 +20,7 @@ from app.schemas.flirtist_product import (
 )
 from app.services.flirtist_product_ai import FlirtistProductAI
 from app.services.flirtist_product_coach import coach_answer, coach_suggestions, repair_coach_response
+from app.services.flirtist_product_coach_memory import coach_memory_summary
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage, FlirtistStoredImage
 from app.services.flirtist_product_reply_quality import repair_reply_coaching
 from app.services.flirtist_product_repository import FlirtistProductRepository
@@ -95,13 +96,16 @@ class FlirtistProductService:
 
     def coach_chat(self, request: FlirtistCoachChatRequest) -> FlirtistCoachChatResponse:
         language = _language(request.language, request.locale)
+        memory_summary = coach_memory_summary(language, request)
         fallback = FlirtistCoachChatResponse(
             sessionId=request.sessionId or _new_id("coach"),
             message=FlirtistCoachMessage(role="assistant", text=coach_answer(language, request)),
             suggestions=coach_suggestions(language, request),
+            memorySummary=memory_summary,
         )
         response = self._ai.complete_coach_chat(request=request, fallback=fallback)
-        return repair_coach_response(language, request, response)
+        repaired = repair_coach_response(language, request, response)
+        return repaired.model_copy(update={"memorySummary": memory_summary})
 
 
 def _fallback_session(

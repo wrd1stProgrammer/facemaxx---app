@@ -103,6 +103,28 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("Avoid templated coaching filler", prompt)
         self.assertIn("copy-ready line or spoken opener", prompt)
 
+    def test_coach_prompt_instructs_model_to_use_compact_memory(self) -> None:
+        # Given
+        request = FlirtistCoachChatRequest(
+            locale="ko-KR",
+            message="그니까 뭐라보낼까",
+            context="Coach memory:\n- 2년 전 썸녀에게 술 한잔 제안하려 함.",
+            history=[],
+        )
+        fallback = FlirtistCoachChatResponse(
+            sessionId="coach_memory_prompt_test",
+            message=FlirtistCoachMessage(role="assistant", text="오랜만이면 가볍게 열어봐."),
+            suggestions=["더 짧게"],
+        )
+
+        # When
+        prompt = _coach_prompt(request, fallback)
+
+        # Then
+        self.assertIn("Coach memory", prompt)
+        self.assertIn("compact rolling memory", prompt)
+        self.assertIn("memorySummary", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
