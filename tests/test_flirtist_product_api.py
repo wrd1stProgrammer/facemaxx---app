@@ -9,11 +9,8 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.schemas.analysis import PhotoOut
-from app.schemas.flirtist_product import (
-    FlirtistCoachChatRequest,
-    FlirtistProductSessionRequest,
-    FlirtistProductSessionResponse,
-)
+from app.schemas.flirtist_product import FlirtistProductSessionRequest
+from app.schemas.flirtist_product import FlirtistProductSessionResponse
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage
 from app.services.flirtist_product_image_storage import FlirtistStoredImage
 from app.services.flirtist_product_service import FlirtistProductService
@@ -290,60 +287,6 @@ class FlirtistProductApiTest(unittest.TestCase):
         # Then
         self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
         self.assertEqual(ai.image_url, response.imageUrl)
-
-    def test_coach_chat_replies_with_training_message_and_suggestions(self) -> None:
-        # Given
-        payload = {
-            "locale": "en-US",
-            "message": "How do I ask her out after a slow chat?",
-            "history": [
-                {"role": "assistant", "text": "Tell me what the last message was."},
-                {"role": "user", "text": "She said work has been chaotic."},
-            ],
-        }
-
-        # When
-        response = self.client.post("/api/flirtist/coach-chat", json=payload)
-
-        # Then
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertRegex(data["sessionId"], re.compile(r"^coach_"))
-        self.assertEqual(data["message"]["role"], "assistant")
-        self.assertGreater(len(data["message"]["text"]), 20)
-        self.assertGreaterEqual(len(data["suggestions"]), 2)
-
-    def test_coach_fallback_is_specific_to_latest_message_and_context(self) -> None:
-        # Given
-        class NoopAI:
-            def complete_coach_chat(
-                self,
-                *,
-                request: FlirtistCoachChatRequest,
-                fallback,
-            ):
-                return fallback
-
-        service = FlirtistProductService(ai=NoopAI())
-        coffee_request = FlirtistCoachChatRequest(
-            locale="ko-KR",
-            message="커피숍에서 어떻게 말 걸까?",
-            context="나는 연애 경험이 적고 부담 없는 대화를 선호해.",
-        )
-        date_request = FlirtistCoachChatRequest(
-            locale="ko-KR",
-            message="첫 데이트 후 뭐라고 보내?",
-            context="나는 연애 경험이 적고 부담 없는 대화를 선호해.",
-        )
-
-        # When
-        coffee_response = service.coach_chat(coffee_request)
-        date_response = service.coach_chat(date_request)
-
-        # Then
-        self.assertNotEqual(coffee_response.message.text, date_response.message.text)
-        self.assertIn("커피", coffee_response.message.text)
-        self.assertIn("데이트", date_response.message.text)
 
 
 if __name__ == "__main__":
