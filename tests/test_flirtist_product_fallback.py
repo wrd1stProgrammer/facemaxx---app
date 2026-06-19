@@ -240,6 +240,49 @@ class FlirtistProductFallbackTest(unittest.TestCase):
         self.assertRegex(all_reply_text, "그냥|심심|잠깐|놀아|전화|보이스")
         self.assertNotIn("말도 안 되는 일", all_reply_text)
 
+    def test_screenshot_session_keeps_ocr_transcript_when_provider_returns_wrong_preview(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=WrongPreviewProviderAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertEqual(
+            [message.model_dump() for message in response.chatPreview],
+            [
+                {"role": "them", "text": "오늘는 광주에 사는거야?"},
+                {"role": "me", "text": "웅 나는 광주 살앙"},
+                {"role": "them", "text": "오옹 글쿠나"},
+                {"role": "me", "text": "나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ"},
+                {"role": "them", "text": "웅 조아네"},
+            ],
+        )
+        assert response.replyCoaching is not None
+        all_reply_text = " ".join(
+            reply.text
+            for reply in response.replyCoaching.replies
+        )
+        self.assertRegex(all_reply_text, "광주|맛난|맛있는|연락|만나")
+        self.assertNotIn("무슨 상황", all_reply_text)
+        self.assertNotIn("앞뒤가 제일 궁금", all_reply_text)
+
 
 class NoopAI:
     def complete_session(

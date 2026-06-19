@@ -41,7 +41,12 @@ REQUIRED_RESPONSE_FIELDS = {
 
 class FlirtistApiTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.env_patch = patch.dict("os.environ", {"FLIRTIST_AI_PROVIDER": "mock"}, clear=False)
+        self.env_patch.start()
         self.client = TestClient(create_app())
+
+    def tearDown(self) -> None:
+        self.env_patch.stop()
 
     def test_analyze_chat_returns_stable_contract_when_endpoint_is_available(self) -> None:
         # Given

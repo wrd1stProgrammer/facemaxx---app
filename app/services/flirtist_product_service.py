@@ -142,7 +142,7 @@ def _authoritative_chat_preview(
     language: FlirtistLanguage,
     request: FlirtistProductSessionRequest,
 ) -> list[FlirtistPreviewMessage] | None:
-    if request.source != "manual" or not request.text:
+    if not request.text:
         return None
     return preview_messages(language, request.text)
 

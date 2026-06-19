@@ -9,6 +9,7 @@ from typing import Literal, Protocol, TypeAlias, assert_never
 import httpx
 from pydantic import ValidationError
 
+from app.core.config import get_settings
 from app.schemas.flirtist import (
     FlirtistChatRequest,
     FlirtistDraftRequest,
@@ -174,8 +175,11 @@ class LiveFlirtistProviderTransport:
         previous_google_api_key = os.environ.pop("GOOGLE_API_KEY", None)
         try:
             from google import genai
-            from google.genai import types
+            from google.genai import errors, types
+        except ImportError as exc:
+            raise FlirtistProviderError(provider="gemini", reason=str(exc)) from exc
 
+        try:
             client = genai.Client(api_key=key)
             generation_config = types.GenerateContentConfig(
                 temperature=0.35,
@@ -187,7 +191,7 @@ class LiveFlirtistProviderTransport:
                 config=generation_config,
             )
             return response.text or ""
-        except (ImportError, AttributeError, RuntimeError, ValueError) as exc:
+        except (errors.APIError, AttributeError, RuntimeError, ValueError) as exc:
             raise FlirtistProviderError(provider="gemini", reason=str(exc)) from exc
         finally:
             if previous_google_api_key is not None:
@@ -198,6 +202,18 @@ def _provider_key(primary: str, fallback: str, provider: FlirtistProvider) -> st
     value = os.environ.get(primary) or os.environ.get(fallback)
     if value:
         return value
+    settings = get_settings()
+    match provider:
+        case "openai":
+            if settings.openai_api_key:
+                return settings.openai_api_key
+        case "gemini":
+            if settings.gemini_api_key:
+                return settings.gemini_api_key
+        case "anthropic" | "mock":
+            pass
+        case unreachable:
+            assert_never(unreachable)
     raise FlirtistProviderError(provider=provider, reason=f"{primary} is not configured")
 
 

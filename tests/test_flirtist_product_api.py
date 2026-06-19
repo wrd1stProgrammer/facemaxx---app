@@ -40,6 +40,8 @@ class FlirtistProductApiTest(unittest.TestCase):
             "app.services.flirtist_product_image_storage.FlirtistProductImageStorage.store_session_image",
             side_effect=fake_store_session_image,
         )
+        self.env_patch = patch.dict("os.environ", {"FLIRTIST_AI_PROVIDER": "mock"}, clear=False)
+        self.env_patch.start()
         self.supabase_patch.start()
         self.image_patch.start()
         self.client = TestClient(create_app())
@@ -47,6 +49,7 @@ class FlirtistProductApiTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.image_patch.stop()
         self.supabase_patch.stop()
+        self.env_patch.stop()
 
     def test_reply_session_returns_album_ready_coaching_when_text_is_submitted(self) -> None:
         # Given

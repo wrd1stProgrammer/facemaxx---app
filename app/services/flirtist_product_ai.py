@@ -19,6 +19,11 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
+from app.services.flirtist_provider import (
+    FlirtistProviderError,
+    FlirtistProviderTransport,
+    LiveFlirtistProviderTransport,
+)
 from app.services.flirtist_product_ai_prompts import _coach_prompt, _session_prompt, _style_prompt
 
 ProductModel = TypeVar("ProductModel", bound=FacemaxxBaseModel)
@@ -27,8 +32,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class FlirtistProductAI:
-    def __init__(self, config: FlirtistAIConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: FlirtistAIConfig | None = None,
+        provider_transport: FlirtistProviderTransport | None = None,
+    ) -> None:
         self._config = config or load_flirtist_ai_config()
+        self._provider_transport = provider_transport or LiveFlirtistProviderTransport()
 
     def complete_session(
         self,
@@ -87,16 +97,52 @@ class FlirtistProductAI:
         response_model: type[ProductModel],
         max_output_tokens: int = 1400,
     ) -> str | None:
-        if self._config.effective_provider != "openai":
-            return None
+        provider = self._config.effective_provider
+        match provider:
+            case "mock":
+                LOGGER.warning(
+                    "Flirtist product AI using fallback because provider is mock "
+                    "(requested=%s, effective=%s)",
+                    self._config.requested_provider,
+                    self._config.effective_provider,
+                )
+                return None
+            case "openai":
+                return self._complete_openai_json_text(
+                    prompt=prompt,
+                    image_url=image_url,
+                    response_model=response_model,
+                    max_output_tokens=max_output_tokens,
+                )
+            case "anthropic" | "gemini":
+                try:
+                    return self._provider_transport.complete_text(
+                        provider=provider,
+                        prompt=_transport_prompt(prompt, image_url=image_url),
+                        config=self._config,
+                    )
+                except FlirtistProviderError as exc:
+                    LOGGER.warning("Flirtist product provider completion failed: %s", exc)
+                    return None
+
+    def _complete_openai_json_text(
+        self,
+        *,
+        prompt: str,
+        image_url: str | None,
+        response_model: type[ProductModel],
+        max_output_tokens: int,
+    ) -> str | None:
         try:
             from openai import OpenAI, OpenAIError
         except ImportError:
+            LOGGER.warning("Flirtist product OpenAI package is not installed; using fallback")
             return None
 
         try:
             api_key = _openai_key()
             if api_key is None:
+                LOGGER.warning("Flirtist product OpenAI key is not configured; using fallback")
                 return None
             client = OpenAI(api_key=api_key, timeout=45.0)
             content = [{"type": "input_text", "text": prompt}]
@@ -117,6 +163,18 @@ class FlirtistProductAI:
         except (OpenAIError, AttributeError) as exc:
             LOGGER.warning("Flirtist product OpenAI completion failed: %s", exc)
             return None
+
+
+def _transport_prompt(prompt: str, *, image_url: str | None) -> str:
+    if image_url is None:
+        return prompt
+    return "\n".join(
+        [
+            prompt,
+            "",
+            "Stored screenshot image URL is available for product display only. Use the Request JSON text field as the chat transcript.",
+        ]
+    )
 
 
 def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]) -> ProductModel:

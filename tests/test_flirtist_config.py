@@ -44,6 +44,8 @@ class FlirtistConfigTest(unittest.TestCase):
             "FLIRTIST_OPENAI_API_KEY": "flirtist-test-key",
             "FLIRTIST_OPENAI_MODEL": "gpt-flirtist",
             "OPENAI_API_KEY": "",
+            "FLIRTIST_GEMINI_API_KEY": "",
+            "GEMINI_API_KEY": "",
         }
         settings = Settings(openai_api_key=None, openai_model="gpt-default")
 
@@ -60,6 +62,36 @@ class FlirtistConfigTest(unittest.TestCase):
         self.assertEqual(config.requested_provider, "openai")
         self.assertEqual(config.effective_provider, "openai")
         self.assertEqual(config.openai_model, "gpt-flirtist")
+
+    def test_provider_env_config_defaults_to_settings_gemini_when_gemini_key_is_present(self) -> None:
+        # Given
+        env = {
+            "FLIRTIST_AI_PROVIDER": "",
+            "FLIRTIST_OPENAI_API_KEY": "",
+            "OPENAI_API_KEY": "",
+            "FLIRTIST_GEMINI_API_KEY": "",
+            "GEMINI_API_KEY": "",
+        }
+        settings = Settings(
+            ai_provider="gemini",
+            gemini_api_key="settings-gemini-key",
+            gemini_model="gemini-test-model",
+            openai_api_key=None,
+        )
+
+        # When
+        with (
+            patch.dict("os.environ", env, clear=False),
+            patch("app.services.flirtist_config.get_settings", return_value=settings),
+        ):
+            from app.services.flirtist_config import load_flirtist_ai_config
+
+            config = load_flirtist_ai_config()
+
+        # Then
+        self.assertEqual(config.requested_provider, "gemini")
+        self.assertEqual(config.effective_provider, "gemini")
+        self.assertEqual(config.gemini_model, "gemini-test-model")
 
     def test_health_reports_flirtist_openai_separately_from_global_provider(self) -> None:
         # Given

@@ -103,6 +103,8 @@ def _has_low_value_phrase(lowered: str) -> bool:
         "쪽으로 더 얘기",
         "편할 때 이어서",
         "편하게 해주는 게 좋더라",
+        "무슨 상황",
+        "앞뒤가 제일 궁금",
         "네 속도에 맞춰서",
         "나는 잘 듣고 싶어",
         "tell me more when",
