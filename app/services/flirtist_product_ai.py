@@ -41,7 +41,7 @@ class FlirtistProductAI:
             prompt=_session_prompt(request, fallback),
             image_url=image_url,
             response_model=FlirtistProductSessionResponse,
-            max_output_tokens=1800,
+            max_output_tokens=2600,
         )
         if text is None:
             return fallback
@@ -57,7 +57,7 @@ class FlirtistProductAI:
             prompt=_style_prompt(request, fallback),
             image_url=None,
             response_model=FlirtistReplyStyleResponse,
-            max_output_tokens=1800,
+            max_output_tokens=3200,
         )
         if text is None:
             return fallback
@@ -122,10 +122,17 @@ class FlirtistProductAI:
 def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]) -> ProductModel:
     try:
         payload = _json_object_from_text(text)
+    except json.JSONDecodeError as exc:
+        payload = _partial_payload_from_text(text)
+        if payload is None:
+            LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
+            return fallback
+
+    try:
         base = fallback.model_dump(mode="json")
-        base.update(payload)
+        _deep_update(base, payload)
         return model.model_validate(base)
-    except (ValidationError, json.JSONDecodeError, AttributeError) as exc:
+    except (ValidationError, AttributeError) as exc:
         LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
         return fallback
 
@@ -152,6 +159,120 @@ def _json_object_from_text(text: str):
     if not isinstance(value, dict):
         raise json.JSONDecodeError("provider response is not a JSON object", text, 0)
     return value
+
+
+def _partial_payload_from_text(text: str) -> dict[str, JsonValue] | None:
+    payload: dict[str, JsonValue] = {}
+    for key in (
+        "sessionId",
+        "mode",
+        "source",
+        "title",
+        "locale",
+        "language",
+        "createdAt",
+        "saved",
+        "serverPersisted",
+        "imageUrl",
+        "imageStoragePath",
+        "chatPreview",
+        "analysisCard",
+    ):
+        value = _json_value_after_key(text, key)
+        if value is not None:
+            payload[key] = value
+
+    reply_coaching = _json_value_after_key(text, "replyCoaching")
+    if isinstance(reply_coaching, dict):
+        payload["replyCoaching"] = reply_coaching
+    else:
+        partial_reply_coaching = _partial_reply_coaching_from_text(text)
+        if partial_reply_coaching:
+            payload["replyCoaching"] = partial_reply_coaching
+
+    return payload or None
+
+
+def _partial_reply_coaching_from_text(text: str) -> dict[str, JsonValue]:
+    start = _value_start_after_key(text, "replyCoaching")
+    search_text = text[start:] if start is not None else text
+    coaching: dict[str, JsonValue] = {}
+    for key in ("headline", "summary", "nextMove", "replyPacks"):
+        value = _json_value_after_key(search_text, key)
+        if value is not None:
+            coaching[key] = value
+    replies = _json_value_after_key(search_text, "replies")
+    if isinstance(replies, list):
+        coaching["replies"] = replies
+    else:
+        recovered_replies = _json_array_items_after_key(search_text, "replies")
+        if recovered_replies:
+            coaching["replies"] = recovered_replies
+    return coaching
+
+
+def _deep_update(base: dict[str, JsonValue], payload: dict[str, JsonValue]) -> None:
+    for key, value in payload.items():
+        existing = base.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            _deep_update(existing, value)
+        else:
+            base[key] = value
+
+
+def _json_value_after_key(text: str, key: str) -> JsonValue | None:
+    start = _value_start_after_key(text, key)
+    if start is None:
+        return None
+    try:
+        value, _ = json.JSONDecoder().raw_decode(text[start:].lstrip())
+    except json.JSONDecodeError:
+        return None
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, list | dict):
+        return value
+    return None
+
+
+def _json_array_items_after_key(text: str, key: str) -> list[JsonValue]:
+    start = _value_start_after_key(text, key)
+    if start is None:
+        return []
+    cursor = _skip_json_space(text, start)
+    if cursor >= len(text) or text[cursor] != "[":
+        return []
+    cursor += 1
+    decoder = json.JSONDecoder()
+    items: list[JsonValue] = []
+    while cursor < len(text):
+        cursor = _skip_json_space(text, cursor)
+        if cursor >= len(text) or text[cursor] == "]":
+            break
+        if text[cursor] == ",":
+            cursor += 1
+            continue
+        try:
+            value, end = decoder.raw_decode(text[cursor:])
+        except json.JSONDecodeError:
+            break
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            items.append(value)
+        elif isinstance(value, list | dict):
+            items.append(value)
+        cursor += end
+    return items
+
+
+def _skip_json_space(text: str, cursor: int) -> int:
+    while cursor < len(text) and text[cursor].isspace():
+        cursor += 1
+    return cursor
+
+
+def _value_start_after_key(text: str, key: str) -> int | None:
+    match = re.search(rf'"{re.escape(key)}"\s*:\s*', text)
+    return match.end() if match else None
 
 
 def _openai_key() -> str | None:

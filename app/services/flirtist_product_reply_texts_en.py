@@ -52,6 +52,8 @@ def en_reply_texts(style: str, context: ReplyContext, focus: str | None) -> list
             table = _en_affection_table(topic)
         case "plans":
             table = _en_plans_table(topic)
+        case "availability":
+            table = _en_availability_table(topic)
         case "fatigue" | "generic":
             table = _en_generic_table(topic)
         case unreachable:
@@ -175,6 +177,46 @@ def _en_plans_table(topic: str) -> dict[str, list[str]]:
             "I like the idea of seeing you here and taking our time over food.",
             "Come when you can. I will save a good place for us.",
             "That would make me happy. Let me know before you come.",
+        ],
+    }
+
+
+def _en_availability_table(topic: str) -> dict[str, list[str]]:
+    return {
+        "genuine": [
+            "If you are just chilling, I can keep you company for a bit.",
+            "Nothing much sounds like a good time for a tiny conversation with me.",
+            f"Then {topic} is officially open for me to interrupt a little.",
+            "Perfect, I wanted a low-pressure excuse to talk to you anyway.",
+            "If you are free, tell me one random thing from your day.",
+        ],
+        "nsfw": [
+            "Careful, empty time gives me ideas.",
+            "If you are just lying around, I can make this conversation a little less innocent.",
+            "Nothing much? Dangerous answer. Now I want your attention.",
+            "If you are bored, I can flirt just enough to cause a problem.",
+            "Free time and me in your messages might be a risky combination.",
+        ],
+        "flirty": [
+            "Then this is clearly my cue to distract you.",
+            "If you are free, I am stealing a few minutes.",
+            "Good timing. I was hoping you had a little space for me.",
+            "Nothing much sounds better if I am included.",
+            "Then let me make your nothing much slightly more fun.",
+        ],
+        "witty": [
+            "Nothing much is basically an invitation for a side quest.",
+            "Great, I am assigning myself as today's tiny distraction.",
+            "Empty schedule detected. Conversation request incoming.",
+            "I can improve the nothing-much situation by at least 12%.",
+            "Perfect. I specialize in interrupting peaceful boredom.",
+        ],
+        "romantic": [
+            "I kind of like the idea of quietly keeping you company.",
+            "Then I would like to be a small part of that slow moment.",
+            "Nothing much with you still sounds nice to me.",
+            "If you are free, I would rather talk slowly than rush you.",
+            "I like catching you in a quiet little pocket of the day.",
         ],
     }
 

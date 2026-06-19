@@ -6,9 +6,11 @@ from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
 from app.schemas.flirtist_product import FlirtistCoachChatResponse
 from app.schemas.flirtist_product import FlirtistCoachMessage
+from app.schemas.flirtist_product import FlirtistReplyCoaching
+from app.schemas.flirtist_product import FlirtistReplyOption
 from app.schemas.flirtist_product import FlirtistReplyStyleRequest
 from app.schemas.flirtist_product import FlirtistReplyStyleResponse
-from app.services.flirtist_product_ai import _coach_prompt, _response_text_format, _session_prompt, _style_prompt
+from app.services.flirtist_product_ai import _coach_prompt, _merge_response, _response_text_format, _session_prompt, _style_prompt
 from app.services.flirtist_product_reply_fallback import reply_coaching
 from app.services.flirtist_product_service import FlirtistProductService
 from tests.test_flirtist_product_fallback import NoopAI, NoopImageStorage, NoopRepository
@@ -79,6 +81,113 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertEqual(json_format["type"], "json_schema")
         self.assertEqual(json_format["name"], "FlirtistReplyStyleResponse")
         self.assertIn("schema", json_format)
+
+    def test_reply_style_merge_recovers_complete_replies_from_truncated_provider_json(self) -> None:
+        # Given
+        fallback = FlirtistReplyStyleResponse(
+            sessionId="flt_fallback",
+            replyCoaching=FlirtistReplyCoaching(
+                headline="AI 추천 답장",
+                summary="fallback",
+                nextMove="fallback",
+                replies=[
+                    FlirtistReplyOption(
+                        id="fallback_1",
+                        style="genuine",
+                        text="잠깐, 그건 앞뒤가 제일 궁금한데. 무슨 상황이었어?",
+                        whyItWorks="fallback",
+                        aiObviousness=12,
+                        pressure=18,
+                        replyLikelihood=84,
+                    )
+                ],
+                replyPacks=[],
+            ),
+        )
+        provider_text = """
+        {
+          "sessionId": "flt_live",
+          "replyCoaching": {
+            "headline": "AI 추천 답장",
+            "summary": "상대가 그냥 있다고 했으니 가볍게 시간을 열어주는 흐름",
+            "nextMove": "부담 없는 제안으로 이어간다",
+            "replies": [
+              {
+                "id": "reply_live_1",
+                "style": "genuine",
+                "text": "그냥 있으면 내가 잠깐 놀아줘도 돼? 심심하진 않게 해볼게.",
+                "whyItWorks": "상대의 현재 상태를 받아주면서 부담 낮은 선택지를 준다.",
+                "aiObviousness": 9,
+                "pressure": 16,
+                "replyLikelihood": 88
+              }
+            ],
+            "replyPacks": [
+        """
+
+        # When
+        response = _merge_response(provider_text, fallback, FlirtistReplyStyleResponse)
+
+        # Then
+        self.assertEqual(response.sessionId, "flt_live")
+        self.assertEqual(response.replyCoaching.summary, "상대가 그냥 있다고 했으니 가볍게 시간을 열어주는 흐름")
+        self.assertEqual(
+            response.replyCoaching.replies[0].text,
+            "그냥 있으면 내가 잠깐 놀아줘도 돼? 심심하진 않게 해볼게.",
+        )
+        self.assertNotIn("무슨 상황", response.replyCoaching.replies[0].text)
+
+    def test_reply_style_merge_recovers_complete_reply_items_when_later_item_is_truncated(self) -> None:
+        # Given
+        fallback = FlirtistReplyStyleResponse(
+            sessionId="flt_fallback",
+            replyCoaching=reply_coaching("ko", "nsfw"),
+        )
+        provider_text = """
+        {
+          "sessionId": "flt_live",
+          "replyCoaching": {
+            "headline": "AI 추천 답장",
+            "summary": "상대가 그냥 있다고 해서 가볍게 장난칠 수 있는 상황",
+            "nextMove": "부담 없이 빈 시간을 잡아준다",
+            "replies": [
+              {
+                "id": "reply_live_1",
+                "style": "nsfw",
+                "text": "그냥 있다니까 괜히 장난치고 싶어지는데, 받아줄 거야?",
+                "whyItWorks": "상대의 빈 시간을 실제 대화 기회로 잡는다.",
+                "aiObviousness": 9,
+                "pressure": 18,
+                "replyLikelihood": 86
+              },
+              {
+                "id": "reply_live_2",
+                "style": "nsfw",
+                "text": "심심한 타이밍이면 내가 조금 위험하게 재밌게 해줘도 돼?",
+                "whyItWorks": "장난의 강도를 올리되 선택권을 남긴다.",
+                "aiObviousness": 10,
+                "pressure": 22,
+                "replyLikelihood": 84
+              },
+              {
+                "id": "reply_live_3",
+                "style": "nsfw",
+                "text": "여기서 JSON이 잘리기 시작
+        """
+
+        # When
+        response = _merge_response(provider_text, fallback, FlirtistReplyStyleResponse)
+
+        # Then
+        self.assertEqual(response.sessionId, "flt_live")
+        self.assertEqual(
+            [reply.text for reply in response.replyCoaching.replies],
+            [
+                "그냥 있다니까 괜히 장난치고 싶어지는데, 받아줄 거야?",
+                "심심한 타이밍이면 내가 조금 위험하게 재밌게 해줘도 돼?",
+            ],
+        )
+        self.assertNotIn("그렇게만 말하면", " ".join(reply.text for reply in response.replyCoaching.replies))
 
     def test_coach_prompt_blocks_echoed_user_questions_and_template_filler(self) -> None:
         # Given

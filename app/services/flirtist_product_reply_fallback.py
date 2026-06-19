@@ -109,6 +109,8 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "상대가 호감 섞인 말을 꺼냈으니 그 뉘앙스를 받아주고, 왜 생각났는지 가볍게 물어보세요."
             case "plans":
                 return "상대가 만남이나 연락 제안을 받아줬으니 약속이 살아나게 구체적으로 이어가세요."
+            case "availability":
+                return "상대가 지금 별일 없다고 답했으니 부담 낮은 제안이나 장난으로 바로 이어가세요."
             case "reaction" | "generic":
                 return "상대가 꺼낸 말을 되짚고, 가볍게 더 말하기 쉬운 답장을 보내세요."
             case unreachable:
@@ -122,6 +124,8 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "They gave a small signal of affection, so receive it warmly and ask what sparked it."
         case "plans":
             return "They accepted a meetup or contact plan, so make that plan feel concrete and easy to continue."
+        case "availability":
+            return "They are free or doing nothing, so turn that opening into a light, easy next move."
         case "reaction" | "generic":
             return "Mirror their actual topic and make the next reply easy to answer."
         case unreachable:
@@ -139,6 +143,8 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
                 return "좋다는 반응을 짧게 보여주고, 생각난 순간을 물어보세요."
             case "plans":
                 return "장소나 약속을 한 번 더 살려서 답하기 쉬운 한 문장으로 보내세요."
+            case "availability":
+                return "심심하지 않게 해줄 수 있다는 식으로 짧고 가볍게 보내세요."
             case "reaction" | "generic":
                 return "상대가 방금 말한 단어를 그대로 살려서 짧게 보내세요."
             case unreachable:
@@ -152,6 +158,8 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
             return "Receive the signal, then ask what made them think of you."
         case "plans":
             return "Keep the plan concrete and give them one easy next step."
+        case "availability":
+            return "Make the empty time feel easy to continue without pushing."
         case "reaction" | "generic":
             return "Use their actual topic and ask for one small continuation."
         case unreachable:

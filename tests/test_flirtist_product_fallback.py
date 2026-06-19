@@ -4,6 +4,7 @@ import unittest
 
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistProductSessionResponse
+from app.schemas.flirtist_product import FlirtistPreviewMessage
 from app.schemas.flirtist_product import FlirtistReplyCoaching
 from app.schemas.flirtist_product import FlirtistReplyOption
 from app.schemas.flirtist_product import FlirtistReplyStyleRequest
@@ -176,6 +177,69 @@ class FlirtistProductFallbackTest(unittest.TestCase):
         self.assertNotIn("무슨 상황", all_reply_text)
         self.assertNotIn("나는 이런 얘기 편하게 해주는 게 좋더라", all_reply_text)
 
+    def test_manual_reply_fallback_handles_just_hanging_out_answer(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="manual",
+            locale="ko-KR",
+            text="나: 뭐해\n상대: 그냥있어",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        all_reply_text = " ".join(
+            reply.text
+            for pack in response.replyCoaching.replyPacks
+            for reply in pack.replies
+        )
+        self.assertRegex(all_reply_text, "그냥|심심|잠깐|놀아|전화|보이스")
+        self.assertNotIn("무슨 상황", all_reply_text)
+        self.assertNotIn("앞뒤가 제일 궁금", all_reply_text)
+
+    def test_manual_session_keeps_user_transcript_chat_preview_when_provider_returns_wrong_preview(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=WrongPreviewProviderAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="manual",
+            locale="ko-KR",
+            text="나: 뭐해\n상대: 그냥있어",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertEqual(
+            [message.model_dump() for message in response.chatPreview],
+            [
+                {"role": "me", "text": "뭐해"},
+                {"role": "them", "text": "그냥있어"},
+            ],
+        )
+        assert response.replyCoaching is not None
+        all_reply_text = " ".join(
+            reply.text
+            for pack in response.replyCoaching.replyPacks
+            for reply in pack.replies
+        )
+        self.assertRegex(all_reply_text, "그냥|심심|잠깐|놀아|전화|보이스")
+        self.assertNotIn("말도 안 되는 일", all_reply_text)
+
 
 class NoopAI:
     def complete_session(
@@ -186,6 +250,38 @@ class NoopAI:
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
         return fallback
+
+
+class WrongPreviewProviderAI:
+    def complete_session(
+        self,
+        *,
+        request: FlirtistProductSessionRequest,
+        fallback: FlirtistProductSessionResponse,
+        image_url: str | None,
+    ) -> FlirtistProductSessionResponse:
+        assert fallback.replyCoaching is not None
+        wrong_reply = FlirtistReplyOption(
+            id="reply_wrong_preview",
+            style="genuine",
+            text="잠깐, 그건 앞뒤가 제일 궁금한데. 무슨 상황이었어?",
+            whyItWorks="Wrong generic provider answer.",
+            aiObviousness=12,
+            pressure=18,
+            replyLikelihood=84,
+        )
+        return fallback.model_copy(
+            update={
+                "chatPreview": [FlirtistPreviewMessage(role="them", text="방금 진짜 말도 안 되는 일 생김")],
+                "replyCoaching": FlirtistReplyCoaching(
+                    headline=fallback.replyCoaching.headline,
+                    summary=fallback.replyCoaching.summary,
+                    nextMove=fallback.replyCoaching.nextMove,
+                    replies=[wrong_reply],
+                    replyPacks=[],
+                ),
+            }
+        )
 
 
 class NoisyProviderAI:

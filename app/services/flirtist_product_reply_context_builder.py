@@ -75,6 +75,8 @@ def _scenario(language: FlirtistLanguage, text: str) -> ReplyScenario:
             return "affection"
         if _contains_any(lowered, ("영화", "드라마", "노래", "봤", "재밌", "맛있", "좋았", "별로")):
             return "reaction"
+        if _contains_any(lowered, ("그냥", "뭐해", "머해", "심심", "누워", "쉬는", "할 거 없")):
+            return "availability"
         return "generic"
     if _contains_any(lowered, ("passed", "accepted", "finally", "done", "won", "celebrate", "congrats")):
         return "celebration"
@@ -86,6 +88,8 @@ def _scenario(language: FlirtistLanguage, text: str) -> ReplyScenario:
         return "affection"
     if _contains_any(lowered, ("movie", "watched", "saw", "show", "song", "fun", "interesting", "liked", "loved")):
         return "reaction"
+    if _contains_any(lowered, ("nothing much", "not much", "just chilling", "just home", "hanging out", "bored", "free")):
+        return "availability"
     return "generic"
 
 
@@ -108,6 +112,8 @@ def _topic(language: FlirtistLanguage, text: str) -> str:
             return "생각난 순간"
         if "회사" in lowered or "퇴근" in lowered:
             return "오늘 하루"
+        if _contains_any(lowered, ("그냥", "심심", "누워", "쉬는", "할 거 없")):
+            return "지금 빈 시간"
     else:
         if "accounting exam" in lowered:
             return "your accounting exam"
@@ -123,6 +129,8 @@ def _topic(language: FlirtistLanguage, text: str) -> str:
             return "that moment"
         if "work" in lowered:
             return "your day"
+        if _contains_any(lowered, ("nothing much", "not much", "just chilling", "just home", "bored", "free")):
+            return "your free time"
     clipped = " ".join(text.split())[:36]
     return clipped or "그 얘기"
 

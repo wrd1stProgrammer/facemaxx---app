@@ -59,7 +59,10 @@ class FlirtistProductService:
         )
         if response.replyCoaching:
             language = _language(response.language, response.locale)
-            chat_preview = clean_preview_messages(language, response.chatPreview)
+            chat_preview = _authoritative_chat_preview(language, request) or clean_preview_messages(
+                language,
+                response.chatPreview,
+            )
             coaching = ensure_reply_packs(response.replyCoaching, language, chat_preview)
             response = response.model_copy(
                 update={
@@ -135,6 +138,15 @@ def _fallback_session(
             return FlirtistProductSessionResponse(**base, analysisCard=_analysis_card(language, chat_preview))
         case unreachable:
             assert_never(unreachable)
+
+
+def _authoritative_chat_preview(
+    language: FlirtistLanguage,
+    request: FlirtistProductSessionRequest,
+) -> list[FlirtistPreviewMessage] | None:
+    if request.source != "manual" or not request.text:
+        return None
+    return preview_messages(language, request.text)
 
 
 def _language(language: FlirtistLanguage | None, locale: str) -> FlirtistLanguage:
