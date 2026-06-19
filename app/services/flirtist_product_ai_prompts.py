@@ -27,6 +27,9 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
+            "For score_analysis, localize the analysisCard title: use '대화 분석' for Korean and 'Chat Wrapped' for English.",
+            "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
+            "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
             "For reply_coach, return 1-3 strong replies in replyCoaching.replies only; do not generate replyPacks.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
@@ -100,7 +103,7 @@ def _contract_json(fallback: FacemaxxBaseModel) -> str:
         if payload.get("replyCoaching") is not None:
             payload["replyCoaching"] = _reply_coaching_contract()
         if payload.get("analysisCard") is not None:
-            payload["analysisCard"] = "<analysisCard object matching schema>"
+            payload["analysisCard"] = _analysis_card_contract()
     elif isinstance(fallback, FlirtistReplyStyleResponse):
         payload["replyCoaching"] = _reply_coaching_contract(include_pack=True)
     elif isinstance(fallback, FlirtistCoachChatResponse):
@@ -132,4 +135,19 @@ def _reply_coaching_contract(*, include_pack: bool = False) -> dict[str, JsonVal
         "nextMove": "<one next step>",
         "replies": [option],
         "replyPacks": [pack] if include_pack else [],
+    }
+
+
+def _analysis_card_contract() -> dict[str, JsonValue]:
+    return {
+        "title": "대화 분석 or Chat Wrapped",
+        "messageCount": {"you": 3, "them": 4},
+        "interestLevel": {"you": 64, "them": 72},
+        "meaningfulWordsYou": ["<actual user topic>", "<actual user place>"],
+        "meaningfulWordsThem": ["<actual them topic>", "<actual them signal>"],
+        "redFlags": ["<specific caution from visible chat>"],
+        "greenFlags": ["<specific positive signal from visible chat>"],
+        "attachmentYou": "<short style phrase>",
+        "attachmentThem": "<short style phrase>",
+        "compatibilityScore": 72,
     }

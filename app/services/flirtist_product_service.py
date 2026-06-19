@@ -6,12 +6,9 @@ from uuid import uuid4
 
 from app.schemas.flirtist import FlirtistLanguage
 from app.schemas.flirtist_product import (
-    FlirtistAnalysisCard,
     FlirtistCoachChatRequest,
     FlirtistCoachChatResponse,
     FlirtistCoachMessage,
-    FlirtistInterestBreakdown,
-    FlirtistMessageCount,
     FlirtistPreviewMessage,
     FlirtistProductSessionRequest,
     FlirtistProductSessionResponse,
@@ -19,6 +16,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_product_ai import FlirtistProductAI
+from app.services.flirtist_product_analysis_fallback import analysis_card
 from app.services.flirtist_product_coach import coach_answer, coach_suggestions, repair_coach_response
 from app.services.flirtist_product_coach_memory import coach_memory_summary
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage, FlirtistStoredImage
@@ -135,7 +133,7 @@ def _fallback_session(
         case "reply_coach":
             return FlirtistProductSessionResponse(**base, replyCoaching=reply_coaching(language, "genuine", chat_preview))
         case "score_analysis":
-            return FlirtistProductSessionResponse(**base, analysisCard=_analysis_card(language, chat_preview))
+            return FlirtistProductSessionResponse(**base, analysisCard=analysis_card(language, chat_preview))
         case unreachable:
             assert_never(unreachable)
 
@@ -165,37 +163,7 @@ def _new_id(prefix: str) -> str:
 
 def _title(language: FlirtistLanguage, request: FlirtistProductSessionRequest) -> str:
     if request.mode == "score_analysis":
-        return "Chat Wrapped" if language == "en" else "채팅 점수화"
+        return "Chat Wrapped" if language == "en" else "대화 분석"
     if request.source == "screenshot":
         return "Screenshot reply coach" if language == "en" else "스크린샷 답장 코칭"
     return "Manual text reply coach" if language == "en" else "텍스트 답장 코칭"
-
-
-def _analysis_card(language: FlirtistLanguage, messages: list[FlirtistPreviewMessage]) -> FlirtistAnalysisCard:
-    my_count = sum(1 for message in messages if message.role == "me")
-    them_count = sum(1 for message in messages if message.role == "them")
-    if language == "ko":
-        return FlirtistAnalysisCard(
-            title="Chat Wrapped",
-            messageCount=FlirtistMessageCount(you=max(my_count, 1), them=max(them_count, 1)),
-            interestLevel=FlirtistInterestBreakdown(you=68, them=56),
-            meaningfulWordsYou=["커피", "퇴근", "같이"],
-            meaningfulWordsThem=["회사", "정신", "고생"],
-            redFlags=["상대 답장 텀이 느림"],
-            greenFlags=["상대가 하루 맥락을 공유함", "가벼운 제안 여지 있음"],
-            attachmentYou="안정형",
-            attachmentThem="신중형",
-            compatibilityScore=72,
-        )
-    return FlirtistAnalysisCard(
-        title="Chat Wrapped",
-        messageCount=FlirtistMessageCount(you=max(my_count, 1), them=max(them_count, 1)),
-        interestLevel=FlirtistInterestBreakdown(you=68, them=56),
-        meaningfulWordsYou=["coffee", "after work", "together"],
-        meaningfulWordsThem=["work", "chaotic", "tired"],
-        redFlags=["Their response pace looks slow"],
-        greenFlags=["They shared personal context", "There is room for a light invite"],
-        attachmentYou="Secure",
-        attachmentThem="Cautious",
-        compatibilityScore=72,
-    )
