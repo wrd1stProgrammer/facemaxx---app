@@ -56,11 +56,11 @@ def _default_provider(settings: Settings) -> FlirtistProvider:
         return "openai"
     if os.environ.get("FLIRTIST_GEMINI_API_KEY"):
         return "gemini"
+    if os.environ.get("OPENAI_API_KEY") or settings.openai_api_key:
+        return "openai"
     preferred = _provider_alias(getattr(settings, "ai_provider", "dummy"))
     if preferred != "mock" and _has_key(preferred, settings):
         return preferred
-    if _has_key("openai", settings):
-        return "openai"
     if _has_key("gemini", settings):
         return "gemini"
     return "mock"

@@ -51,7 +51,7 @@ class FlirtistProductAI:
             prompt=_session_prompt(request, fallback),
             image_url=image_url,
             response_model=FlirtistProductSessionResponse,
-            max_output_tokens=3600,
+            max_output_tokens=5200,
         )
         if text is None:
             return fallback

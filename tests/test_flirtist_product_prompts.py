@@ -44,6 +44,38 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertNotIn("얘기 조금 더 듣고 싶어", prompt)
         self.assertNotIn("그 말 괜히 좋네", prompt)
 
+    def test_session_prompt_requests_contextual_reply_packs_for_every_style(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+        fallback = service.create_session(request)
+
+        # When
+        prompt = _session_prompt(request, fallback)
+
+        # Then
+        self.assertIn("replyPacks", prompt)
+        self.assertIn("genuine, nsfw, flirty, witty, romantic", prompt)
+        self.assertIn("Each style pack must be grounded in the same latest actionable chat context", prompt)
+        self.assertIn("광주", prompt)
+        self.assertNotIn("do not generate replyPacks", prompt)
+        self.assertNotIn("The server will expand style packs", prompt)
+
     def test_style_prompt_treats_contract_as_shape_not_reply_source(self) -> None:
         # Given
         service = FlirtistProductService(

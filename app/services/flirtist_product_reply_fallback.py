@@ -39,14 +39,37 @@ def ensure_reply_packs(
     language: FlirtistLanguage,
     messages: list[FlirtistPreviewMessage] | None = None,
 ) -> FlirtistReplyCoaching:
-    if coaching.replyPacks:
-        return coaching
     context = _reply_context(language, messages or [])
-    packs = reply_packs(language, context)
+    fallback_packs = reply_packs(language, context)
+    packs = _complete_reply_packs(coaching.replyPacks, fallback_packs)
     if coaching.replies:
-        primary_style = coaching.replies[0].style or packs[0].style
+        primary_style = coaching.replies[0].style or fallback_packs[0].style
         packs = _packs_with_primary_replies(packs, primary_style, coaching.replies)
     return coaching.model_copy(update={"replyPacks": packs})
+
+
+def _complete_reply_packs(
+    provider_packs: list[FlirtistReplyPack],
+    fallback_packs: list[FlirtistReplyPack],
+) -> list[FlirtistReplyPack]:
+    if not provider_packs:
+        return fallback_packs
+    fallback_by_style = {pack.style: pack for pack in fallback_packs}
+    provider_by_style: dict[str, FlirtistReplyPack] = {}
+    for pack in provider_packs:
+        style = pack.style.strip().lower()
+        fallback = fallback_by_style.get(style)
+        if fallback is None or style in provider_by_style:
+            continue
+        provider_by_style[style] = pack.model_copy(
+            update={
+                "style": fallback.style,
+                "label": fallback.label,
+                "buttonTitle": fallback.buttonTitle,
+                "iconName": fallback.iconName,
+            }
+        )
+    return [provider_by_style.get(pack.style, pack) for pack in fallback_packs]
 
 
 def _packs_with_primary_replies(
@@ -89,11 +112,11 @@ def _reply_context(language: FlirtistLanguage, messages: list[FlirtistPreviewMes
 def _reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, str]]:
     if language == "ko":
         return [
-            ("genuine", "Genuine", "진짜같은 답장 받기", "bolt.fill"),
-            ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
-            ("flirty", "Flirty", "Get Flirty Reply", "heart.fill"),
-            ("witty", "Witty", "Get Witty Reply", "sparkles"),
-            ("romantic", "Romantic", "Get Romantic Reply", "heart.circle.fill"),
+            ("genuine", "진짜같은", "진짜같은 답장 받기", "bolt.fill"),
+            ("nsfw", "아찔하게", "아찔한 답장 받기", "flame.fill"),
+            ("flirty", "설레게", "설레는 답장 받기", "heart.fill"),
+            ("witty", "센스있게", "센스있는 답장 받기", "sparkles"),
+            ("romantic", "로맨틱", "로맨틱 답장 받기", "heart.circle.fill"),
         ]
     return [
         ("genuine", "Genuine", "Get Genuine Reply", "bolt.fill"),
