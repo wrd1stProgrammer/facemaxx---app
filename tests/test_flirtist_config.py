@@ -92,6 +92,32 @@ class FlirtistConfigTest(unittest.TestCase):
         self.assertEqual(config.requested_provider, "openai")
         self.assertEqual(config.effective_provider, "openai")
 
+    def test_flirtist_openai_model_defaults_to_fast_product_model(self) -> None:
+        # Given
+        env = {
+            "FLIRTIST_AI_PROVIDER": "",
+            "FLIRTIST_OPENAI_MODEL": "",
+            "FLIRTIST_OPENAI_API_KEY": "",
+            "OPENAI_API_KEY": "global-openai-key",
+            "FLIRTIST_GEMINI_API_KEY": "",
+            "GEMINI_API_KEY": "",
+        }
+        settings = Settings(openai_api_key=None, openai_model="gpt-5-mini")
+
+        # When
+        with (
+            patch.dict("os.environ", env, clear=False),
+            patch("app.services.flirtist_config.get_settings", return_value=settings),
+        ):
+            from app.services.flirtist_config import load_flirtist_ai_config
+
+            config = load_flirtist_ai_config()
+
+        # Then
+        self.assertEqual(config.requested_provider, "openai")
+        self.assertEqual(config.effective_provider, "openai")
+        self.assertEqual(config.openai_model, "gpt-4.1-mini")
+
     def test_provider_env_config_can_still_force_gemini(self) -> None:
         # Given
         env = {

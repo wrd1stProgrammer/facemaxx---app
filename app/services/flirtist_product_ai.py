@@ -51,7 +51,7 @@ class FlirtistProductAI:
             prompt=_session_prompt(request, fallback),
             image_url=image_url,
             response_model=FlirtistProductSessionResponse,
-            max_output_tokens=5200,
+            max_output_tokens=2400,
         )
         if text is None:
             return fallback
@@ -144,7 +144,7 @@ class FlirtistProductAI:
             if api_key is None:
                 LOGGER.warning("Flirtist product OpenAI key is not configured; using fallback")
                 return None
-            client = OpenAI(api_key=api_key, timeout=45.0)
+            client = OpenAI(api_key=api_key, timeout=30.0)
             content = [{"type": "input_text", "text": prompt}]
             if image_url:
                 content.append(
@@ -158,6 +158,7 @@ class FlirtistProductAI:
                 input=[{"role": "user", "content": content}],
                 max_output_tokens=max_output_tokens,
                 text=_response_text_format(response_model),
+                **_openai_latency_options(self._config.openai_model),
             )
             return response.output_text or None
         except (OpenAIError, AttributeError) as exc:
@@ -223,6 +224,13 @@ def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
             "strict": False,
         }
     }
+
+
+def _openai_latency_options(model: str) -> dict[str, JsonValue]:
+    normalized = model.lower()
+    if normalized.startswith("gpt-5") or normalized.startswith(("o3", "o4")):
+        return {"reasoning": {"effort": "minimal"}}
+    return {}
 
 
 def _json_object_from_text(text: str):

@@ -291,6 +291,66 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
         self.assertEqual(ai.image_url, response.imageUrl)
 
+    def test_product_service_skips_image_upload_when_reply_screenshot_has_ocr_text(self) -> None:
+        # Given
+        class CapturingAI:
+            image_url: str | None = None
+
+            def complete_session(
+                self,
+                *,
+                request: FlirtistProductSessionRequest,
+                fallback: FlirtistProductSessionResponse,
+                image_url: str | None,
+            ) -> FlirtistProductSessionResponse:
+                self.image_url = image_url
+                return fallback
+
+        class NoopRepository:
+            def save_session(
+                self,
+                *,
+                request: FlirtistProductSessionRequest,
+                response: FlirtistProductSessionResponse,
+                stored_image: FlirtistStoredImage | None,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
+            ) -> bool:
+                return False
+
+        class ExplodingImageStorage:
+            def store_session_image(
+                self,
+                request: FlirtistProductSessionRequest,
+                *,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
+            ) -> FlirtistStoredImage | None:
+                raise AssertionError("OCR text reply screenshots must not upload image data")
+
+        ai = CapturingAI()
+        service = FlirtistProductService(
+            ai=ai,
+            repository=NoopRepository(),
+            image_storage=ExplodingImageStorage(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text="상대: 웅 조아네\n나: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄게",
+            imageBase64="aW1hZ2U=",
+            imageMimeType="image/jpeg",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNone(response.imageUrl)
+        self.assertIsNone(response.imageStoragePath)
+        self.assertIsNone(ai.image_url)
+
 
 if __name__ == "__main__":
     unittest.main()

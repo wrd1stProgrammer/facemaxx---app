@@ -8,6 +8,7 @@ from app.core.config import Settings, get_settings
 
 
 FlirtistProvider = Literal["mock", "openai", "anthropic", "gemini"]
+DEFAULT_FLIRTIST_OPENAI_MODEL = "gpt-4.1-mini"
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +27,8 @@ def load_flirtist_ai_config() -> FlirtistAIConfig:
     return FlirtistAIConfig(
         requested_provider=requested,
         effective_provider=effective,
-        openai_model=os.environ.get("FLIRTIST_OPENAI_MODEL", settings.openai_model).strip() or settings.openai_model,
+        openai_model=os.environ.get("FLIRTIST_OPENAI_MODEL", DEFAULT_FLIRTIST_OPENAI_MODEL).strip()
+        or DEFAULT_FLIRTIST_OPENAI_MODEL,
         anthropic_model=os.environ.get("FLIRTIST_ANTHROPIC_MODEL", "claude-sonnet-4-5").strip()
         or "claude-sonnet-4-5",
         gemini_model=os.environ.get("FLIRTIST_GEMINI_MODEL", settings.gemini_model).strip()

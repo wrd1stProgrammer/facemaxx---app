@@ -44,10 +44,14 @@ class FlirtistProductService:
         user_id: str | None = None,
         client_install_id: str | None = None,
     ) -> FlirtistProductSessionResponse:
-        stored_image = self._image_storage.store_session_image(
-            request,
-            user_id=user_id,
-            client_install_id=client_install_id,
+        stored_image = (
+            self._image_storage.store_session_image(
+                request,
+                user_id=user_id,
+                client_install_id=client_install_id,
+            )
+            if _should_store_session_image(request)
+            else None
         )
         fallback = _fallback_session(request, stored_image)
         response = self._ai.complete_session(
@@ -134,6 +138,18 @@ def _fallback_session(
             return FlirtistProductSessionResponse(**base, replyCoaching=reply_coaching(language, "genuine", chat_preview))
         case "score_analysis":
             return FlirtistProductSessionResponse(**base, analysisCard=analysis_card(language, chat_preview))
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _should_store_session_image(request: FlirtistProductSessionRequest) -> bool:
+    if not request.imageBase64:
+        return False
+    match request.mode:
+        case "reply_coach":
+            return not bool(request.text and request.text.strip())
+        case "score_analysis":
+            return True
         case unreachable:
             assert_never(unreachable)
 

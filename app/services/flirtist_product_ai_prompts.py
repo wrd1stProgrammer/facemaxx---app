@@ -22,7 +22,7 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
     return "\n".join(
         [
             "You are Flirtist, a bilingual dating situation coach. Return one JSON object only.",
-            "If a Cloudinary screenshot URL is attached, read the visible chat/profile content from the image.",
+            "If a Cloudinary screenshot URL is attached and no transcript text is provided, read the visible chat/profile content from the image.",
             "If transcript text is provided, treat it as authoritative OCR. Infer the latest actionable exchange from the whole transcript, not only the final short reaction.",
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
@@ -30,13 +30,15 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For score_analysis, localize the analysisCard title: use '대화 분석' for Korean and 'Chat Wrapped' for English.",
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
-            "For reply_coach, return replyCoaching.replies as the 1-3 best genuine replies and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
-            "Each style pack must be grounded in the same latest actionable chat context and include 1-3 copy-ready replies that would be wrong for a different chat.",
+            "For reply_coach, return replyCoaching.replies as the single best genuine reply and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
+            "Each style pack must be grounded in the same latest actionable chat context and include exactly one copy-ready reply that would be wrong for a different chat.",
+            "Keep the initial reply_coach JSON compact. Do not include extra alternatives inside a style pack during session creation.",
             "Style rules: genuine = realistic and closest to the user's tone; nsfw = bold tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic = warm and attentive without sounding committed too soon.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
             "When the latest message is a short yes/좋아/조아네/heart after the user suggested meeting, food, a city, or contacting later, answer the accepted plan directly.",
             "For accepted-plan chats, every reply in every style pack must keep at least one concrete plan detail from the chat, such as the city/place, food/meal, timing, contact, or meetup action.",
+            "Do not invent missing plan details. If the chat does not mention a neighborhood, restaurant, exact day, time, or activity, do not create one; ask a light follow-up around the concrete details that are present.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh replies from the chat.",
             "Quality bar for every reply: 1) references the exact situation without quoting the whole message, 2) sounds like a real text, 3) gives the other person an easy next response, 4) does not suddenly escalate intimacy, 5) is specific enough that it would be wrong for a different chat.",
             "For Korean reply_coach, write replies like a native Korean KakaoTalk/Instagram DM. Avoid 당신, stiff translations, generic coffee templates, and phrases like 고생한 기념 unless the chat naturally supports them.",
@@ -62,6 +64,7 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",
             "If the context includes an accepted plan, city, food, or meetup, every alternative must mention that concrete plan instead of generic emotional support.",
             "For accepted-plan chats, keep at least one concrete plan detail in each alternative, such as the city/place, food/meal, timing, contact, or meetup action.",
+            "Do not invent missing plan details such as exact dates, neighborhoods, restaurants, or activities. Ask naturally for the missing detail instead.",
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
@@ -98,21 +101,25 @@ def _coach_prompt(request: FlirtistCoachChatRequest, fallback: FlirtistCoachChat
 
 
 def _contract_json(fallback: FacemaxxBaseModel) -> str:
-    payload = fallback.model_dump(mode="json")
     if isinstance(fallback, FlirtistProductSessionResponse):
+        payload: dict[str, JsonValue] = {}
         payload["chatPreview"] = [
             {"role": "them", "text": "<visible chat message>"},
             {"role": "me", "text": "<visible chat message>"},
         ]
-        if payload.get("replyCoaching") is not None:
+        if fallback.replyCoaching is not None:
             payload["replyCoaching"] = _reply_coaching_contract(include_all_packs=True)
-        if payload.get("analysisCard") is not None:
+        if fallback.analysisCard is not None:
             payload["analysisCard"] = _analysis_card_contract()
     elif isinstance(fallback, FlirtistReplyStyleResponse):
+        payload = {}
         payload["replyCoaching"] = _reply_coaching_contract(include_pack=True)
     elif isinstance(fallback, FlirtistCoachChatResponse):
+        payload = {}
         payload["message"] = {"role": "assistant", "text": "<short coach answer>"}
         payload["suggestions"] = ["<next user prompt>"]
+    else:
+        payload = fallback.model_dump(mode="json")
     return json.dumps(payload, ensure_ascii=False)
 
 

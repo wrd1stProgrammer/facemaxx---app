@@ -117,7 +117,7 @@ Provider selection is independent from the Facemaxx face-analysis provider:
 AI_PROVIDER=gemini
 FLIRTIST_AI_PROVIDER=openai
 FLIRTIST_OPENAI_API_KEY=
-FLIRTIST_OPENAI_MODEL=gpt-5-mini
+FLIRTIST_OPENAI_MODEL=gpt-4.1-mini
 FLIRTIST_ANTHROPIC_API_KEY=
 FLIRTIST_GEMINI_API_KEY=
 ```
