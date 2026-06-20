@@ -95,6 +95,40 @@ class FlirtistProductFallbackTest(unittest.TestCase):
         self.assertNotIn("Message", reply_text)
         self.assertRegex(reply_text, "영화|재밌|궁금|얘기")
 
+    def test_provider_reply_is_copied_into_first_reply_pack_when_provider_returns_no_packs(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=ProviderRepliesOnlyAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        assert response.replyCoaching is not None
+        self.assertEqual(
+            response.replyCoaching.replies[0].text,
+            "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+        )
+        self.assertEqual(
+            response.replyCoaching.replyPacks[0].replies[0].text,
+            "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+        )
+
     def test_english_reply_fallback_does_not_echo_first_person_context_as_topic(self) -> None:
         # Given
         service = FlirtistProductService(
@@ -321,6 +355,37 @@ class WrongPreviewProviderAI:
                     summary=fallback.replyCoaching.summary,
                     nextMove=fallback.replyCoaching.nextMove,
                     replies=[wrong_reply],
+                    replyPacks=[],
+                ),
+            }
+        )
+
+
+class ProviderRepliesOnlyAI:
+    def complete_session(
+        self,
+        *,
+        request: FlirtistProductSessionRequest,
+        fallback: FlirtistProductSessionResponse,
+        image_url: str | None,
+    ) -> FlirtistProductSessionResponse:
+        assert fallback.replyCoaching is not None
+        live_reply = FlirtistReplyOption(
+            id="reply_live_provider",
+            style="genuine",
+            text="광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+            whyItWorks="대화 속 광주와 맛난 약속을 그대로 살린다.",
+            aiObviousness=8,
+            pressure=16,
+            replyLikelihood=90,
+        )
+        return fallback.model_copy(
+            update={
+                "replyCoaching": FlirtistReplyCoaching(
+                    headline=fallback.replyCoaching.headline,
+                    summary="광주에 오면 맛있는 걸 사주겠다는 약속을 이어가는 흐름",
+                    nextMove="상대가 오고 싶게 느껴지는 한 문장으로 이어간다.",
+                    replies=[live_reply],
                     replyPacks=[],
                 ),
             }

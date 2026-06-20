@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
+from app.schemas.flirtist_product import FlirtistProductSessionResponse
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
 from app.schemas.flirtist_product import FlirtistCoachChatResponse
 from app.schemas.flirtist_product import FlirtistCoachMessage
@@ -188,6 +189,53 @@ class FlirtistProductPromptTest(unittest.TestCase):
             ],
         )
         self.assertNotIn("그렇게만 말하면", " ".join(reply.text for reply in response.replyCoaching.replies))
+
+    def test_session_merge_keeps_authoritative_metadata_when_provider_returns_invalid_source(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        fallback = service.create_session(
+            FlirtistProductSessionRequest(
+                mode="reply_coach",
+                source="screenshot",
+                locale="ko-KR",
+                text="Them: 웅 조아네\nMe: 광주 오면 맛난거 사줄게",
+            )
+        )
+        provider_text = """
+        {
+          "source": "text",
+          "mode": "reply",
+          "replyCoaching": {
+            "replies": [
+              {
+                "id": "reply_live_metadata",
+                "style": "genuine",
+                "text": "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+                "whyItWorks": "실제 대화의 광주 약속을 살린다.",
+                "aiObviousness": 8,
+                "pressure": 16,
+                "replyLikelihood": 90
+              }
+            ]
+          }
+        }
+        """
+
+        # When
+        response = _merge_response(provider_text, fallback, FlirtistProductSessionResponse)
+
+        # Then
+        self.assertEqual(response.source, "screenshot")
+        self.assertEqual(response.mode, "reply_coach")
+        assert response.replyCoaching is not None
+        self.assertEqual(
+            response.replyCoaching.replies[0].text,
+            "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+        )
 
     def test_coach_prompt_blocks_echoed_user_questions_and_template_filler(self) -> None:
         # Given

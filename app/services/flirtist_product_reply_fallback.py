@@ -42,7 +42,24 @@ def ensure_reply_packs(
     if coaching.replyPacks:
         return coaching
     context = _reply_context(language, messages or [])
-    return coaching.model_copy(update={"replyPacks": reply_packs(language, context)})
+    packs = reply_packs(language, context)
+    if coaching.replies:
+        primary_style = coaching.replies[0].style or packs[0].style
+        packs = _packs_with_primary_replies(packs, primary_style, coaching.replies)
+    return coaching.model_copy(update={"replyPacks": packs})
+
+
+def _packs_with_primary_replies(
+    packs: list[FlirtistReplyPack],
+    primary_style: str,
+    replies: list[FlirtistReplyOption],
+) -> list[FlirtistReplyPack]:
+    primary = primary_style.lower()
+    target_index = next((index for index, pack in enumerate(packs) if pack.style == primary), 0)
+    return [
+        pack.model_copy(update={"replies": replies}) if index == target_index else pack
+        for index, pack in enumerate(packs)
+    ]
 
 
 def reply_packs(

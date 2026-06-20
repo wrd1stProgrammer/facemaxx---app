@@ -188,11 +188,30 @@ def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]
 
     try:
         base = fallback.model_dump(mode="json")
+        _drop_provider_session_metadata(payload, fallback)
         _deep_update(base, payload)
         return model.model_validate(base)
     except (ValidationError, AttributeError) as exc:
         LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
         return fallback
+
+
+def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: ProductModel) -> None:
+    if not isinstance(fallback, FlirtistProductSessionResponse):
+        return
+    for key in (
+        "sessionId",
+        "mode",
+        "source",
+        "locale",
+        "language",
+        "createdAt",
+        "saved",
+        "serverPersisted",
+        "imageUrl",
+        "imageStoragePath",
+    ):
+        payload.pop(key, None)
 
 
 def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
