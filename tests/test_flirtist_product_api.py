@@ -78,7 +78,8 @@ class FlirtistProductApiTest(unittest.TestCase):
             {pack["style"] for pack in data["replyCoaching"]["replyPacks"]},
             {"genuine", "nsfw", "flirty", "witty", "romantic"},
         )
-        self.assertTrue(all(len(pack["replies"]) >= 5 for pack in data["replyCoaching"]["replyPacks"]))
+        self.assertEqual(len(data["replyCoaching"]["replies"]), 4)
+        self.assertTrue(all(len(pack["replies"]) == 4 for pack in data["replyCoaching"]["replyPacks"]))
         self.assertRegex(data["replyCoaching"]["replies"][0]["text"], re.compile("[가-힣]"))
 
     def test_score_session_returns_wrapped_card_when_screenshot_is_submitted(self) -> None:

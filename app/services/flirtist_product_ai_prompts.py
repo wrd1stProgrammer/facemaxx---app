@@ -30,9 +30,9 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For score_analysis, localize the analysisCard title: use '대화 분석' for Korean and 'Chat Wrapped' for English.",
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
-            "For reply_coach, return replyCoaching.replies as the single best genuine reply and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
-            "Each style pack must be grounded in the same latest actionable chat context and include exactly one copy-ready reply that would be wrong for a different chat.",
-            "Keep the initial reply_coach JSON compact. Do not include extra alternatives inside a style pack during session creation.",
+            "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
+            "Each style pack must be grounded in the same latest actionable chat context and include exactly four copy-ready replies that would be wrong for a different chat.",
+            "Keep the initial reply_coach JSON compact: four short alternatives per style, no extra variants beyond those four.",
             "Style rules: genuine = realistic and closest to the user's tone; nsfw = bold tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic = warm and attentive without sounding committed too soon.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
@@ -67,7 +67,7 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Do not invent missing plan details such as exact dates, neighborhoods, restaurants, or activities. Ask naturally for the missing detail instead.",
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
-            "Return replyCoaching with 5 alternatives in replyCoaching.replies and a matching single replyPacks entry.",
+            "Return exactly 4 alternatives in replyCoaching.replies and a matching single replyPacks entry with those same 4 alternatives.",
             "If focus is provided, weave that word or phrase into the alternatives naturally.",
             "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
             "For nsfw, avoid secret-place, night-time, heart-racing, and 'you will not regret it' clichés unless the chat clearly contains that detail.",
@@ -133,6 +133,10 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
         "pressure": 20,
         "replyLikelihood": 80,
     }
+    options = [
+        option | {"id": f"reply_ai_{index}", "text": f"<copy-ready reply text {index}>"}
+        for index in range(1, 5)
+    ]
     pack_specs = [
         ("genuine", "Genuine", "Get Genuine Reply", "bolt.fill"),
         ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
@@ -146,7 +150,10 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
             "label": label,
             "buttonTitle": button_title,
             "iconName": icon_name,
-            "replies": [option | {"style": style, "text": "<copy-ready reply text for this style>"}],
+            "replies": [
+                reply | {"style": style, "text": f"<copy-ready {style} reply text {index}>"}
+                for index, reply in enumerate(options, start=1)
+            ],
         }
         for style, label, button_title, icon_name in pack_specs
     ]
@@ -158,7 +165,7 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
         "headline": "<short title>",
         "summary": "<short situation read>",
         "nextMove": "<one next step>",
-        "replies": [option],
+        "replies": options,
         "replyPacks": packs,
     }
 

@@ -40,7 +40,7 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("Quality bar", prompt)
         self.assertIn("Do not copy fallback wording", prompt)
         self.assertIn("would be wrong for a different chat", prompt)
-        self.assertIn("<copy-ready reply text>", prompt)
+        self.assertIn("<copy-ready reply text 1>", prompt)
         self.assertNotIn("얘기 조금 더 듣고 싶어", prompt)
         self.assertNotIn("그 말 괜히 좋네", prompt)
 
@@ -72,10 +72,12 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("replyPacks", prompt)
         self.assertIn("genuine, nsfw, flirty, witty, romantic", prompt)
         self.assertIn("Each style pack must be grounded in the same latest actionable chat context", prompt)
-        self.assertIn("exactly one copy-ready reply", prompt)
+        self.assertIn("exactly four copy-ready replies", prompt)
+        self.assertIn("same four genuine replies", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
         self.assertIn("광주", prompt)
         self.assertNotIn('"sessionId"', prompt)
+        self.assertNotIn("exactly one copy-ready reply", prompt)
         self.assertNotIn("include 1-3 copy-ready replies", prompt)
         self.assertNotIn("do not generate replyPacks", prompt)
         self.assertNotIn("The server will expand style packs", prompt)
@@ -103,8 +105,9 @@ class FlirtistProductPromptTest(unittest.TestCase):
 
         # Then
         self.assertIn("Do not copy fallback wording", prompt)
-        self.assertIn("<copy-ready reply text>", prompt)
+        self.assertIn("<copy-ready reply text 1>", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
+        self.assertIn("Return exactly 4 alternatives", prompt)
         self.assertEqual(prompt.count("그 말 괜히 좋네"), 1)
         self.assertNotIn("갑자기 그렇게 말하면", prompt)
 

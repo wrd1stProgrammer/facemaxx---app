@@ -67,11 +67,21 @@ def _repair_options(
 ) -> list[FlirtistReplyOption]:
     fallback_iter = iter(fallback_options)
     repaired: list[FlirtistReplyOption] = []
-    for option in options:
+    seen_texts: set[str] = set()
+    for option in options[: len(fallback_options)]:
         if _bad_reply_text(option.text, messages):
-            repaired.append(next(fallback_iter, fallback_options[0]))
-        else:
-            repaired.append(option)
+            option = next(fallback_iter, fallback_options[0])
+        if option.text in seen_texts:
+            continue
+        repaired.append(option)
+        seen_texts.add(option.text)
+    for fallback_option in fallback_options:
+        if len(repaired) >= len(fallback_options):
+            break
+        if fallback_option.text in seen_texts:
+            continue
+        repaired.append(fallback_option)
+        seen_texts.add(fallback_option.text)
     return repaired or fallback_options
 
 

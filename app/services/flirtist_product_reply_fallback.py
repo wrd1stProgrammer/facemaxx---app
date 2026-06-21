@@ -67,6 +67,7 @@ def _complete_reply_packs(
                 "label": fallback.label,
                 "buttonTitle": fallback.buttonTitle,
                 "iconName": fallback.iconName,
+                "replies": _four_reply_options(pack.replies, fallback.replies),
             }
         )
     return [provider_by_style.get(pack.style, pack) for pack in fallback_packs]
@@ -80,9 +81,19 @@ def _packs_with_primary_replies(
     primary = primary_style.lower()
     target_index = next((index for index, pack in enumerate(packs) if pack.style == primary), 0)
     return [
-        pack.model_copy(update={"replies": replies}) if index == target_index else pack
+        pack.model_copy(update={"replies": replies[:4]})
+        if index == target_index and len(replies) >= len(pack.replies)
+        else pack
         for index, pack in enumerate(packs)
     ]
+
+
+def _four_reply_options(
+    provider_replies: list[FlirtistReplyOption],
+    fallback_replies: list[FlirtistReplyOption],
+) -> list[FlirtistReplyOption]:
+    replies = provider_replies[:4]
+    return (replies + fallback_replies)[:4]
 
 
 def reply_packs(
@@ -134,8 +145,8 @@ def _reply_texts(
     focus: str | None,
 ) -> list[str]:
     if language == "ko":
-        return ko_reply_texts(style, context, focus)
-    return en_reply_texts(style, context, focus)
+        return ko_reply_texts(style, context, focus)[:4]
+    return en_reply_texts(style, context, focus)[:4]
 
 
 def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
