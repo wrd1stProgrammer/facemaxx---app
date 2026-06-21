@@ -73,6 +73,8 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("genuine, nsfw, flirty, witty, romantic", prompt)
         self.assertIn("Each style pack must be grounded in the same latest actionable chat context", prompt)
         self.assertIn("exactly four copy-ready replies", prompt)
+        self.assertIn("four different tactics", prompt)
+        self.assertIn("Do not anchor all replies on the same visible noun or phrase", prompt)
         self.assertIn("same four genuine replies", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
         self.assertIn("광주", prompt)
@@ -108,6 +110,8 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("<copy-ready reply text 1>", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
         self.assertIn("Return exactly 4 alternatives", prompt)
+        self.assertIn("meaningfully different", prompt)
+        self.assertIn("Do not anchor every alternative on the same keyword", prompt)
         self.assertEqual(prompt.count("그 말 괜히 좋네"), 1)
         self.assertNotIn("갑자기 그렇게 말하면", prompt)
 

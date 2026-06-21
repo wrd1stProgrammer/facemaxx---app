@@ -123,18 +123,18 @@ def _reply_context(language: FlirtistLanguage, messages: list[FlirtistPreviewMes
 def _reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, str]]:
     if language == "ko":
         return [
-            ("genuine", "진짜같은", "진짜같은 답장 받기", "bolt.fill"),
-            ("nsfw", "아찔하게", "아찔한 답장 받기", "flame.fill"),
-            ("flirty", "설레게", "설레는 답장 받기", "heart.fill"),
-            ("witty", "센스있게", "센스있는 답장 받기", "sparkles"),
-            ("romantic", "로맨틱", "로맨틱 답장 받기", "heart.circle.fill"),
+            ("genuine", "자연스럽게", "자연스러운 답장", "bolt.fill"),
+            ("nsfw", "아슬하게", "아슬한 텐션", "flame.fill"),
+            ("flirty", "은근 설레게", "은근한 플러팅", "heart.fill"),
+            ("witty", "센스있게", "센스 있는 답장", "sparkles"),
+            ("romantic", "다정하게", "다정한 답장", "heart.circle.fill"),
         ]
     return [
-        ("genuine", "Genuine", "Get Genuine Reply", "bolt.fill"),
-        ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
-        ("flirty", "Flirty", "Get Flirty Reply", "heart.fill"),
-        ("witty", "Witty", "Get Witty Reply", "sparkles"),
-        ("romantic", "Romantic", "Get Romantic Reply", "heart.circle.fill"),
+        ("genuine", "Natural", "Natural replies", "bolt.fill"),
+        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
+        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
+        ("witty", "Witty", "Witty replies", "sparkles"),
+        ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
     ]
 
 

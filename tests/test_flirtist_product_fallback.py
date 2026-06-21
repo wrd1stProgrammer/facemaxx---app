@@ -465,8 +465,8 @@ class ProviderFourPackSingleTopAI:
         ]
         genuine_pack = FlirtistReplyPack(
             style="genuine",
-            label="진짜같은",
-            buttonTitle="진짜같은 답장 받기",
+            label="자연스럽게",
+            buttonTitle="자연스러운 답장",
             iconName="bolt.fill",
             replies=replies,
         )

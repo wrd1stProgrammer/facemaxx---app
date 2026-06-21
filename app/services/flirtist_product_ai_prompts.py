@@ -32,10 +32,13 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
             "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
             "Each style pack must be grounded in the same latest actionable chat context and include exactly four copy-ready replies that would be wrong for a different chat.",
+            "Within each style pack, the four replies must use four different tactics: 1) move the accepted plan forward, 2) ask one concrete missing detail, 3) add a light emotional reaction, 4) make a playful callback to a real chat detail.",
+            "Do not anchor all replies on the same visible noun or phrase. Use the underlying situation, and reuse a chat keyword only when it naturally advances the next message.",
             "Keep the initial reply_coach JSON compact: four short alternatives per style, no extra variants beyond those four.",
-            "Style rules: genuine = realistic and closest to the user's tone; nsfw = bold tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic = warm and attentive without sounding committed too soon.",
+            "Style rules: genuine/natural = realistic and closest to the user's tone; nsfw/bold = stronger tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic/warm = attentive without sounding committed too soon.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
+            "Do not quote a full incoming message inside the reply. A short callback is fine; parroting the screenshot text is a failure.",
             "When the latest message is a short yes/좋아/조아네/heart after the user suggested meeting, food, a city, or contacting later, answer the accepted plan directly.",
             "For accepted-plan chats, every reply in every style pack must keep at least one concrete plan detail from the chat, such as the city/place, food/meal, timing, contact, or meetup action.",
             "Do not invent missing plan details. If the chat does not mention a neighborhood, restaurant, exact day, time, or activity, do not create one; ask a light follow-up around the concrete details that are present.",
@@ -62,6 +65,8 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
             "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",
+            "The four alternatives must be meaningfully different, not the same idea with swapped adjectives. Vary the move: plan-forward, concrete missing detail, light emotional reaction, playful callback.",
+            "Do not anchor every alternative on the same keyword from the screenshot. Use the situation behind the keyword and keep the language sendable.",
             "If the context includes an accepted plan, city, food, or meetup, every alternative must mention that concrete plan instead of generic emotional support.",
             "For accepted-plan chats, keep at least one concrete plan detail in each alternative, such as the city/place, food/meal, timing, contact, or meetup action.",
             "Do not invent missing plan details such as exact dates, neighborhoods, restaurants, or activities. Ask naturally for the missing detail instead.",
@@ -138,11 +143,11 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
         for index in range(1, 5)
     ]
     pack_specs = [
-        ("genuine", "Genuine", "Get Genuine Reply", "bolt.fill"),
-        ("nsfw", "NSFW", "Get NSFW Reply", "flame.fill"),
-        ("flirty", "Flirty", "Get Flirty Reply", "heart.fill"),
-        ("witty", "Witty", "Get Witty Reply", "sparkles"),
-        ("romantic", "Romantic", "Get Romantic Reply", "heart.circle.fill"),
+        ("genuine", "Natural", "Natural replies", "bolt.fill"),
+        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
+        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
+        ("witty", "Witty", "Witty replies", "sparkles"),
+        ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
     ]
     packs = [
         {
