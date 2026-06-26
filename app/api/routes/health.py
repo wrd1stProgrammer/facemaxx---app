@@ -13,6 +13,9 @@ class HealthResponse(TypedDict):
     env: str
     supabase_configured: bool
     ai_provider: str
+    facemaxx_ai_provider: str
+    facemaxx_ai_requested_provider: str
+    facemaxx_openai_model: str
     flirtist_ai_provider: FlirtistProvider
     flirtist_ai_requested_provider: FlirtistProvider
     flirtist_openai_model: str
@@ -27,6 +30,9 @@ async def health() -> HealthResponse:
         "env": settings.app_env,
         "supabase_configured": settings.supabase_configured,
         "ai_provider": settings.ai_provider,
+        "facemaxx_ai_provider": "dummy" if settings.ai_provider == "dummy" else "openai",
+        "facemaxx_ai_requested_provider": settings.ai_provider,
+        "facemaxx_openai_model": settings.openai_model,
         "flirtist_ai_provider": flirtist_ai.effective_provider,
         "flirtist_ai_requested_provider": flirtist_ai.requested_provider,
         "flirtist_openai_model": flirtist_ai.openai_model,

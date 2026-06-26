@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     reviewer_demo_enabled: bool = True
     reviewer_demo_access_code: Optional[str] = "Bjr5101!"
 
-    ai_provider: Literal["dummy", "gemini", "openai"] = "gemini"
+    ai_provider: Literal["dummy", "gemini", "openai"] = "openai"
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-3.1-flash-lite"
     gemini_fallback_models: str = "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite"

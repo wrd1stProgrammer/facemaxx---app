@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
+from typing import TypeAlias
 
 from app.core.config import Settings
 from app.schemas.analysis import AnalysisResultPayload
 from app.services.ai.base import ProviderAnalysisRequest
-from app.services.ai.gemini import GeminiFaceAnalysisProvider
+from app.services.ai.payload_normalizer import FaceAnalysisPayloadNormalizer
 from app.services.ai.prompt import build_face_analysis_prompt
+
+JsonValue: TypeAlias = str | int | float | bool | None | dict[str, "JsonValue"] | list["JsonValue"]
 
 
 class OpenAIFaceAnalysisProvider:
@@ -30,7 +33,7 @@ class OpenAIFaceAnalysisProvider:
             photo_count=len(request.photos or []) or (1 if request.photo_id else 0),
             onboarding_context=request.onboarding_context,
         )
-        content: list[dict[str, object]] = [{"type": "input_text", "text": prompt}]
+        content: list[dict[str, JsonValue]] = [{"type": "input_text", "text": prompt}]
         photos = request.photos or []
         if not photos and (request.photo_bytes or request.photo_url):
             from app.services.ai.base import ProviderPhotoInput
@@ -54,10 +57,9 @@ class OpenAIFaceAnalysisProvider:
         response = await client.responses.create(
             model=self.model_name,
             input=[{"role": "user", "content": content}],
+            text=_response_text_format(),
         )
-        normalizer = GeminiFaceAnalysisProvider(self.settings)
-        normalizer.name = self.name
-        normalizer.model_name = self.model_name
+        normalizer = FaceAnalysisPayloadNormalizer(provider_name=self.name, model_name=self.model_name)
         data = normalizer._parse_json(response.output_text or "{}")
         data = normalizer._normalize_payload(data, request)
         return AnalysisResultPayload.model_validate(data)
@@ -68,3 +70,14 @@ class OpenAIFaceAnalysisProvider:
             encoded = base64.b64encode(photo_bytes).decode("ascii")
             return f"data:{photo_mime_type or 'image/jpeg'};base64,{encoded}"
         return photo_url
+
+
+def _response_text_format() -> dict[str, JsonValue]:
+    return {
+        "format": {
+            "type": "json_schema",
+            "name": "AnalysisResultPayload",
+            "schema": AnalysisResultPayload.model_json_schema(),
+            "strict": False,
+        }
+    }

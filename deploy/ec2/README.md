@@ -23,8 +23,9 @@ Create `/opt/facemaxx/.env` manually on the server. Do not commit production sec
 APP_ENV=production
 API_PREFIX=/v1
 AUTH_DISABLED=false
-AI_PROVIDER=gemini
-GEMINI_API_KEY=
+AI_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
 FLIRTIST_AI_PROVIDER=openai
 FLIRTIST_OPENAI_API_KEY=
 FLIRTIST_OPENAI_MODEL=gpt-4.1-mini
@@ -43,7 +44,7 @@ REVENUECAT_WEBHOOK_BEARER_TOKEN=
 
 If `REVENUECAT_WEBHOOK_BEARER_TOKEN` is set, configure the same value in the RevenueCat webhook Authorization header. The server accepts either `Bearer <token>` or the raw token value.
 
-`AI_PROVIDER` is the Facemaxx face-analysis provider. Flirtist reads `FLIRTIST_AI_PROVIDER` separately, so production can keep face analysis on Gemini while routing only Flirtist coaching to OpenAI. If `FLIRTIST_AI_PROVIDER=openai` is set without `FLIRTIST_OPENAI_API_KEY` or a shared `OPENAI_API_KEY`, `/health` will report `flirtist_ai_requested_provider=openai` and `flirtist_ai_provider=mock`.
+`AI_PROVIDER` is the Facemaxx face-analysis requested provider. Production should set `AI_PROVIDER=openai`; older Gemini provider values are accepted for old deployments but Facemaxx analysis still routes to OpenAI. Flirtist reads `FLIRTIST_AI_PROVIDER` separately. If `FLIRTIST_AI_PROVIDER=openai` is set without `FLIRTIST_OPENAI_API_KEY` or a shared `OPENAI_API_KEY`, `/health` will report `flirtist_ai_requested_provider=openai` and `flirtist_ai_provider=mock`.
 
 ## Manual Deploy Check
 
@@ -55,4 +56,4 @@ curl http://127.0.0.1:8000/health
 curl https://facemaxx.nostalgia-drive.com/health
 ```
 
-The health response should include both providers, for example `ai_provider: "gemini"` and `flirtist_ai_provider: "openai"`.
+The health response should include requested and effective providers, for example `ai_provider: "openai"`, `facemaxx_ai_provider: "openai"`, and `flirtist_ai_provider: "openai"`.

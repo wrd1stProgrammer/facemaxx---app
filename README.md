@@ -1,6 +1,6 @@
 # Facemaxx Backend
 
-FastAPI backend for Facemaxx analysis runs, Supabase persistence, and switchable AI providers.
+FastAPI backend for Facemaxx analysis runs, Supabase persistence, and OpenAI-backed face analysis.
 
 ## Setup
 
@@ -61,23 +61,30 @@ Supabase is still used for database metadata. Supabase Storage is only used when
 - `user_progress_snapshots`, `user_analysis_summary`: progress-tab summary data.
 - `habitdot_install_metrics`: Habitdot install-level counters, including total paywall entries.
 
-## AI Provider
+## Facemaxx AI Provider
 
 Set `AI_PROVIDER` in `.env`:
 
-- `dummy`: deterministic placeholder response for UI integration.
-- `gemini`: uses Gemini provider module.
-- `openai`: uses OpenAI provider module.
+- `openai`: Facemaxx face-analysis uses the OpenAI provider module.
+- `dummy`: deterministic placeholder response for local UI integration.
 
 The route contract stays the same while provider internals can change.
 
-Provider keys are read from `GEMINI_API_KEY` or `OPENAI_API_KEY`. Use `AI_PROVIDER=gemini` for the current real-photo analysis flow, and switch back to `AI_PROVIDER=dummy` only when you intentionally want local placeholder responses.
+Facemaxx real-photo analysis now reads `OPENAI_API_KEY` and `OPENAI_MODEL`. Keep `AI_PROVIDER=openai` for production and local real-provider testing. Older Gemini provider values are still accepted for old deployments, but Facemaxx analysis routes them to OpenAI. Use `AI_PROVIDER=dummy` only when you intentionally want local placeholder responses.
+
+Recommended Facemaxx AI settings:
+
+```env
+AI_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
+```
 
 ## Habitdot Motivation
 
 `POST /v1/habitdot/motivation` returns a short stateless motivation line for Habitdot. Because the app mounts the API router both with and without `API_PREFIX`, the same endpoint is also available at `POST /habitdot/motivation`.
 
-The endpoint uses server-side `GEMINI_API_KEY` when configured. If the key is missing or generation fails, it returns deterministic fallback copy with `provider="fallback"` and `model_name=null`.
+The endpoint currently uses server-side `GEMINI_API_KEY` when configured. If the key is missing or generation fails, it returns deterministic fallback copy with `provider="fallback"` and `model_name=null`.
 
 The iOS client should send `X-Facemaxx-Install-Id`; the route applies a small in-memory per-install/IP rate limit to protect Gemini usage. App-side caching should still keep normal usage to about one request per relevant daily habit state.
 
@@ -114,7 +121,9 @@ Flirtist endpoints are mounted with and without `API_PREFIX`, so local clients c
 Provider selection is independent from the Facemaxx face-analysis provider:
 
 ```env
-AI_PROVIDER=gemini
+AI_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
 FLIRTIST_AI_PROVIDER=openai
 FLIRTIST_OPENAI_API_KEY=
 FLIRTIST_OPENAI_MODEL=gpt-4.1-mini
@@ -157,7 +166,7 @@ Do not connect the iOS app directly with the Supabase service role key. The app 
 4. iOS sends the snapshot to `POST /v1/face-scans` with the returned `photo_id`.
 5. FastAPI stores raw geometry in `face_geometry_snapshots`.
 6. FastAPI calculates deterministic ratios and saves them in `face_metric_measurements`.
-7. Later, `POST /v1/analysis-runs` can reference `face_scan_capture_id` so Gemini/OpenAI only generates narrative explanations from already-calculated metrics.
+7. Later, `POST /v1/analysis-runs` can reference `face_scan_capture_id` so OpenAI generates narrative explanations from already-calculated metrics.
 
 For a real iPhone hitting a local FastAPI server, replace the Xcode build setting `FACEMAXX_API_BASE_URL` with your Mac LAN URL, for example `http://192.168.0.12:8000`. `127.0.0.1` only works for the simulator.
 
