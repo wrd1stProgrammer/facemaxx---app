@@ -7,18 +7,21 @@ from app.schemas.flirtist import (
     FlirtistDraftRequest,
     FlirtistGenerateRequest,
     FlirtistGoalRequest,
+    FlirtistLanguage,
     FlirtistOCRRequest,
     FlirtistPickupLinesRequest,
     FlirtistPickupLinesResponse,
     FlirtistProfileRequest,
     FlirtistResponse,
+    default_locale_for_language,
+    normalize_flirtist_language,
 )
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
 from app.services.flirtist_provider import FlirtistAIProviderGateway, FlirtistProviderTransport
 
 
 class LocaleRequest(Protocol):
-    language: str | None
+    language: FlirtistLanguage | None
     locale: str
 
 
@@ -126,14 +129,12 @@ class FlirtistService:
         return self.provider_gateway.complete(action="ocr_chat", request=request, fallback=fallback)
 
 
-def _language(request: LocaleRequest) -> str:
-    if request.language in {"en", "ko"}:
-        return request.language
-    return "ko" if request.locale.lower().startswith("ko") else "en"
+def _language(request: LocaleRequest) -> FlirtistLanguage:
+    return normalize_flirtist_language(request.language, request.locale)
 
 
-def _locale(language: str, locale: str) -> str:
-    return "ko-KR" if language == "ko" else (locale if locale.startswith("en") else "en-US")
+def _locale(language: FlirtistLanguage, locale: str) -> str:
+    return default_locale_for_language(language, locale)
 
 
 def _combined_messages(messages) -> str:

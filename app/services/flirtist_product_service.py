@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import assert_never
 from uuid import uuid4
 
-from app.schemas.flirtist import FlirtistLanguage
+from app.schemas.flirtist import FlirtistLanguage, default_locale_for_language, normalize_flirtist_language
 from app.schemas.flirtist_product import (
     FlirtistCoachChatRequest,
     FlirtistCoachChatResponse,
@@ -24,6 +24,7 @@ from app.services.flirtist_product_reply_quality import repair_reply_coaching
 from app.services.flirtist_product_repository import FlirtistProductRepository
 from app.services.flirtist_product_reply_fallback import ensure_reply_packs, reply_coaching
 from app.services.flirtist_product_transcript import clean_preview_messages, preview_messages
+from app.services.flirtist_language_profile import analysis_title
 
 
 class FlirtistProductService:
@@ -164,13 +165,11 @@ def _authoritative_chat_preview(
 
 
 def _language(language: FlirtistLanguage | None, locale: str) -> FlirtistLanguage:
-    if language in {"en", "ko"}:
-        return language
-    return "ko" if locale.lower().startswith("ko") else "en"
+    return normalize_flirtist_language(language, locale)
 
 
 def _locale(language: FlirtistLanguage, locale: str) -> str:
-    return "ko-KR" if language == "ko" else (locale if locale.startswith("en") else "en-US")
+    return default_locale_for_language(language, locale)
 
 
 def _new_id(prefix: str) -> str:
@@ -179,7 +178,11 @@ def _new_id(prefix: str) -> str:
 
 def _title(language: FlirtistLanguage, request: FlirtistProductSessionRequest) -> str:
     if request.mode == "score_analysis":
-        return "Chat Wrapped" if language == "en" else "대화 분석"
+        return analysis_title(language)
     if request.source == "screenshot":
-        return "Screenshot reply coach" if language == "en" else "스크린샷 답장 코칭"
-    return "Manual text reply coach" if language == "en" else "텍스트 답장 코칭"
+        if language == "ko":
+            return "스크린샷 답장 코칭"
+        return "Screenshot reply coach"
+    if language == "ko":
+        return "텍스트 답장 코칭"
+    return "Manual text reply coach"

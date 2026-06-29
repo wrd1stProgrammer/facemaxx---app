@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Final, assert_never
+from typing import Final
 
 from app.schemas.flirtist import FlirtistLanguage
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
@@ -24,24 +24,16 @@ LOW_VALUE_COACH_PHRASES: Final = (
 def coach_answer(language: FlirtistLanguage, request: FlirtistCoachChatRequest) -> str:
     message = _effective_message(request)
     context_hint = _context_hint(language, request.context)
-    match language:
-        case "ko":
-            return ko_answer(context_hint, ko_intent(message), message)
-        case "en":
-            return _en_answer(context_hint, message)
-        case unreachable:
-            assert_never(unreachable)
+    if language == "ko":
+        return ko_answer(context_hint, ko_intent(message), message)
+    return _en_answer(context_hint, message)
 
 
 def coach_suggestions(language: FlirtistLanguage, request: FlirtistCoachChatRequest) -> list[str]:
     message = _effective_message(request)
-    match language:
-        case "ko":
-            return ko_suggestions(ko_intent(message))
-        case "en":
-            return _en_suggestions(message)
-        case unreachable:
-            assert_never(unreachable)
+    if language == "ko":
+        return ko_suggestions(ko_intent(message))
+    return _en_suggestions(message)
 
 
 def repair_coach_response(

@@ -14,6 +14,7 @@ from app.services.flirtist_product_reply_context import ReplyContext
 from app.services.flirtist_product_reply_context_builder import reply_context_from_messages
 from app.services.flirtist_product_reply_texts_en import en_reply_texts
 from app.services.flirtist_product_reply_texts_ko import ko_reply_texts
+from app.services.flirtist_language_profile import reply_headline, reply_pack_specs as localized_reply_pack_specs
 
 
 def reply_coaching(
@@ -26,7 +27,7 @@ def reply_coaching(
     packs = reply_packs(language, context, focus=focus)
     selected = next((pack for pack in packs if pack.style == style.lower()), packs[0])
     return FlirtistReplyCoaching(
-        headline="AI 추천 답장" if language == "ko" else "AI generated rizz",
+        headline=reply_headline(language),
         summary=_summary(language, context),
         nextMove=_next_move(language, context),
         replies=selected.replies,
@@ -121,21 +122,7 @@ def _reply_context(language: FlirtistLanguage, messages: list[FlirtistPreviewMes
 
 
 def _reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, str]]:
-    if language == "ko":
-        return [
-            ("genuine", "자연스럽게", "자연스러운 답장", "bolt.fill"),
-            ("nsfw", "아슬하게", "아슬한 텐션", "flame.fill"),
-            ("flirty", "은근 설레게", "은근한 플러팅", "heart.fill"),
-            ("witty", "센스있게", "센스 있는 답장", "sparkles"),
-            ("romantic", "다정하게", "다정한 답장", "heart.circle.fill"),
-        ]
-    return [
-        ("genuine", "Natural", "Natural replies", "bolt.fill"),
-        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
-        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
-        ("witty", "Witty", "Witty replies", "sparkles"),
-        ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
-    ]
+    return localized_reply_pack_specs(language)
 
 
 def _reply_texts(

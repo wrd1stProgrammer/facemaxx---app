@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Final, assert_never
+from typing import Final
 
 from app.schemas.flirtist import FlirtistLanguage
 from app.schemas.flirtist_product import FlirtistCoachChatRequest
@@ -49,13 +49,9 @@ def _bullet_for_message(language: FlirtistLanguage, text: str) -> str | None:
     message = _normalized(text)
     if not message or _is_generic_followup(message):
         return None
-    match language:
-        case "ko":
-            return _ko_bullet(message)
-        case "en":
-            return _en_bullet(message)
-        case unreachable:
-            assert_never(unreachable)
+    if language == "ko":
+        return _ko_bullet(message)
+    return _en_bullet(message)
 
 
 def _ko_bullet(message: str) -> str | None:

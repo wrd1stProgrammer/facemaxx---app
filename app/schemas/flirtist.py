@@ -1,13 +1,69 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Final, Literal, Optional
 
 from pydantic import Field, field_validator
 
 from app.schemas.common import FacemaxxBaseModel
 
 
-FlirtistLanguage = Literal["en", "ko"]
+FlirtistLanguage = Literal["en", "ko", "ja", "zh-Hant", "es-MX", "pt-BR", "fr", "de", "th", "id"]
+SUPPORTED_FLIRTIST_LANGUAGES: Final[tuple[FlirtistLanguage, ...]] = (
+    "en",
+    "ko",
+    "ja",
+    "zh-Hant",
+    "es-MX",
+    "pt-BR",
+    "fr",
+    "de",
+    "th",
+    "id",
+)
+DEFAULT_LOCALE_BY_LANGUAGE: Final[dict[FlirtistLanguage, str]] = {
+    "en": "en-US",
+    "ko": "ko-KR",
+    "ja": "ja-JP",
+    "zh-Hant": "zh-Hant",
+    "es-MX": "es-MX",
+    "pt-BR": "pt-BR",
+    "fr": "fr-FR",
+    "de": "de-DE",
+    "th": "th-TH",
+    "id": "id-ID",
+}
+
+
+def normalize_flirtist_language(language: FlirtistLanguage | None, locale: str) -> FlirtistLanguage:
+    if language in SUPPORTED_FLIRTIST_LANGUAGES:
+        return language
+    normalized_locale = locale.strip().lower()
+    if normalized_locale.startswith("ko"):
+        return "ko"
+    if normalized_locale.startswith("ja"):
+        return "ja"
+    if normalized_locale.startswith("zh"):
+        return "zh-Hant"
+    if normalized_locale.startswith("es"):
+        return "es-MX"
+    if normalized_locale.startswith("pt-br") or normalized_locale.startswith("pt_br"):
+        return "pt-BR"
+    if normalized_locale.startswith("fr"):
+        return "fr"
+    if normalized_locale.startswith("de"):
+        return "de"
+    if normalized_locale.startswith("th"):
+        return "th"
+    if normalized_locale.startswith("id") or normalized_locale.startswith("in"):
+        return "id"
+    return "en"
+
+
+def default_locale_for_language(language: FlirtistLanguage, requested_locale: str) -> str:
+    normalized_locale = requested_locale.strip()
+    if normalized_locale:
+        return normalized_locale
+    return DEFAULT_LOCALE_BY_LANGUAGE[language]
 
 
 class FlirtistMessage(FacemaxxBaseModel):

@@ -12,6 +12,8 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleRequest,
     FlirtistReplyStyleResponse,
 )
+from app.schemas.flirtist import normalize_flirtist_language
+from app.services.flirtist_language_profile import analysis_title, culture_guidance, language_name
 from app.services.flirtist_product_transcript import sanitized_transcript_text
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -19,15 +21,21 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 
 def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistProductSessionResponse) -> str:
     prompt_request = request.model_copy(update={"text": sanitized_transcript_text(request.text)})
+    target_language = normalize_flirtist_language(request.language, request.locale)
     return "\n".join(
         [
-            "You are Flirtist, a bilingual dating situation coach. Return one JSON object only.",
+            "You are Flirtist, a multilingual dating situation coach. Return one JSON object only.",
+            f"Target language: {language_name(target_language)}. Locale: {request.locale}.",
+            f"Cultural tone guide: {culture_guidance(target_language)}",
+            "All user-facing text in the JSON must be written in the target language, including analysis titles, labels, reply text, whyItWorks, summaries, nextMove, redFlags, greenFlags, and attachment phrases.",
             "If a Cloudinary screenshot URL is attached and no transcript text is provided, read the visible chat/profile content from the image.",
             "If transcript text is provided, treat it as authoritative OCR. Infer the latest actionable exchange from the whole transcript, not only the final short reaction.",
+            "Role contract for screenshots and transcripts: Them = left-side incoming bubbles from the other person; Me = right-side outgoing bubbles from the app user.",
+            "For reply_coach, always write what Me should send next to Them. Never write the message Them should send to Me.",
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
-            "For score_analysis, localize the analysisCard title: use '대화 분석' for Korean and 'Chat Wrapped' for English.",
+            f"For score_analysis, localize the analysisCard title as: {analysis_title(target_language)}.",
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
             "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
@@ -35,6 +43,7 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "Within each style pack, the four replies must use four different tactics: 1) move the accepted plan forward, 2) ask one concrete missing detail, 3) add a light emotional reaction, 4) make a playful callback to a real chat detail.",
             "Do not anchor all replies on the same visible noun or phrase. Use the underlying situation, and reuse a chat keyword only when it naturally advances the next message.",
             "Keep the initial reply_coach JSON compact: four short alternatives per style, no extra variants beyond those four.",
+            "Keep every reply short enough for a phone card: Korean usually 12-34 characters, English usually under 90 characters. Keep whyItWorks under 14 words.",
             "Style rules: genuine/natural = realistic and closest to the user's tone; nsfw/bold = stronger tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic/warm = attentive without sounding committed too soon.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
@@ -57,15 +66,22 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
 
 def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplyStyleResponse) -> str:
     prompt_request = request.model_copy(update={"context": sanitized_transcript_text(request.context) or request.context})
+    target_language = normalize_flirtist_language(request.language, request.locale)
     return "\n".join(
         [
             "Rewrite the dating reply in the requested style. Return one JSON object only.",
+            f"Target language: {language_name(target_language)}. Locale: {request.locale}.",
+            f"Cultural tone guide: {culture_guidance(target_language)}",
+            "All returned reply text, labels, summary, nextMove, and whyItWorks must be in the target language.",
+            "Rewrite as Me talking to Them. In screenshots, Them means left-side incoming and Me means right-side outgoing.",
+            "Never produce a reply that Them would send to Me.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
             "Ignore OCR placeholders and UI chrome such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
             "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",
             "The four alternatives must be meaningfully different, not the same idea with swapped adjectives. Vary the move: plan-forward, concrete missing detail, light emotional reaction, playful callback.",
+            "Keep each alternative short enough for a phone card: Korean usually 12-34 characters, English usually under 90 characters.",
             "Do not anchor every alternative on the same keyword from the screenshot. Use the situation behind the keyword and keep the language sendable.",
             "If the context includes an accepted plan, city, food, or meetup, every alternative must mention that concrete plan instead of generic emotional support.",
             "For accepted-plan chats, keep at least one concrete plan detail in each alternative, such as the city/place, food/meal, timing, contact, or meetup action.",
@@ -83,9 +99,13 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
 
 
 def _coach_prompt(request: FlirtistCoachChatRequest, fallback: FlirtistCoachChatResponse) -> str:
+    target_language = normalize_flirtist_language(request.language, request.locale)
     return "\n".join(
         [
             "You are a private 1:1 dating practice coach inside Flirtist.",
+            f"Target language: {language_name(target_language)}. Locale: {request.locale}.",
+            f"Cultural tone guide: {culture_guidance(target_language)}",
+            "Answer, suggestions, and memorySummary must be in the target language unless the user explicitly asks otherwise.",
             "Answer like a sharp human DM coach: concise, specific, warm, and immediately usable.",
             "Do not quote, title-case, or restate the user's question. Never start with '<user message> situation...' or a translated restatement.",
             "If the latest user message is a follow-up like 'so what should I send?' or '그니까 뭐라보낼까', use the previous meaningful user message in history as the real situation.",

@@ -11,6 +11,7 @@ from app.schemas.flirtist_product import (
     FlirtistMessageCount,
     FlirtistPreviewMessage,
 )
+from app.services.flirtist_language_profile import analysis_title
 from app.services.flirtist_product_transcript import is_ui_noise_text
 
 _WORD_RE: Final[re.Pattern[str]] = re.compile(r"[가-힣A-Za-z0-9]+")
@@ -68,7 +69,7 @@ def analysis_card(language: FlirtistLanguage, messages: list[FlirtistPreviewMess
     counts = FlirtistMessageCount(you=max(len(my_messages), 1), them=max(len(them_messages), 1))
     you_interest, them_interest = _interest_scores(language, my_messages, them_messages)
     return FlirtistAnalysisCard(
-        title="대화 분석" if language == "ko" else "Chat Wrapped",
+        title=analysis_title(language),
         messageCount=counts,
         interestLevel=FlirtistInterestBreakdown(you=you_interest, them=them_interest),
         meaningfulWordsYou=_keywords(language, my_messages),
