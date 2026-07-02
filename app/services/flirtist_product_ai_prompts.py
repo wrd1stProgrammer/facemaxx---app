@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TypeAlias
+from typing import Final, TypeAlias
 
 from app.schemas.common import FacemaxxBaseModel
 from app.schemas.flirtist_product import (
@@ -17,6 +17,15 @@ from app.services.flirtist_language_profile import analysis_title, culture_guida
 from app.services.flirtist_product_transcript import sanitized_transcript_text
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+
+STYLE_PURPOSE_CONTRACT: Final[tuple[str, ...]] = (
+    "Style purpose contract:",
+    "genuine: keep the conversation easy to continue without pressure",
+    "witty: create light banter from one real chat detail",
+    "flirty: show interest clearly but do not overplay it",
+    "romantic: give emotional steadiness or empathy without premature commitment",
+    "nsfw: raise tension safely without explicit sexual content, coercion, or creepy pressure",
+)
 
 
 def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistProductSessionResponse) -> str:
@@ -38,13 +47,15 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             f"For score_analysis, localize the analysisCard title as: {analysis_title(target_language)}.",
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
-            "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, nsfw, flirty, witty, romantic.",
+            "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, witty, flirty, romantic, nsfw.",
+            *STYLE_PURPOSE_CONTRACT,
             "Each style pack must be grounded in the same latest actionable chat context and include exactly four copy-ready replies that would be wrong for a different chat.",
             "Within each style pack, the four replies must use four different tactics: 1) move the accepted plan forward, 2) ask one concrete missing detail, 3) add a light emotional reaction, 4) make a playful callback to a real chat detail.",
             "Do not anchor all replies on the same visible noun or phrase. Use the underlying situation, and reuse a chat keyword only when it naturally advances the next message.",
             "Keep the initial reply_coach JSON compact: four short alternatives per style, no extra variants beyond those four.",
             "Keep every reply short enough for a phone card: Korean usually 12-34 characters, English usually under 90 characters. Keep whyItWorks under 14 words.",
-            "Style rules: genuine/natural = realistic and closest to the user's tone; nsfw/bold = stronger tension but non-explicit and not creepy; flirty = light interest; witty = a concrete joke from the chat detail; romantic/warm = attentive without sounding committed too soon.",
+            "The selected style must change the purpose, not just the adjectives. Do not make five style packs that are the same reply with different warmth levels.",
+            "whyItWorks must explain why that purpose fits this chat, not just restate that the reply is good.",
             "Every reply must be copy-ready text the user can send. Never start with speaker labels, OCR fragments, Message..., Them:, Me:, or explanations.",
             "Ground every reply in the last meaningful chat message. If there is enough context, avoid generic prompts like 'tell me more' unless phrased around a specific detail.",
             "Do not quote a full incoming message inside the reply. A short callback is fine; parroting the screenshot text is a failure.",
@@ -76,6 +87,9 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "Rewrite as Me talking to Them. In screenshots, Them means left-side incoming and Me means right-side outgoing.",
             "Never produce a reply that Them would send to Me.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
+            *STYLE_PURPOSE_CONTRACT,
+            "The selected style must change the purpose, not just the adjectives. Do not return four paraphrases of the same move.",
+            "whyItWorks must explain why that purpose fits this chat, not just restate that the reply is good.",
             "Ignore OCR placeholders and UI chrome such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
@@ -164,10 +178,10 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
     ]
     pack_specs = [
         ("genuine", "Natural", "Natural replies", "bolt.fill"),
-        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
-        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
         ("witty", "Witty", "Witty replies", "sparkles"),
+        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
         ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
+        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
     ]
     packs = [
         {

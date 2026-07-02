@@ -134,82 +134,82 @@ def reply_pack_specs(language: FlirtistLanguage) -> list[tuple[str, str, str, st
         case "ko":
             return [
                 ("genuine", "자연스럽게", "자연스러운 답장", "bolt.fill"),
-                ("nsfw", "아슬하게", "아슬한 텐션", "flame.fill"),
-                ("flirty", "은근 설레게", "은근한 플러팅", "heart.fill"),
                 ("witty", "센스있게", "센스 있는 답장", "sparkles"),
+                ("flirty", "은근 설레게", "은근한 플러팅", "heart.fill"),
                 ("romantic", "다정하게", "다정한 답장", "heart.circle.fill"),
+                ("nsfw", "아슬하게", "아슬한 텐션", "flame.fill"),
             ]
         case "ja":
             return [
                 ("genuine", "自然に", "自然な返信", "bolt.fill"),
-                ("nsfw", "少し攻める", "少し攻めた返信", "flame.fill"),
-                ("flirty", "さりげなく好意", "さりげない返信", "heart.fill"),
                 ("witty", "気の利いた", "気の利いた返信", "sparkles"),
+                ("flirty", "さりげなく好意", "さりげない返信", "heart.fill"),
                 ("romantic", "やさしく", "やさしい返信", "heart.circle.fill"),
+                ("nsfw", "少し攻める", "少し攻めた返信", "flame.fill"),
             ]
         case "zh-Hant":
             return [
                 ("genuine", "自然", "自然回覆", "bolt.fill"),
-                ("nsfw", "更曖昧", "更有張力的回覆", "flame.fill"),
-                ("flirty", "輕鬆調情", "調情回覆", "heart.fill"),
                 ("witty", "機智", "機智回覆", "sparkles"),
+                ("flirty", "輕鬆調情", "調情回覆", "heart.fill"),
                 ("romantic", "溫柔", "溫柔回覆", "heart.circle.fill"),
+                ("nsfw", "更曖昧", "更有張力的回覆", "flame.fill"),
             ]
         case "es-MX":
             return [
                 ("genuine", "Natural", "Respuestas naturales", "bolt.fill"),
-                ("nsfw", "Más atrevido", "Respuestas con más tensión", "flame.fill"),
-                ("flirty", "Coqueto", "Respuestas coquetas", "heart.fill"),
                 ("witty", "Ingenioso", "Respuestas ingeniosas", "sparkles"),
+                ("flirty", "Coqueto", "Respuestas coquetas", "heart.fill"),
                 ("romantic", "Cálido", "Respuestas cálidas", "heart.circle.fill"),
+                ("nsfw", "Más atrevido", "Respuestas con más tensión", "flame.fill"),
             ]
         case "pt-BR":
             return [
                 ("genuine", "Natural", "Respostas naturais", "bolt.fill"),
-                ("nsfw", "Mais ousado", "Respostas mais ousadas", "flame.fill"),
-                ("flirty", "Com flerte", "Respostas com flerte", "heart.fill"),
                 ("witty", "Esperto", "Respostas espertas", "sparkles"),
+                ("flirty", "Com flerte", "Respostas com flerte", "heart.fill"),
                 ("romantic", "Carinhoso", "Respostas carinhosas", "heart.circle.fill"),
+                ("nsfw", "Mais ousado", "Respostas mais ousadas", "flame.fill"),
             ]
         case "fr":
             return [
                 ("genuine", "Naturel", "Réponses naturelles", "bolt.fill"),
-                ("nsfw", "Plus direct", "Réponses plus directes", "flame.fill"),
-                ("flirty", "Flirt léger", "Réponses flirty", "heart.fill"),
                 ("witty", "Malin", "Réponses malines", "sparkles"),
+                ("flirty", "Flirt léger", "Réponses flirty", "heart.fill"),
                 ("romantic", "Chaleureux", "Réponses chaleureuses", "heart.circle.fill"),
+                ("nsfw", "Plus direct", "Réponses plus directes", "flame.fill"),
             ]
         case "de":
             return [
                 ("genuine", "Natürlich", "Natürliche Antworten", "bolt.fill"),
-                ("nsfw", "Mutiger", "Mutigere Antworten", "flame.fill"),
-                ("flirty", "Flirty", "Flirty Antworten", "heart.fill"),
                 ("witty", "Schlagfertig", "Schlagfertige Antworten", "sparkles"),
+                ("flirty", "Flirty", "Flirty Antworten", "heart.fill"),
                 ("romantic", "Warm", "Warme Antworten", "heart.circle.fill"),
+                ("nsfw", "Mutiger", "Mutigere Antworten", "flame.fill"),
             ]
         case "th":
             return [
                 ("genuine", "เป็นธรรมชาติ", "คำตอบแบบธรรมชาติ", "bolt.fill"),
-                ("nsfw", "กล้าขึ้น", "คำตอบที่มีแรงดึงดูด", "flame.fill"),
-                ("flirty", "หยอดเบา ๆ", "คำตอบแนวจีบ", "heart.fill"),
                 ("witty", "มีไหวพริบ", "คำตอบฉลาด ๆ", "sparkles"),
+                ("flirty", "หยอดเบา ๆ", "คำตอบแนวจีบ", "heart.fill"),
                 ("romantic", "อบอุ่น", "คำตอบอบอุ่น", "heart.circle.fill"),
+                ("nsfw", "กล้าขึ้น", "คำตอบที่มีแรงดึงดูด", "flame.fill"),
             ]
         case "id":
             return [
                 ("genuine", "Natural", "Balasan natural", "bolt.fill"),
-                ("nsfw", "Lebih berani", "Balasan lebih berani", "flame.fill"),
-                ("flirty", "Menggoda ringan", "Balasan menggoda", "heart.fill"),
                 ("witty", "Cerdas", "Balasan cerdas", "sparkles"),
+                ("flirty", "Menggoda ringan", "Balasan menggoda", "heart.fill"),
                 ("romantic", "Hangat", "Balasan hangat", "heart.circle.fill"),
+                ("nsfw", "Lebih berani", "Balasan lebih berani", "flame.fill"),
             ]
         case "en":
             return [
                 ("genuine", "Natural", "Natural replies", "bolt.fill"),
-                ("nsfw", "Bold", "Bolder replies", "flame.fill"),
-                ("flirty", "Flirty", "Flirty replies", "heart.fill"),
                 ("witty", "Witty", "Witty replies", "sparkles"),
+                ("flirty", "Flirty", "Flirty replies", "heart.fill"),
                 ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
+                ("nsfw", "Bold", "Bolder replies", "flame.fill"),
             ]
         case unreachable:
             assert_never(unreachable)

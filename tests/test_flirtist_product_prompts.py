@@ -70,7 +70,7 @@ class FlirtistProductPromptTest(unittest.TestCase):
 
         # Then
         self.assertIn("replyPacks", prompt)
-        self.assertIn("genuine, nsfw, flirty, witty, romantic", prompt)
+        self.assertIn("genuine, witty, flirty, romantic, nsfw", prompt)
         self.assertIn("Each style pack must be grounded in the same latest actionable chat context", prompt)
         self.assertIn("exactly four copy-ready replies", prompt)
         self.assertIn("four different tactics", prompt)

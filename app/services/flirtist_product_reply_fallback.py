@@ -220,23 +220,23 @@ def _why_for_style(language: FlirtistLanguage, style: str) -> str:
     if language == "ko":
         match style:
             case "nsfw":
-                return "강한 텐션은 주되 노골적 압박 없이 선택권을 남깁니다."
+                return "텐션은 올리되 노골적 압박 없이 선택권을 남깁니다."
             case "witty":
-                return "가벼운 농담으로 대화를 부담 없이 이어갑니다."
+                return "실제 대화 포인트로 가벼운 티키타카를 만듭니다."
             case "romantic":
-                return "상대가 꺼낸 맥락을 챙겨 진심이 살아납니다."
+                return "상대의 감정을 받아줘 안정감 있게 이어집니다."
             case "flirty":
-                return "상대의 말을 받아주면서 자연스럽게 관심을 드러냅니다."
+                return "호감은 보이되 과하지 않아 답하기 편합니다."
             case _:
-                return "상대가 실제로 말한 내용을 되짚어 답장하기 쉽습니다."
+                return "부담 없이 이어갈 명분을 만들어 답장하기 쉽습니다."
     match style:
         case "nsfw":
-            return "It raises tension without getting explicit or pressuring them."
+            return "It raises tension without explicit pressure."
         case "witty":
-            return "The joke keeps the conversation light and specific."
+            return "Real chat detail turns into light banter."
         case "romantic":
-            return "It feels attentive without overdoing it."
+            return "It gives empathy without rushing commitment."
         case "flirty":
-            return "It mirrors their topic while showing interest."
+            return "It shows interest without overplaying it."
         case _:
-            return "It is warm, specific, and easy to answer."
+            return "It keeps the thread easy to continue."
