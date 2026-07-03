@@ -109,6 +109,64 @@ class FlirtistProductReplyQualityTest(unittest.TestCase):
         self.assertNotIn("편할 때 이어서", reply_text)
         self.assertRegex(reply_text, "무슨|앞뒤|상황|일|맥락")
 
+    def test_plan_reply_from_them_perspective_is_repaired(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=WrongPerspectivePlanAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        reply_text = " ".join(reply.text for reply in response.replyCoaching.replies)
+        self.assertNotIn("사줘", reply_text)
+        self.assertNotIn("광주 갈게", reply_text)
+        self.assertRegex(reply_text, "사줄|연락|광주|맛")
+
+    def test_fallback_replies_have_distinct_reasons_and_scores(self) -> None:
+        # Given
+        service = FlirtistProductService(
+            ai=NoopAI(),
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text="Them: 오늘 너 생각났어 약간 웃겼음\nMe: 왜 갑자기?",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertIsNotNone(response.replyCoaching)
+        assert response.replyCoaching is not None
+        replies = response.replyCoaching.replies
+        self.assertGreater(len({reply.whyItWorks for reply in replies}), 1)
+        self.assertGreater(
+            len({(reply.aiObviousness, reply.pressure, reply.replyLikelihood) for reply in replies}),
+            1,
+        )
+
 
 class NoopAI:
     def complete_session(
@@ -119,6 +177,37 @@ class NoopAI:
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
         return fallback
+
+
+class WrongPerspectivePlanAI:
+    def complete_session(
+        self,
+        *,
+        request: FlirtistProductSessionRequest,
+        fallback: FlirtistProductSessionResponse,
+        image_url: str | None,
+    ) -> FlirtistProductSessionResponse:
+        assert fallback.replyCoaching is not None
+        wrong = FlirtistReplyOption(
+            id="reply_wrong_perspective",
+            style="genuine",
+            text="좋아 광주 갈게. 가면 맛난 거 사줘",
+            whyItWorks="상대가 약속을 받아들이는 답장이라 자연스럽다.",
+            aiObviousness=12,
+            pressure=18,
+            replyLikelihood=84,
+        )
+        return fallback.model_copy(
+            update={
+                "replyCoaching": FlirtistReplyCoaching(
+                    headline=fallback.replyCoaching.headline,
+                    summary=fallback.replyCoaching.summary,
+                    nextMove=fallback.replyCoaching.nextMove,
+                    replies=[wrong],
+                    replyPacks=[],
+                )
+            }
+        )
 
 
 class LowValueProviderAI:

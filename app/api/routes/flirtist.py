@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import RequestIdentity, get_request_identity
 
@@ -23,6 +23,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleRequest,
     FlirtistReplyStyleResponse,
 )
+from app.services.flirtist_product_ai import FlirtistProductAIError
 from app.services.flirtist_product_service import FlirtistProductService
 from app.services.flirtist_service import FlirtistService
 
@@ -69,16 +70,22 @@ async def create_product_session(
     request: FlirtistProductSessionRequest,
     identity: Annotated[RequestIdentity, Depends(get_request_identity)],
 ) -> FlirtistProductSessionResponse:
-    return FlirtistProductService().create_session(
-        request,
-        user_id=identity.user_id,
-        client_install_id=identity.client_install_id,
-    )
+    try:
+        return FlirtistProductService().create_session(
+            request,
+            user_id=identity.user_id,
+            client_install_id=identity.client_install_id,
+        )
+    except FlirtistProductAIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/reply-style", response_model=FlirtistReplyStyleResponse)
 async def regenerate_reply_style(request: FlirtistReplyStyleRequest) -> FlirtistReplyStyleResponse:
-    return FlirtistProductService().regenerate_reply(request)
+    try:
+        return FlirtistProductService().regenerate_reply(request)
+    except FlirtistProductAIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/coach-chat", response_model=FlirtistCoachChatResponse)

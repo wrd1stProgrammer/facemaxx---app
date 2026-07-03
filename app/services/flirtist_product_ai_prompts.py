@@ -31,6 +31,7 @@ STYLE_PURPOSE_CONTRACT: Final[tuple[str, ...]] = (
 def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistProductSessionResponse) -> str:
     prompt_request = request.model_copy(update={"text": sanitized_transcript_text(request.text)})
     target_language = normalize_flirtist_language(request.language, request.locale)
+    latest_them_message = _latest_them_message(prompt_request.text)
     return "\n".join(
         [
             "You are Flirtist, a multilingual dating situation coach. Return one JSON object only.",
@@ -40,7 +41,10 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "If a Cloudinary screenshot URL is attached and no transcript text is provided, read the visible chat/profile content from the image.",
             "If transcript text is provided, treat it as authoritative OCR. Infer the latest actionable exchange from the whole transcript, not only the final short reaction.",
             "Role contract for screenshots and transcripts: Them = left-side incoming bubbles from the other person; Me = right-side outgoing bubbles from the app user.",
-            "For reply_coach, always write what Me should send next to Them. Never write the message Them should send to Me.",
+            "For reply_coach, always write what Me should send next to Them. Never write the message Them should send to Me, and never answer as if Them is comforting, teasing, or replying to Me.",
+            f"For reply_coach, answer the latest meaningful Them message: {latest_them_message or '<infer latest Them message from transcript>'}. If the final line is Me, suggest a low-pressure follow-up from Me instead of inventing Them's reply.",
+            "Perspective fail examples: if Me offered food/help/a meetup and Them accepted, do not write a reply where Them accepts the offer. Write Me confirming or moving the plan forward.",
+            "For Korean accepted-plan chats, phrases like '갈게', '사줘', or '해줘' are usually Them's perspective when Me was the one offering. Avoid them unless Me is clearly the visitor/requester in the transcript.",
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
@@ -86,6 +90,8 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "All returned reply text, labels, summary, nextMove, and whyItWorks must be in the target language.",
             "Rewrite as Me talking to Them. In screenshots, Them means left-side incoming and Me means right-side outgoing.",
             "Never produce a reply that Them would send to Me.",
+            "If Me offered food/help/a meetup and Them accepted, do not write a reply where Them accepts the offer. Write Me confirming or moving the plan forward.",
+            "For Korean accepted-plan chats, phrases like '갈게', '사줘', or '해줘' are usually Them's perspective when Me was the one offering. Avoid them unless Me is clearly the visitor/requester in the context.",
             "Keep it natural, low-pressure, and safe. Do not mention that AI wrote it.",
             *STYLE_PURPOSE_CONTRACT,
             "The selected style must change the purpose, not just the adjectives. Do not return four paraphrases of the same move.",
@@ -103,6 +109,7 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "For Korean, make every alternative sound like a native Korean text message. Avoid 당신, direct English translation rhythm, and repeated coffee/default invite wording.",
             "Keep the existing closeness level from the base reply and context; do not suddenly become too intimate.",
             "Return exactly 4 alternatives in replyCoaching.replies and a matching single replyPacks entry with those same 4 alternatives.",
+            "Treat existingReplies as blocked outputs. Do not repeat or lightly paraphrase any existingReplies item; the four alternatives must be new.",
             "If focus is provided, weave that word or phrase into the alternatives naturally.",
             "If style is nsfw, make it bold and tense but non-explicit, consenting-adult, and never sexually pressuring.",
             "For nsfw, avoid secret-place, night-time, heart-racing, and 'you will not regret it' clichés unless the chat clearly contains that detail.",
@@ -162,7 +169,13 @@ def _contract_json(fallback: FacemaxxBaseModel) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: bool = False) -> dict[str, JsonValue]:
+def _reply_coaching_contract(
+    *,
+    include_pack: bool = False,
+    include_all_packs: bool = False,
+    replies_per_pack: int = 4,
+) -> dict[str, JsonValue]:
+    reply_count = min(max(replies_per_pack, 1), 4)
     option = {
         "id": "reply_ai_1",
         "style": "genuine",
@@ -174,7 +187,7 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
     }
     options = [
         option | {"id": f"reply_ai_{index}", "text": f"<copy-ready reply text {index}>"}
-        for index in range(1, 5)
+        for index in range(1, reply_count + 1)
     ]
     pack_specs = [
         ("genuine", "Natural", "Natural replies", "bolt.fill"),
@@ -207,6 +220,18 @@ def _reply_coaching_contract(*, include_pack: bool = False, include_all_packs: b
         "replies": options,
         "replyPacks": packs,
     }
+
+
+def _latest_them_message(text: str | None) -> str | None:
+    if not text:
+        return None
+    for line in reversed(text.splitlines()):
+        lowered = line.lower().strip()
+        for prefix in ("them:", "상대:", "그쪽:"):
+            if lowered.startswith(prefix):
+                value = line.split(":", 1)[1].strip()
+                return value[:160] if value else None
+    return None
 
 
 def _analysis_card_contract() -> dict[str, JsonValue]:

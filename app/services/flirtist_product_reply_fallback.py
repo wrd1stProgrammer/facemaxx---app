@@ -39,19 +39,23 @@ def ensure_reply_packs(
     coaching: FlirtistReplyCoaching,
     language: FlirtistLanguage,
     messages: list[FlirtistPreviewMessage] | None = None,
+    excluded_texts: list[str] | None = None,
+    fill_missing: bool = True,
 ) -> FlirtistReplyCoaching:
     context = _reply_context(language, messages or [])
     fallback_packs = reply_packs(language, context)
-    packs = _complete_reply_packs(coaching.replyPacks, fallback_packs)
+    packs = _complete_reply_packs(coaching.replyPacks, fallback_packs, excluded_texts, fill_missing)
     if coaching.replies:
         primary_style = coaching.replies[0].style or fallback_packs[0].style
-        packs = _packs_with_primary_replies(packs, primary_style, coaching.replies)
+        packs = _packs_with_primary_replies(packs, primary_style, coaching.replies, excluded_texts, fill_missing)
     return coaching.model_copy(update={"replyPacks": packs})
 
 
 def _complete_reply_packs(
     provider_packs: list[FlirtistReplyPack],
     fallback_packs: list[FlirtistReplyPack],
+    excluded_texts: list[str] | None,
+    fill_missing: bool,
 ) -> list[FlirtistReplyPack]:
     if not provider_packs:
         return fallback_packs
@@ -68,7 +72,7 @@ def _complete_reply_packs(
                 "label": fallback.label,
                 "buttonTitle": fallback.buttonTitle,
                 "iconName": fallback.iconName,
-                "replies": _four_reply_options(pack.replies, fallback.replies),
+                "replies": _reply_options(pack.replies, fallback.replies, excluded_texts, fill_missing),
             }
         )
     return [provider_by_style.get(pack.style, pack) for pack in fallback_packs]
@@ -78,23 +82,52 @@ def _packs_with_primary_replies(
     packs: list[FlirtistReplyPack],
     primary_style: str,
     replies: list[FlirtistReplyOption],
+    excluded_texts: list[str] | None,
+    fill_missing: bool,
 ) -> list[FlirtistReplyPack]:
     primary = primary_style.lower()
     target_index = next((index for index, pack in enumerate(packs) if pack.style == primary), 0)
-    return [
-        pack.model_copy(update={"replies": replies[:4]})
-        if index == target_index and len(replies) >= len(pack.replies)
-        else pack
-        for index, pack in enumerate(packs)
-    ]
+    updated_packs: list[FlirtistReplyPack] = []
+    for index, pack in enumerate(packs):
+        if index != target_index:
+            updated_packs.append(pack)
+            continue
+        next_replies = _reply_options(replies, pack.replies, excluded_texts, fill_missing)
+        if len(next_replies) >= len(pack.replies) or (not fill_missing and next_replies):
+            updated_packs.append(pack.model_copy(update={"replies": next_replies}))
+        else:
+            updated_packs.append(pack)
+    return updated_packs
 
 
-def _four_reply_options(
+def _reply_options(
     provider_replies: list[FlirtistReplyOption],
     fallback_replies: list[FlirtistReplyOption],
+    excluded_texts: list[str] | None,
+    fill_missing: bool,
 ) -> list[FlirtistReplyOption]:
-    replies = provider_replies[:4]
-    return (replies + fallback_replies)[:4]
+    blocked = {_normalized_reply_text(text) for text in excluded_texts or []}
+    seen: set[str] = set()
+    replies: list[FlirtistReplyOption] = []
+    for reply in provider_replies:
+        normalized = _normalized_reply_text(reply.text)
+        if not normalized or normalized in blocked or normalized in seen:
+            continue
+        replies.append(reply)
+        seen.add(normalized)
+        if len(replies) >= 4:
+            return replies
+    if not fill_missing:
+        return replies
+    for fallback in fallback_replies:
+        normalized = _normalized_reply_text(fallback.text)
+        if not normalized or normalized in blocked or normalized in seen:
+            continue
+        replies.append(fallback)
+        seen.add(normalized)
+        if len(replies) >= 4:
+            break
+    return replies
 
 
 def reply_packs(
@@ -109,8 +142,8 @@ def reply_packs(
             buttonTitle=button_title,
             iconName=icon,
             replies=[
-                _reply_option(language, style, text, _why_for_style(language, style))
-                for text in _reply_texts(language, style, context, focus)
+                _reply_option(language, style, text, _why_for_style(language, style, index), index)
+                for index, text in enumerate(_reply_texts(language, style, context, focus)[:4])
             ],
         )
         for style, label, button_title, icon in _reply_pack_specs(language)
@@ -204,39 +237,69 @@ def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
             assert_never(unreachable)
 
 
-def _reply_option(language: FlirtistLanguage, style: str, text: str, why: str) -> FlirtistReplyOption:
+def _reply_option(language: FlirtistLanguage, style: str, text: str, why: str, index: int) -> FlirtistReplyOption:
+    ai_obviousness, pressure, reply_likelihood = _metrics_for_style(style, index)
     return FlirtistReplyOption(
         id=f"reply_{uuid4().hex[:18]}",
         style=style,
         text=text,
         whyItWorks=why,
-        aiObviousness=12,
-        pressure=18,
-        replyLikelihood=84,
+        aiObviousness=ai_obviousness,
+        pressure=pressure,
+        replyLikelihood=reply_likelihood,
     )
 
 
-def _why_for_style(language: FlirtistLanguage, style: str) -> str:
+def _why_for_style(language: FlirtistLanguage, style: str, index: int) -> str:
+    tactic_index = index % 4
     if language == "ko":
+        tactic = (
+            "다음 행동을 쉽게 정해 답장이 편합니다.",
+            "빠진 디테일만 물어 부담이 낮습니다.",
+            "감정 반응이 짧아 자연스럽게 이어집니다.",
+            "실제 대화 포인트를 살려 티가 덜 납니다.",
+        )[tactic_index]
         match style:
             case "nsfw":
-                return "텐션은 올리되 노골적 압박 없이 선택권을 남깁니다."
+                return f"텐션은 올리되 선을 지킵니다. {tactic}"
             case "witty":
-                return "실제 대화 포인트로 가벼운 티키타카를 만듭니다."
+                return f"가벼운 티키타카를 만듭니다. {tactic}"
             case "romantic":
-                return "상대의 감정을 받아줘 안정감 있게 이어집니다."
+                return f"안정감 있게 받아줍니다. {tactic}"
             case "flirty":
-                return "호감은 보이되 과하지 않아 답하기 편합니다."
+                return f"호감은 보이되 과하지 않습니다. {tactic}"
             case _:
-                return "부담 없이 이어갈 명분을 만들어 답장하기 쉽습니다."
+                return f"부담 없이 이어갈 명분이 있습니다. {tactic}"
+    tactic_en = (
+        "It gives them one easy next step.",
+        "It asks only for the missing detail.",
+        "It adds a light emotional reaction.",
+        "It uses a real chat detail.",
+    )[tactic_index]
     match style:
         case "nsfw":
-            return "It raises tension without explicit pressure."
+            return f"It raises tension safely. {tactic_en}"
         case "witty":
-            return "Real chat detail turns into light banter."
+            return f"It turns context into banter. {tactic_en}"
         case "romantic":
-            return "It gives empathy without rushing commitment."
+            return f"It feels steady, not rushed. {tactic_en}"
         case "flirty":
-            return "It shows interest without overplaying it."
+            return f"It shows interest lightly. {tactic_en}"
         case _:
-            return "It keeps the thread easy to continue."
+            return f"It keeps the thread easy. {tactic_en}"
+
+
+def _metrics_for_style(style: str, index: int) -> tuple[int, int, int]:
+    values_by_style = {
+        "genuine": ((8, 16, 88), (10, 14, 84), (12, 18, 86), (9, 15, 85)),
+        "witty": ((14, 20, 84), (16, 18, 82), (12, 22, 85), (15, 19, 83)),
+        "flirty": ((18, 24, 86), (16, 22, 84), (20, 26, 88), (17, 23, 85)),
+        "romantic": ((10, 18, 82), (12, 16, 84), (11, 20, 83), (13, 17, 81)),
+        "nsfw": ((22, 32, 80), (24, 30, 78), (20, 34, 82), (23, 31, 79)),
+    }
+    values = values_by_style.get(style, values_by_style["genuine"])
+    return values[index % len(values)]
+
+
+def _normalized_reply_text(text: str) -> str:
+    return " ".join(text.casefold().split())

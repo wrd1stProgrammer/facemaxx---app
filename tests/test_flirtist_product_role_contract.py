@@ -32,6 +32,8 @@ class FlirtistProductRoleContractTest(unittest.TestCase):
         self.assertIn("Me = right-side outgoing bubbles", prompt)
         self.assertIn("write what Me should send next to Them", prompt)
         self.assertIn("Never write the message Them should send to Me", prompt)
+        self.assertIn("answer the latest meaningful Them message", prompt)
+        self.assertIn("다녀와아앙", prompt)
 
     def test_style_prompt_preserves_me_to_them_direction(self) -> None:
         request = FlirtistReplyStyleRequest(

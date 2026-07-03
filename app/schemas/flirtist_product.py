@@ -116,6 +116,20 @@ class FlirtistReplyStyleRequest(FacemaxxBaseModel):
     baseReply: str = Field(min_length=1, max_length=1200)
     style: str = Field(min_length=2, max_length=40)
     focus: Optional[str] = Field(default=None, max_length=120)
+    existingReplies: list[str] = Field(default_factory=list, max_length=40)
+
+    @field_validator("existingReplies")
+    @classmethod
+    def clean_existing_replies(cls, value: list[str]) -> list[str]:
+        seen: set[str] = set()
+        replies: list[str] = []
+        for reply in value:
+            cleaned = " ".join(reply.split())[:1200]
+            if not cleaned or cleaned in seen:
+                continue
+            replies.append(cleaned)
+            seen.add(cleaned)
+        return replies[:40]
 
 
 class FlirtistReplyStyleResponse(FacemaxxBaseModel):

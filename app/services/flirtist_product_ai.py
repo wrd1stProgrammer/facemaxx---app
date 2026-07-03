@@ -4,17 +4,21 @@ import json
 import logging
 import os
 import re
-from typing import TypeAlias, TypeVar
+from dataclasses import dataclass
+from typing import TypeAlias, TypeVar, assert_never
 
 from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.schemas.common import FacemaxxBaseModel
 from app.schemas.flirtist_product import (
+    FlirtistAnalysisCard,
     FlirtistCoachChatRequest,
     FlirtistCoachChatResponse,
     FlirtistProductSessionRequest,
     FlirtistProductSessionResponse,
+    FlirtistPreviewMessage,
+    FlirtistReplyCoaching,
     FlirtistReplyStyleRequest,
     FlirtistReplyStyleResponse,
 )
@@ -29,6 +33,20 @@ from app.services.flirtist_product_ai_prompts import _coach_prompt, _session_pro
 ProductModel = TypeVar("ProductModel", bound=FacemaxxBaseModel)
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 LOGGER = logging.getLogger(__name__)
+
+
+class FlirtistProductSessionAIOutput(FacemaxxBaseModel):
+    chatPreview: list[FlirtistPreviewMessage] | None = None
+    replyCoaching: FlirtistReplyCoaching | None = None
+    analysisCard: FlirtistAnalysisCard | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FlirtistProductAIError(Exception):
+    reason: str
+
+    def __str__(self) -> str:
+        return self.reason
 
 
 class FlirtistProductAI:
@@ -50,12 +68,20 @@ class FlirtistProductAI:
         text = self._complete_json_text(
             prompt=_session_prompt(request, fallback),
             image_url=image_url,
-            response_model=FlirtistProductSessionResponse,
-            max_output_tokens=3600,
+            response_model=FlirtistProductSessionAIOutput,
+            max_output_tokens=_session_max_output_tokens(request),
+            timeout_seconds=_session_timeout_seconds(request),
         )
         if text is None:
+            if _should_fail_without_provider_result(request, self._config.effective_provider):
+                raise FlirtistProductAIError(reason=_analysis_failure_message(request.locale))
             return fallback
-        return _merge_response(text, fallback, FlirtistProductSessionResponse)
+        response = _merge_response_or_none(text, fallback, FlirtistProductSessionResponse)
+        if response is None:
+            if _should_fail_without_provider_result(request, self._config.effective_provider):
+                raise FlirtistProductAIError(reason=_analysis_failure_message(request.locale))
+            return fallback
+        return response
 
     def complete_style(
         self,
@@ -68,10 +94,18 @@ class FlirtistProductAI:
             image_url=None,
             response_model=FlirtistReplyStyleResponse,
             max_output_tokens=2400,
+            timeout_seconds=24.0,
         )
         if text is None:
+            if self._config.effective_provider != "mock":
+                raise FlirtistProductAIError(reason=_generation_failure_message(request.locale))
             return fallback
-        return _merge_response(text, fallback, FlirtistReplyStyleResponse)
+        response = _merge_response_or_none(text, fallback, FlirtistReplyStyleResponse)
+        if response is None:
+            if self._config.effective_provider != "mock":
+                raise FlirtistProductAIError(reason=_generation_failure_message(request.locale))
+            return fallback
+        return response
 
     def complete_coach_chat(
         self,
@@ -84,6 +118,7 @@ class FlirtistProductAI:
             image_url=None,
             response_model=FlirtistCoachChatResponse,
             max_output_tokens=450,
+            timeout_seconds=12.0,
         )
         if text is None:
             return fallback
@@ -96,6 +131,7 @@ class FlirtistProductAI:
         image_url: str | None,
         response_model: type[ProductModel],
         max_output_tokens: int = 1400,
+        timeout_seconds: float = 30.0,
     ) -> str | None:
         provider = self._config.effective_provider
         match provider:
@@ -113,6 +149,7 @@ class FlirtistProductAI:
                     image_url=image_url,
                     response_model=response_model,
                     max_output_tokens=max_output_tokens,
+                    timeout_seconds=timeout_seconds,
                 )
             case "anthropic" | "gemini":
                 try:
@@ -132,6 +169,7 @@ class FlirtistProductAI:
         image_url: str | None,
         response_model: type[ProductModel],
         max_output_tokens: int,
+        timeout_seconds: float,
     ) -> str | None:
         try:
             from openai import OpenAI, OpenAIError
@@ -144,7 +182,7 @@ class FlirtistProductAI:
             if api_key is None:
                 LOGGER.warning("Flirtist product OpenAI key is not configured; using fallback")
                 return None
-            client = OpenAI(api_key=api_key, timeout=30.0)
+            client = OpenAI(api_key=api_key, timeout=timeout_seconds)
             content = [{"type": "input_text", "text": prompt}]
             if image_url:
                 content.append(
@@ -178,23 +216,75 @@ def _transport_prompt(prompt: str, *, image_url: str | None) -> str:
     )
 
 
+def _session_max_output_tokens(request: FlirtistProductSessionRequest) -> int:
+    match request.mode:
+        case "reply_coach":
+            return 2400
+        case "score_analysis":
+            return 1400
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _session_timeout_seconds(request: FlirtistProductSessionRequest) -> float:
+    match request.mode:
+        case "reply_coach":
+            return 18.0
+        case "score_analysis":
+            return 18.0
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _should_fail_without_provider_result(request: FlirtistProductSessionRequest, provider: str) -> bool:
+    if provider == "mock":
+        return False
+    match request.mode:
+        case "score_analysis":
+            return True
+        case "reply_coach":
+            return request.source == "screenshot"
+        case unreachable:
+            assert_never(unreachable)
+
+
+def _analysis_failure_message(locale: str) -> str:
+    if locale.lower().startswith("ko"):
+        return "분석에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    return "Analysis failed. Please try again in a moment."
+
+
+def _generation_failure_message(locale: str) -> str:
+    if locale.lower().startswith("ko"):
+        return "생성에 실패했습니다. 다시 시도해 주세요."
+    return "Generation failed. Please try again."
+
+
 def _merge_response(text: str, fallback: ProductModel, model: type[ProductModel]) -> ProductModel:
+    response = _merge_response_or_none(text, fallback, model)
+    if response is None:
+        return fallback
+    return response
+
+
+def _merge_response_or_none(text: str, fallback: ProductModel, model: type[ProductModel]) -> ProductModel | None:
     try:
         payload = _json_object_from_text(text)
     except json.JSONDecodeError as exc:
         payload = _partial_payload_from_text(text)
         if payload is None:
             LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
-            return fallback
+            return None
 
     try:
         base = fallback.model_dump(mode="json")
         _drop_provider_session_metadata(payload, fallback)
+        _drop_fallback_reply_packs_when_provider_omits_them(payload)
         _deep_update(base, payload)
         return model.model_validate(base)
     except (ValidationError, AttributeError) as exc:
         LOGGER.warning("Flirtist product provider response could not be merged: %s", exc)
-        return fallback
+        return None
 
 
 def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: ProductModel) -> None:
@@ -213,6 +303,15 @@ def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: Pro
         "imageStoragePath",
     ):
         payload.pop(key, None)
+
+
+def _drop_fallback_reply_packs_when_provider_omits_them(payload: dict[str, JsonValue]) -> None:
+    reply_coaching = payload.get("replyCoaching")
+    if not isinstance(reply_coaching, dict):
+        return
+    if "replies" not in reply_coaching or "replyPacks" in reply_coaching:
+        return
+    reply_coaching["replyPacks"] = []
 
 
 def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:

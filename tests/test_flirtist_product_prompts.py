@@ -78,6 +78,7 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("same four genuine replies", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
         self.assertIn("광주", prompt)
+        self.assertIn("웅 조아네", prompt)
         self.assertNotIn('"sessionId"', prompt)
         self.assertNotIn("exactly one copy-ready reply", prompt)
         self.assertNotIn("include 1-3 copy-ready replies", prompt)

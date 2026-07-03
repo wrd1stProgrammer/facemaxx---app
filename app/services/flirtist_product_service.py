@@ -12,10 +12,12 @@ from app.schemas.flirtist_product import (
     FlirtistPreviewMessage,
     FlirtistProductSessionRequest,
     FlirtistProductSessionResponse,
+    FlirtistReplyCoaching,
+    FlirtistReplyOption,
     FlirtistReplyStyleRequest,
     FlirtistReplyStyleResponse,
 )
-from app.services.flirtist_product_ai import FlirtistProductAI
+from app.services.flirtist_product_ai import FlirtistProductAI, FlirtistProductAIError
 from app.services.flirtist_product_analysis_fallback import analysis_card
 from app.services.flirtist_product_coach import coach_answer, coach_suggestions, repair_coach_response
 from app.services.flirtist_product_coach_memory import coach_memory_summary
@@ -58,7 +60,7 @@ class FlirtistProductService:
         response = self._ai.complete_session(
             request=request,
             fallback=fallback,
-            image_url=stored_image.url if stored_image else None,
+            image_url=_ai_image_url(request, stored_image),
         )
         if response.replyCoaching:
             language = _language(response.language, response.locale)
@@ -66,7 +68,11 @@ class FlirtistProductService:
                 language,
                 response.chatPreview,
             )
-            coaching = ensure_reply_packs(response.replyCoaching, language, chat_preview)
+            coaching = ensure_reply_packs(
+                response.replyCoaching,
+                language,
+                chat_preview,
+            )
             response = response.model_copy(
                 update={
                     "chatPreview": chat_preview,
@@ -97,8 +103,23 @@ class FlirtistProductService:
             replyCoaching=reply_coaching(language, request.style, messages, focus=request.focus),
         )
         response = self._ai.complete_style(request=request, fallback=fallback)
-        coaching = ensure_reply_packs(response.replyCoaching, language, messages)
-        return response.model_copy(update={"replyCoaching": repair_reply_coaching(coaching, language, messages)})
+        coaching = ensure_reply_packs(
+            response.replyCoaching,
+            language,
+            messages,
+            excluded_texts=request.existingReplies,
+            fill_missing=not request.existingReplies,
+        )
+        repaired = repair_reply_coaching(
+            coaching,
+            language,
+            messages,
+            excluded_texts=request.existingReplies,
+            fill_missing=not request.existingReplies,
+        )
+        if request.existingReplies:
+            _raise_if_regeneration_failed(request, repaired)
+        return response.model_copy(update={"replyCoaching": repaired})
 
     def coach_chat(self, request: FlirtistCoachChatRequest) -> FlirtistCoachChatResponse:
         language = _language(request.language, request.locale)
@@ -155,6 +176,17 @@ def _should_store_session_image(request: FlirtistProductSessionRequest) -> bool:
             assert_never(unreachable)
 
 
+def _ai_image_url(
+    request: FlirtistProductSessionRequest,
+    stored_image: FlirtistStoredImage | None,
+) -> str | None:
+    if stored_image is None:
+        return None
+    if request.text and request.text.strip():
+        return None
+    return stored_image.url
+
+
 def _authoritative_chat_preview(
     language: FlirtistLanguage,
     request: FlirtistProductSessionRequest,
@@ -174,6 +206,41 @@ def _locale(language: FlirtistLanguage, locale: str) -> str:
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:18]}"
+
+
+def _raise_if_regeneration_failed(
+    request: FlirtistReplyStyleRequest,
+    coaching: FlirtistReplyCoaching,
+) -> None:
+    replies = _unique_unblocked_replies(coaching.replies, request.existingReplies)
+    if len(replies) < 4:
+        raise FlirtistProductAIError(reason=_generation_failure_message(request.locale))
+
+
+def _unique_unblocked_replies(
+    replies: list[FlirtistReplyOption],
+    blocked: list[str],
+) -> list[FlirtistReplyOption]:
+    blocked_texts = {_normalized_reply_text(text) for text in blocked}
+    seen: set[str] = set()
+    unique: list[FlirtistReplyOption] = []
+    for reply in replies:
+        normalized = _normalized_reply_text(reply.text)
+        if not normalized or normalized in blocked_texts or normalized in seen:
+            continue
+        unique.append(reply)
+        seen.add(normalized)
+    return unique
+
+
+def _generation_failure_message(locale: str) -> str:
+    if locale.lower().startswith("ko"):
+        return "생성에 실패했습니다. 다시 시도해 주세요."
+    return "Generation failed. Please try again."
+
+
+def _normalized_reply_text(text: str) -> str:
+    return " ".join(text.casefold().split())
 
 
 def _title(language: FlirtistLanguage, request: FlirtistProductSessionRequest) -> str:

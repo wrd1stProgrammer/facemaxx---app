@@ -11,6 +11,7 @@ from app.main import create_app
 from app.schemas.analysis import PhotoOut
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistProductSessionResponse
+from app.services.flirtist_product_ai import FlirtistProductAIError
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage
 from app.services.flirtist_product_image_storage import FlirtistStoredImage
 from app.services.flirtist_product_service import FlirtistProductService
@@ -107,6 +108,26 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.assertGreaterEqual(len(data["analysisCard"]["redFlags"]), 1)
         self.assertNotIn(payload["imageBase64"], data["title"])
         self.assertTrue(data["imageUrl"].startswith("https://res.cloudinary.com/"))
+
+    def test_score_session_returns_failure_when_live_analysis_fails(self) -> None:
+        # Given
+        payload = {
+            "mode": "score_analysis",
+            "source": "screenshot",
+            "locale": "ko-KR",
+            "text": "Them: 오늘 회사가 정신이 하나도 없었어\nMe: 그래도 퇴근할 수 있지?",
+        }
+
+        # When
+        with patch(
+            "app.services.flirtist_product_service.FlirtistProductService.create_session",
+            side_effect=FlirtistProductAIError(reason="분석에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+        ):
+            response = self.client.post("/api/flirtist/sessions", json=payload)
+
+        # Then
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["detail"], "분석에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
     def test_session_upload_passes_install_id_header_to_image_storage(self) -> None:
         # Given
@@ -291,6 +312,69 @@ class FlirtistProductApiTest(unittest.TestCase):
         # Then
         self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
         self.assertEqual(ai.image_url, response.imageUrl)
+
+    def test_score_session_keeps_display_image_without_sending_ocr_screenshot_to_ai(self) -> None:
+        # Given
+        class CapturingAI:
+            image_url: str | None = None
+
+            def complete_session(
+                self,
+                *,
+                request: FlirtistProductSessionRequest,
+                fallback: FlirtistProductSessionResponse,
+                image_url: str | None,
+            ) -> FlirtistProductSessionResponse:
+                self.image_url = image_url
+                return fallback
+
+        class NoopRepository:
+            def save_session(
+                self,
+                *,
+                request: FlirtistProductSessionRequest,
+                response: FlirtistProductSessionResponse,
+                stored_image: FlirtistStoredImage | None,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
+            ) -> bool:
+                return False
+
+        class FixedImageStorage:
+            def store_session_image(
+                self,
+                request: FlirtistProductSessionRequest,
+                *,
+                user_id: str | None = None,
+                client_install_id: str | None = None,
+            ) -> FlirtistStoredImage | None:
+                return FlirtistStoredImage(
+                    url="https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg",
+                    storage_path="flirtist/test.jpg",
+                    mime_type="image/jpeg",
+                )
+
+        ai = CapturingAI()
+        service = FlirtistProductService(
+            ai=ai,
+            repository=NoopRepository(),
+            image_storage=FixedImageStorage(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="score_analysis",
+            source="screenshot",
+            locale="ko-KR",
+            text="Them: 오늘 회사가 정신이 하나도 없었어\nMe: 그래도 퇴근할 수 있지?",
+            imageBase64="aW1hZ2U=",
+            imageMimeType="image/jpeg",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
+        self.assertIsNone(ai.image_url)
 
     def test_product_service_skips_image_upload_when_reply_screenshot_has_ocr_text(self) -> None:
         # Given
