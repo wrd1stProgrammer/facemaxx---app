@@ -78,6 +78,89 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
         )
         self.assertEqual(len(response.replyCoaching.replyPacks[0].replies), 4)
 
+    def test_product_session_repairs_provider_reply_packs_missing_replies(self) -> None:
+        # Given
+        transport = FixedTransport(
+            json.dumps(
+                {
+                    "replyCoaching": {
+                        "summary": "광주에 오면 맛있는 걸 사주겠다는 약속을 이어가는 흐름",
+                        "nextMove": "상대가 오고 싶게 느껴지는 한 문장으로 이어간다.",
+                        "replies": [
+                            {
+                                "id": f"reply_live_gemini_{index}",
+                                "style": "genuine",
+                                "text": text,
+                                "whyItWorks": "대화에 나온 광주와 맛난 약속을 그대로 살려 다음 답을 쉽게 만든다.",
+                                "aiObviousness": 8,
+                                "pressure": 16,
+                                "replyLikelihood": 90,
+                            }
+                            for index, text in enumerate(
+                                [
+                                    "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+                                    "그럼 광주 올 일 생기면 나한테 먼저 연락하기. 맛난 거 리스트 비워둘게.",
+                                    "광주 얘기 나온 김에, 너 오면 내가 맛난 곳 하나는 제대로 데려갈게.",
+                                    "오케이, 광주 오면 내가 진짜 맛난 걸로 갚아볼게. 기대해도 돼?",
+                                ],
+                                start=1,
+                            )
+                        ],
+                        "replyPacks": [
+                            {"style": "genuine", "label": "Genuine", "buttonTitle": "Genuine", "iconName": "heart"},
+                            {"style": "witty", "label": "Witty", "buttonTitle": "Witty", "iconName": "smile"},
+                            {"style": "flirty", "label": "Flirty", "buttonTitle": "Flirty", "iconName": "fire"},
+                            {"style": "romantic", "label": "Romantic", "buttonTitle": "Romantic", "iconName": "rose"},
+                            {"style": "nsfw", "label": "Spicy", "buttonTitle": "Spicy", "iconName": "flame"},
+                        ],
+                    }
+                },
+                ensure_ascii=False,
+            )
+        )
+        ai = FlirtistProductAI(
+            config=FlirtistAIConfig(
+                requested_provider="gemini",
+                effective_provider="gemini",
+                openai_model="gpt-test",
+                anthropic_model="claude-test",
+                gemini_model="gemini-test",
+            ),
+            provider_transport=transport,
+        )
+        service = FlirtistProductService(
+            ai=ai,
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            text=(
+                "Them: 오늘는 광주에 사는거야?\n"
+                "Me: 웅 나는 광주 살앙\n"
+                "Them: 오옹 글쿠나\n"
+                "Me: 나중에 광주 올 일 생기면 미리 연락해 맛난거 사줄겤ㅋㅋ\n"
+                "Them: 웅 조아네"
+            ),
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        assert response.replyCoaching is not None
+        self.assertEqual(
+            response.replyCoaching.replies[0].text,
+            "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
+        )
+        self.assertEqual(
+            {pack.style for pack in response.replyCoaching.replyPacks},
+            {"genuine", "witty", "flirty", "romantic", "nsfw"},
+        )
+        self.assertTrue(all(len(pack.replies) == 4 for pack in response.replyCoaching.replyPacks))
+
     def test_score_analysis_provider_failure_does_not_return_contextless_fallback(self) -> None:
         # Given
         ai = FlirtistProductAI(

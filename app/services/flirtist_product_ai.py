@@ -279,7 +279,7 @@ def _merge_response_or_none(text: str, fallback: ProductModel, model: type[Produ
     try:
         base = fallback.model_dump(mode="json")
         _drop_provider_session_metadata(payload, fallback)
-        _drop_fallback_reply_packs_when_provider_omits_them(payload)
+        _normalize_provider_reply_packs(payload)
         _deep_update(base, payload)
         return model.model_validate(base)
     except (ValidationError, AttributeError) as exc:
@@ -305,13 +305,27 @@ def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: Pro
         payload.pop(key, None)
 
 
-def _drop_fallback_reply_packs_when_provider_omits_them(payload: dict[str, JsonValue]) -> None:
+def _normalize_provider_reply_packs(payload: dict[str, JsonValue]) -> None:
     reply_coaching = payload.get("replyCoaching")
     if not isinstance(reply_coaching, dict):
         return
-    if "replies" not in reply_coaching or "replyPacks" in reply_coaching:
+    reply_packs = reply_coaching.get("replyPacks")
+    if reply_packs is None:
+        if "replies" in reply_coaching:
+            reply_coaching["replyPacks"] = []
         return
-    reply_coaching["replyPacks"] = []
+    if not isinstance(reply_packs, list):
+        reply_coaching["replyPacks"] = []
+        return
+    complete_packs: list[JsonValue] = []
+    for pack in reply_packs:
+        if not isinstance(pack, dict):
+            continue
+        replies = pack.get("replies")
+        if not isinstance(replies, list) or not replies:
+            continue
+        complete_packs.append(pack)
+    reply_coaching["replyPacks"] = complete_packs
 
 
 def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
