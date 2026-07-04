@@ -70,7 +70,7 @@ class FlirtistProductAI:
             image_url=image_url,
             response_model=FlirtistProductSessionAIOutput,
             max_output_tokens=_session_max_output_tokens(request),
-            timeout_seconds=_session_timeout_seconds(request),
+            timeout_seconds=_session_timeout_seconds(request, image_url),
         )
         if text is None:
             if _should_fail_without_provider_result(request, self._config.effective_provider):
@@ -227,12 +227,12 @@ def _session_max_output_tokens(request: FlirtistProductSessionRequest) -> int:
             assert_never(unreachable)
 
 
-def _session_timeout_seconds(request: FlirtistProductSessionRequest) -> float:
+def _session_timeout_seconds(request: FlirtistProductSessionRequest, image_url: str | None = None) -> float:
     match request.mode:
         case "reply_coach":
-            return 18.0
+            return 55.0 if image_url else 18.0
         case "score_analysis":
-            return 18.0
+            return 45.0 if image_url else 18.0
         case unreachable:
             assert_never(unreachable)
 
