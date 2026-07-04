@@ -26,6 +26,10 @@ STYLE_PURPOSE_CONTRACT: Final[tuple[str, ...]] = (
     "romantic: give emotional steadiness or empathy without premature commitment",
     "nsfw: raise tension safely without explicit sexual content, coercion, or creepy pressure",
 )
+CHAT_ONLY_OCR_CONTRACT: Final[tuple[str, ...]] = (
+    "Only use text that belongs to visible chat bubbles as evidence for chat analysis and reply writing.",
+    "Do not use status bars, navigation bars, dates, timestamps, notification badges, input fields, buttons, icons, usernames outside bubbles, or app scanner/paywall copy as evidence.",
+)
 
 
 def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistProductSessionResponse) -> str:
@@ -46,6 +50,8 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "Perspective fail examples: if Me offered food/help/a meetup and Them accepted, do not write a reply where Them accepts the offer. Write Me confirming or moving the plan forward.",
             "For Korean accepted-plan chats, phrases like '갈게', '사줘', or '해줘' are usually Them's perspective when Me was the one offering. Avoid them unless Me is clearly the visitor/requester in the transcript.",
             "Ignore app chrome, input placeholders, timestamps, icon labels, and OCR UI noise such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
+            *CHAT_ONLY_OCR_CONTRACT,
+            "chatPreview must contain only Me/Them chat messages from visible bubbles; exclude every non-chat OCR fragment even if it appears in Request JSON.",
             "Never include raw base64 or private identifiers in the JSON.",
             "For reply_coach, produce chatPreview and replyCoaching. For score_analysis, produce analysisCard.",
             f"For score_analysis, localize the analysisCard title as: {analysis_title(target_language)}.",
@@ -97,6 +103,7 @@ def _style_prompt(request: FlirtistReplyStyleRequest, fallback: FlirtistReplySty
             "The selected style must change the purpose, not just the adjectives. Do not return four paraphrases of the same move.",
             "whyItWorks must explain why that purpose fits this chat, not just restate that the reply is good.",
             "Ignore OCR placeholders and UI chrome such as Message..., Type a message, Send, AI 추천 답장, Get NSFW Reply, FLIRTIST, or 집중할 키워드.",
+            *CHAT_ONLY_OCR_CONTRACT,
             "Never include those UI words, speaker labels, or coaching explanations in a reply option.",
             "Do not copy fallback wording. The contract JSON is only a shape guide; write fresh alternatives from the chat.",
             "Reject low-value rewrites that merely say 'tell me more', quote the full incoming message, or could fit any random chat.",

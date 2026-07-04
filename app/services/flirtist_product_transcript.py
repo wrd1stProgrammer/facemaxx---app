@@ -9,15 +9,40 @@ from app.schemas.flirtist_product import FlirtistPreviewMessage
 
 _PUNCTUATION_ONLY: Final[re.Pattern[str]] = re.compile(r"^[\W_]+$")
 _TIME_ONLY: Final[re.Pattern[str]] = re.compile(r"^\d{1,2}:\d{2}$")
+_STATUS_CHROME: Final[re.Pattern[str]] = re.compile(
+    r"^(?:lte|5g|4g|3g|wifi|wi-fi|vpn|no service|carrier|battery|skt|kt|lgu|u\+|\d{1,3}%|\d{1,4}\+?)$",
+    re.IGNORECASE,
+)
+_DATE_CHROME: Final[re.Pattern[str]] = re.compile(
+    r"^(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?[,.\s-]+\w+|\d{4}[./-]\d{1,2}[./-]\d{1,2}$",
+    re.IGNORECASE,
+)
 _MESSAGE_PLACEHOLDER: Final[re.Pattern[str]] = re.compile(
-    r"^(?:message|messages|메시지|메세지|입력|채팅|write a message|type a message|send a message|reply)\s*[.….\-_:]*$",
+    r"^(?:message|messages|enter a message|메시지|메세지|입력|채팅|write a message|type a message|send a message|reply)\s*[.….\-_:]*$",
     re.IGNORECASE,
 )
 _UI_PHRASES: Final[tuple[str, ...]] = (
     "ai 추천 답장",
+    "ai coach is extracting",
+    "hidden chemistry",
+    "interest signal",
+    "analyzing their true feelings",
+    "reading the screenshot",
+    "reading the chat",
+    "finding the next best reply",
+    "finding the next reply",
+    "finding real signals",
     "get nsfw reply",
     "generated rizz",
+    "unlock infinite rizz",
     "집중할 키워드",
+    "스크린샷 스캔 중",
+    "대화 읽는 중",
+    "상대방의 속마음",
+    "숨겨진 호감",
+    "진짜 신호",
+    "답장 흐름",
+    "flirtcue",
     "flirtist",
     "app store",
 )
@@ -74,6 +99,10 @@ def is_ui_noise_text(text: str) -> bool:
     if _MESSAGE_PLACEHOLDER.fullmatch(role_text):
         return True
     if _TIME_ONLY.fullmatch(role_text):
+        return True
+    if _STATUS_CHROME.fullmatch(role_text):
+        return True
+    if _DATE_CHROME.match(role_text):
         return True
     if len(role_text) <= 8 and _PUNCTUATION_ONLY.fullmatch(role_text):
         return True
