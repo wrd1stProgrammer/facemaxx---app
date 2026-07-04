@@ -22,6 +22,7 @@ from app.services.flirtist_product_analysis_fallback import analysis_card
 from app.services.flirtist_product_coach import coach_answer, coach_suggestions, repair_coach_response
 from app.services.flirtist_product_coach_memory import coach_memory_summary
 from app.services.flirtist_product_image_storage import FlirtistProductImageStorage, FlirtistStoredImage
+from app.services.flirtist_product_reply_pack_guard import ensure_complete_screenshot_reply_packs
 from app.services.flirtist_product_reply_quality import repair_reply_coaching
 from app.services.flirtist_product_repository import FlirtistProductRepository
 from app.services.flirtist_product_reply_fallback import ensure_reply_packs, reply_coaching
@@ -68,6 +69,7 @@ class FlirtistProductService:
                 language,
                 response.chatPreview,
             )
+            ensure_complete_screenshot_reply_packs(request, response.replyCoaching)
             coaching = ensure_reply_packs(
                 response.replyCoaching,
                 language,

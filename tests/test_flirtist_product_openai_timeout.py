@@ -42,8 +42,46 @@ class FlirtistProductOpenAITimeoutTest(unittest.TestCase):
                 )
             self.assertEqual(captured_timeouts, [expected_timeout])
 
+    def test_openai_receives_inline_image_data_instead_of_refetching_cloudinary(self) -> None:
+        # Given
+        captured_image_urls: list[str] = []
+        fake_openai = _fake_openai_module([], captured_image_urls)
+        ai = FlirtistProductAI(
+            config=FlirtistAIConfig(
+                requested_provider="openai",
+                effective_provider="openai",
+                openai_model="gpt-test",
+                anthropic_model="claude-test",
+                gemini_model="gemini-test",
+            )
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="ko-KR",
+            imageBase64="aW1hZ2U=",
+            imageMimeType="image/jpeg",
+        )
 
-def _fake_openai_module(captured_timeouts: list[float]) -> types.ModuleType:
+        # When
+        with patch.dict(os.environ, {"FLIRTIST_OPENAI_API_KEY": "sk-test"}), patch.dict(
+            sys.modules,
+            {"openai": fake_openai},
+        ):
+            ai.complete_session(
+                request=request,
+                fallback=_fallback_session(request, None),
+                image_url="https://res.cloudinary.com/flirtcue/screenshot.jpg",
+            )
+
+        # Then
+        self.assertEqual(captured_image_urls, ["data:image/jpeg;base64,aW1hZ2U="])
+
+
+def _fake_openai_module(
+    captured_timeouts: list[float],
+    captured_image_urls: list[str] | None = None,
+) -> types.ModuleType:
     fake_openai = types.ModuleType("openai")
 
     class FakeOpenAIError(Exception):
@@ -53,7 +91,11 @@ def _fake_openai_module(captured_timeouts: list[float]) -> types.ModuleType:
         output_text = "{}"
 
     class FakeResponses:
-        def create(self, **_kwargs) -> FakeResponse:
+        def create(self, **kwargs) -> FakeResponse:
+            if captured_image_urls is not None:
+                for item in kwargs["input"][0]["content"]:
+                    if item.get("type") == "input_image":
+                        captured_image_urls.append(item["image_url"])
             return FakeResponse()
 
     class FakeOpenAI:

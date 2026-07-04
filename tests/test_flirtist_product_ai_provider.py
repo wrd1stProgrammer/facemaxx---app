@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import unittest
+from typing import TypeAlias
 
 from app.schemas.flirtist_product import FlirtistProductSessionRequest, FlirtistReplyStyleRequest
 from app.services.flirtist_config import FlirtistAIConfig, FlirtistProvider
 from app.services.flirtist_provider import FlirtistProviderError
-from app.services.flirtist_product_ai import FlirtistProductAI
+from app.services.flirtist_product_ai import FlirtistProductAI, FlirtistProductAIError
 from app.services.flirtist_product_service import FlirtistProductService
 from tests.test_flirtist_product_fallback import NoopImageStorage, NoopRepository
+
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 class FlirtistProductAIProviderTest(unittest.TestCase):
@@ -31,6 +34,7 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
                                 "replyLikelihood": 90,
                             }
                         ],
+                        "replyPacks": _complete_reply_packs_payload(),
                     }
                 },
                 ensure_ascii=False,
@@ -55,6 +59,7 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
             mode="reply_coach",
             source="screenshot",
             locale="ko-KR",
+            imageBase64="aW1hZ2U=",
             text=(
                 "Them: 오늘는 광주에 사는거야?\n"
                 "Me: 웅 나는 광주 살앙\n"
@@ -70,15 +75,20 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
         # Then
         self.assertEqual(transport.providers, ["gemini"])
         self.assertIn("exactly four copy-ready replies", transport.prompts[0])
+        self.assertIn("replyCoaching.replies is invalid", transport.prompts[0])
         self.assertNotIn("one short reply per style", transport.prompts[0])
         assert response.replyCoaching is not None
+        self.assertEqual(
+            {pack.style for pack in response.replyCoaching.replyPacks},
+            {"genuine", "witty", "flirty", "romantic", "nsfw"},
+        )
+        self.assertTrue(all(len(pack.replies) == 4 for pack in response.replyCoaching.replyPacks))
         self.assertEqual(
             response.replyCoaching.replies[0].text,
             "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
         )
-        self.assertEqual(len(response.replyCoaching.replyPacks[0].replies), 4)
 
-    def test_product_session_repairs_provider_reply_packs_missing_replies(self) -> None:
+    def test_screenshot_reply_provider_incomplete_reply_packs_raise_instead_of_contextless_fallback(self) -> None:
         # Given
         transport = FixedTransport(
             json.dumps(
@@ -137,6 +147,7 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
             mode="reply_coach",
             source="screenshot",
             locale="ko-KR",
+            imageBase64="aW1hZ2U=",
             text=(
                 "Them: 오늘는 광주에 사는거야?\n"
                 "Me: 웅 나는 광주 살앙\n"
@@ -146,20 +157,9 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
             ),
         )
 
-        # When
-        response = service.create_session(request)
-
-        # Then
-        assert response.replyCoaching is not None
-        self.assertEqual(
-            response.replyCoaching.replies[0].text,
-            "광주 오면 맛난 거 사준다는 약속 아직 유효해. 언제 올지 살짝 기대해도 돼?",
-        )
-        self.assertEqual(
-            {pack.style for pack in response.replyCoaching.replyPacks},
-            {"genuine", "witty", "flirty", "romantic", "nsfw"},
-        )
-        self.assertTrue(all(len(pack.replies) == 4 for pack in response.replyCoaching.replyPacks))
+        # When / Then
+        with self.assertRaisesRegex(FlirtistProductAIError, "분석에 실패했습니다"):
+            service.create_session(request)
 
     def test_score_analysis_provider_failure_does_not_return_contextless_fallback(self) -> None:
         # Given
@@ -298,6 +298,37 @@ class FixedTransport:
         if "오늘는 광주에 사는거야" not in prompt:
             raise AssertionError("Product prompt did not include the submitted transcript text.")
         return self._text
+
+
+def _complete_reply_packs_payload() -> list[JsonValue]:
+    pack_specs = (
+        ("genuine", "Natural", "Natural replies", "bolt.fill"),
+        ("witty", "Witty", "Witty replies", "sparkles"),
+        ("flirty", "Flirty", "Flirty replies", "heart.fill"),
+        ("romantic", "Warm", "Warm replies", "heart.circle.fill"),
+        ("nsfw", "Bold", "Bolder replies", "flame.fill"),
+    )
+    return [
+        {
+            "style": style,
+            "label": label,
+            "buttonTitle": button_title,
+            "iconName": icon_name,
+            "replies": [
+                {
+                    "id": f"{style}_{index}",
+                    "style": style,
+                    "text": f"광주 맛난 약속을 {style} 톤으로 이어가기 {index}",
+                    "whyItWorks": "광주와 맛난 약속을 살린다.",
+                    "aiObviousness": 8 + index,
+                    "pressure": 14 + index,
+                    "replyLikelihood": 84 + index,
+                }
+                for index in range(1, 5)
+            ],
+        }
+        for style, label, button_title, icon_name in pack_specs
+    ]
 
 
 class FailingTransport:

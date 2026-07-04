@@ -60,6 +60,8 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
             "For reply_coach, return replyCoaching.replies as the same four genuine replies used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, witty, flirty, romantic, nsfw.",
+            "A reply_coach response with only replyCoaching.replies is invalid; replyCoaching.replyPacks is required.",
+            "Every one of the five replyPacks must include its own replies array with exactly four complete reply options.",
             *STYLE_PURPOSE_CONTRACT,
             "Each style pack must be grounded in the same latest actionable chat context and include exactly four copy-ready replies that would be wrong for a different chat.",
             "Within each style pack, the four replies must use four different tactics: 1) move the accepted plan forward, 2) ask one concrete missing detail, 3) add a light emotional reaction, 4) make a playful callback to a real chat detail.",

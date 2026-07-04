@@ -23,6 +23,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
+from app.services.flirtist_product_image_input import provider_image_url
 from app.services.flirtist_provider import (
     FlirtistProviderError,
     FlirtistProviderTransport,
@@ -67,7 +68,7 @@ class FlirtistProductAI:
     ) -> FlirtistProductSessionResponse:
         text = self._complete_json_text(
             prompt=_session_prompt(request, fallback),
-            image_url=image_url,
+            image_url=provider_image_url(request, image_url, self._config.effective_provider),
             response_model=FlirtistProductSessionAIOutput,
             max_output_tokens=_session_max_output_tokens(request),
             timeout_seconds=_session_timeout_seconds(request, image_url),
