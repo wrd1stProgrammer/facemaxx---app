@@ -296,7 +296,7 @@ class FixedTransport:
         self.providers.append(provider)
         self.prompts.append(prompt)
         if "오늘는 광주에 사는거야" not in prompt:
-            raise AssertionError("Product prompt did not include the OCR transcript.")
+            raise AssertionError("Product prompt did not include the submitted transcript text.")
         return self._text
 
 

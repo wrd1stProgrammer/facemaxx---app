@@ -313,7 +313,7 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
         self.assertEqual(ai.image_url, response.imageUrl)
 
-    def test_score_session_keeps_display_image_without_sending_ocr_screenshot_to_ai(self) -> None:
+    def test_score_session_sends_cloudinary_url_to_ai_when_screenshot_is_submitted(self) -> None:
         # Given
         class CapturingAI:
             image_url: str | None = None
@@ -374,9 +374,9 @@ class FlirtistProductApiTest(unittest.TestCase):
 
         # Then
         self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
-        self.assertIsNone(ai.image_url)
+        self.assertEqual(ai.image_url, response.imageUrl)
 
-    def test_product_service_skips_image_upload_when_reply_screenshot_has_ocr_text(self) -> None:
+    def test_product_service_prefers_screenshot_image_over_legacy_ocr_text(self) -> None:
         # Given
         class CapturingAI:
             image_url: str | None = None
@@ -403,7 +403,7 @@ class FlirtistProductApiTest(unittest.TestCase):
             ) -> bool:
                 return False
 
-        class ExplodingImageStorage:
+        class FixedImageStorage:
             def store_session_image(
                 self,
                 request: FlirtistProductSessionRequest,
@@ -411,13 +411,17 @@ class FlirtistProductApiTest(unittest.TestCase):
                 user_id: str | None = None,
                 client_install_id: str | None = None,
             ) -> FlirtistStoredImage | None:
-                raise AssertionError("OCR text reply screenshots must not upload image data")
+                return FlirtistStoredImage(
+                    url="https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg",
+                    storage_path="flirtist/test.jpg",
+                    mime_type="image/jpeg",
+                )
 
         ai = CapturingAI()
         service = FlirtistProductService(
             ai=ai,
             repository=NoopRepository(),
-            image_storage=ExplodingImageStorage(),
+            image_storage=FixedImageStorage(),
         )
         request = FlirtistProductSessionRequest(
             mode="reply_coach",
@@ -432,9 +436,9 @@ class FlirtistProductApiTest(unittest.TestCase):
         response = service.create_session(request)
 
         # Then
-        self.assertIsNone(response.imageUrl)
-        self.assertIsNone(response.imageStoragePath)
-        self.assertIsNone(ai.image_url)
+        self.assertEqual(response.imageUrl, "https://res.cloudinary.com/demo/image/upload/flirtist/test.jpg")
+        self.assertEqual(response.imageStoragePath, "flirtist/test.jpg")
+        self.assertEqual(ai.image_url, response.imageUrl)
 
 
 if __name__ == "__main__":

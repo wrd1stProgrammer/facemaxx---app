@@ -14,8 +14,8 @@ from tests.test_flirtist_product_fallback import NoopImageStorage
 from tests.test_flirtist_product_fallback import NoopRepository
 
 
-class FlirtistProductPromptOCRContractTest(unittest.TestCase):
-    def test_session_prompt_excludes_non_chat_ocr_text_from_reasoning(self) -> None:
+class FlirtistProductPromptVisionContractTest(unittest.TestCase):
+    def test_session_prompt_excludes_non_chat_visual_text_from_reasoning(self) -> None:
         # Given
         service = FlirtistProductService(
             ai=NoopAI(),
@@ -34,11 +34,15 @@ class FlirtistProductPromptOCRContractTest(unittest.TestCase):
         prompt = _session_prompt(request, fallback)
 
         # Then
+        self.assertIn("inspect the image itself as the primary source", prompt)
+        self.assertIn("ordered transcript from visible chat bubbles", prompt)
+        self.assertIn("left-side bubbles = Them, right-side bubbles = Me", prompt)
         self.assertIn("Only use text that belongs to visible chat bubbles", prompt)
         self.assertIn("Do not use status bars, navigation bars, dates, timestamps, notification badges", prompt)
         self.assertIn("chatPreview must contain only Me/Them chat messages", prompt)
+        self.assertNotIn("treat it as authoritative client text", prompt)
 
-    def test_style_prompt_excludes_non_chat_ocr_text_from_regeneration_context(self) -> None:
+    def test_style_prompt_excludes_non_chat_visual_text_from_regeneration_context(self) -> None:
         # Given
         request = FlirtistReplyStyleRequest(
             locale="ko-KR",

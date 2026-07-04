@@ -167,11 +167,11 @@ def _fallback_session(
 def _should_store_session_image(request: FlirtistProductSessionRequest) -> bool:
     if not request.imageBase64:
         return False
-    match request.mode:
-        case "reply_coach":
-            return not bool(request.text and request.text.strip())
-        case "score_analysis":
+    match request.source:
+        case "screenshot":
             return True
+        case "manual":
+            return False
         case unreachable:
             assert_never(unreachable)
 
@@ -182,9 +182,13 @@ def _ai_image_url(
 ) -> str | None:
     if stored_image is None:
         return None
-    if request.text and request.text.strip():
-        return None
-    return stored_image.url
+    match request.source:
+        case "screenshot":
+            return stored_image.url
+        case "manual":
+            return None
+        case unreachable:
+            assert_never(unreachable)
 
 
 def _authoritative_chat_preview(
@@ -193,7 +197,13 @@ def _authoritative_chat_preview(
 ) -> list[FlirtistPreviewMessage] | None:
     if not request.text:
         return None
-    return preview_messages(language, request.text)
+    match request.source:
+        case "screenshot":
+            return None
+        case "manual":
+            return preview_messages(language, request.text)
+        case unreachable:
+            assert_never(unreachable)
 
 
 def _language(language: FlirtistLanguage | None, locale: str) -> FlirtistLanguage:

@@ -211,7 +211,8 @@ def _transport_prompt(prompt: str, *, image_url: str | None) -> str:
         [
             prompt,
             "",
-            "Stored screenshot image URL is available for product display only. Use the Request JSON text field as the chat transcript.",
+            f"Cloudinary screenshot image URL: {image_url}",
+            "Use the screenshot image as the primary visual source for chat order, left/right speaker roles, and message text. If your provider cannot inspect the image URL, fail instead of inventing chat content.",
         ]
     )
 
