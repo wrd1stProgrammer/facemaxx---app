@@ -65,6 +65,7 @@ class FlirtistProductService:
         )
         if response.replyCoaching:
             language = _language(response.language, response.locale)
+            content_kind = response.contentKind
             chat_preview = _authoritative_chat_preview(language, request) or clean_preview_messages(
                 language,
                 response.chatPreview,
@@ -74,11 +75,13 @@ class FlirtistProductService:
                 response.replyCoaching,
                 language,
                 chat_preview,
+                content_kind=content_kind,
             )
             response = response.model_copy(
                 update={
+                    "title": _content_title(language, response),
                     "chatPreview": chat_preview,
-                    "replyCoaching": repair_reply_coaching(coaching, language, chat_preview),
+                    "replyCoaching": repair_reply_coaching(coaching, language, chat_preview, content_kind=content_kind),
                 }
             )
         if stored_image:
@@ -102,7 +105,13 @@ class FlirtistProductService:
         messages = preview_messages(language, request.context)
         fallback = FlirtistReplyStyleResponse(
             sessionId=request.sessionId or _new_id("flt"),
-            replyCoaching=reply_coaching(language, request.style, messages, focus=request.focus),
+            replyCoaching=reply_coaching(
+                language,
+                request.style,
+                messages,
+                focus=request.focus,
+                content_kind=request.contentKind,
+            ),
         )
         response = self._ai.complete_style(request=request, fallback=fallback)
         coaching = ensure_reply_packs(
@@ -111,6 +120,7 @@ class FlirtistProductService:
             messages,
             excluded_texts=request.existingReplies,
             fill_missing=not request.existingReplies,
+            content_kind=request.contentKind,
         )
         repaired = repair_reply_coaching(
             coaching,
@@ -118,6 +128,7 @@ class FlirtistProductService:
             messages,
             excluded_texts=request.existingReplies,
             fill_missing=not request.existingReplies,
+            content_kind=request.contentKind,
         )
         if request.existingReplies:
             _raise_if_regeneration_failed(request, repaired)
@@ -147,6 +158,7 @@ def _fallback_session(
         "sessionId": _new_id("flt"),
         "mode": request.mode,
         "source": request.source,
+        "contentKind": "chat",
         "title": _title(language, request),
         "locale": _locale(language, request.locale),
         "language": language,
@@ -210,6 +222,14 @@ def _authoritative_chat_preview(
 
 def _language(language: FlirtistLanguage | None, locale: str) -> FlirtistLanguage:
     return normalize_flirtist_language(language, locale)
+
+
+def _content_title(language: FlirtistLanguage, response: FlirtistProductSessionResponse) -> str:
+    if response.mode != "reply_coach" or response.contentKind != "bio":
+        return response.title
+    if language == "ko":
+        return "프로필 첫 메시지"
+    return "Profile opener ideas"
 
 
 def _locale(language: FlirtistLanguage, locale: str) -> str:

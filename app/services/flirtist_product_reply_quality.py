@@ -10,6 +10,7 @@ from app.schemas.flirtist_product import (
     FlirtistReplyPack,
 )
 from app.services.flirtist_product_reply_fallback import reply_coaching
+from app.services.flirtist_product_reply_fallback import FlirtistContentKind
 from app.services.flirtist_product_transcript import is_ui_noise_text
 
 _BAD_REPLY_FRAGMENTS = (
@@ -32,8 +33,9 @@ def repair_reply_coaching(
     messages: list[FlirtistPreviewMessage],
     excluded_texts: list[str] | None = None,
     fill_missing: bool = True,
+    content_kind: FlirtistContentKind = "chat",
 ) -> FlirtistReplyCoaching:
-    fallback = reply_coaching(language, _primary_style(coaching), messages)
+    fallback = reply_coaching(language, _primary_style(coaching), messages, content_kind=content_kind)
     replies = _repair_options(coaching.replies, fallback.replies, messages, excluded_texts, fill_missing)
     packs = _repair_packs(coaching.replyPacks, fallback.replyPacks, messages, excluded_texts, fill_missing)
     return coaching.model_copy(

@@ -37,6 +37,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class FlirtistProductSessionAIOutput(FacemaxxBaseModel):
+    contentKind: str | None = None
     chatPreview: list[FlirtistPreviewMessage] | None = None
     replyCoaching: FlirtistReplyCoaching | None = None
     analysisCard: FlirtistAnalysisCard | None = None
@@ -367,6 +368,7 @@ def _partial_payload_from_text(text: str) -> dict[str, JsonValue] | None:
         "sessionId",
         "mode",
         "source",
+        "contentKind",
         "title",
         "locale",
         "language",

@@ -10,6 +10,7 @@ from app.schemas.flirtist import FlirtistLanguage
 
 FlirtistSessionMode = Literal["reply_coach", "score_analysis"]
 FlirtistSessionSource = Literal["manual", "screenshot"]
+FlirtistSessionContentKind = Literal["chat", "bio"]
 FlirtistCoachRole = Literal["user", "assistant"]
 
 
@@ -95,6 +96,7 @@ class FlirtistProductSessionResponse(FacemaxxBaseModel):
     sessionId: str
     mode: FlirtistSessionMode
     source: FlirtistSessionSource
+    contentKind: FlirtistSessionContentKind = "chat"
     title: str
     locale: str
     language: FlirtistLanguage
@@ -112,6 +114,7 @@ class FlirtistReplyStyleRequest(FacemaxxBaseModel):
     locale: str = Field(default="en-US", min_length=2, max_length=16)
     language: Optional[FlirtistLanguage] = None
     sessionId: Optional[str] = Field(default=None, max_length=64)
+    contentKind: FlirtistSessionContentKind = "chat"
     context: str = Field(min_length=1, max_length=8000)
     baseReply: str = Field(min_length=1, max_length=1200)
     style: str = Field(min_length=2, max_length=40)

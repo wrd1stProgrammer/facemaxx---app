@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import assert_never
+from typing import Literal, assert_never
 from uuid import uuid4
 
 from app.schemas.flirtist import FlirtistLanguage
@@ -11,10 +11,13 @@ from app.schemas.flirtist_product import (
     FlirtistReplyPack,
 )
 from app.services.flirtist_product_reply_context import ReplyContext
+from app.services.flirtist_product_reply_context import focus_or_topic
 from app.services.flirtist_product_reply_context_builder import reply_context_from_messages
 from app.services.flirtist_product_reply_texts_en import en_reply_texts
 from app.services.flirtist_product_reply_texts_ko import ko_reply_texts
 from app.services.flirtist_language_profile import reply_headline, reply_pack_specs as localized_reply_pack_specs
+
+FlirtistContentKind = Literal["chat", "bio"]
 
 
 def reply_coaching(
@@ -22,14 +25,15 @@ def reply_coaching(
     style: str,
     messages: list[FlirtistPreviewMessage] | None = None,
     focus: str | None = None,
+    content_kind: FlirtistContentKind = "chat",
 ) -> FlirtistReplyCoaching:
     context = _reply_context(language, messages or [])
-    packs = reply_packs(language, context, focus=focus)
+    packs = reply_packs(language, context, focus=focus, content_kind=content_kind)
     selected = next((pack for pack in packs if pack.style == style.lower()), packs[0])
     return FlirtistReplyCoaching(
-        headline=reply_headline(language),
-        summary=_summary(language, context),
-        nextMove=_next_move(language, context),
+        headline=_headline(language, content_kind),
+        summary=_summary(language, context, content_kind),
+        nextMove=_next_move(language, context, content_kind),
         replies=selected.replies,
         replyPacks=packs,
     )
@@ -41,9 +45,10 @@ def ensure_reply_packs(
     messages: list[FlirtistPreviewMessage] | None = None,
     excluded_texts: list[str] | None = None,
     fill_missing: bool = True,
+    content_kind: FlirtistContentKind = "chat",
 ) -> FlirtistReplyCoaching:
     context = _reply_context(language, messages or [])
-    fallback_packs = reply_packs(language, context)
+    fallback_packs = reply_packs(language, context, content_kind=content_kind)
     packs = _complete_reply_packs(coaching.replyPacks, fallback_packs, excluded_texts, fill_missing)
     if coaching.replies:
         primary_style = coaching.replies[0].style or fallback_packs[0].style
@@ -134,6 +139,7 @@ def reply_packs(
     language: FlirtistLanguage,
     context: ReplyContext,
     focus: str | None = None,
+    content_kind: FlirtistContentKind = "chat",
 ) -> list[FlirtistReplyPack]:
     return [
         FlirtistReplyPack(
@@ -142,8 +148,8 @@ def reply_packs(
             buttonTitle=button_title,
             iconName=icon,
             replies=[
-                _reply_option(language, style, text, _why_for_style(language, style, index), index)
-                for index, text in enumerate(_reply_texts(language, style, context, focus)[:4])
+                _reply_option(language, style, text, _why_for_style(language, style, index, content_kind), index)
+                for index, text in enumerate(_reply_texts(language, style, context, focus, content_kind)[:4])
             ],
         )
         for style, label, button_title, icon in _reply_pack_specs(language)
@@ -163,13 +169,30 @@ def _reply_texts(
     style: str,
     context: ReplyContext,
     focus: str | None,
+    content_kind: FlirtistContentKind,
 ) -> list[str]:
+    if content_kind == "bio":
+        return _bio_opener_texts(language, style, context, focus)[:4]
     if language == "ko":
         return ko_reply_texts(style, context, focus)[:4]
     return en_reply_texts(style, context, focus)[:4]
 
 
-def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
+def _headline(language: FlirtistLanguage, content_kind: FlirtistContentKind) -> str:
+    if content_kind == "bio":
+        if language == "ko":
+            return "AI 첫 메시지 추천"
+        if language == "en":
+            return "AI first-message openers"
+    return reply_headline(language)
+
+
+def _summary(language: FlirtistLanguage, context: ReplyContext, content_kind: FlirtistContentKind) -> str:
+    if content_kind == "bio":
+        hook = _profile_hook(language, context, None)
+        if language == "ko":
+            return f"프로필의 {hook} 포인트를 잡아 첫 메시지로 자연스럽게 시작하세요."
+        return f"Open from their {hook} profile detail without pretending there is already a chat."
     if language == "ko":
         match context.scenario:
             case "celebration":
@@ -203,7 +226,11 @@ def _summary(language: FlirtistLanguage, context: ReplyContext) -> str:
             assert_never(unreachable)
 
 
-def _next_move(language: FlirtistLanguage, context: ReplyContext) -> str:
+def _next_move(language: FlirtistLanguage, context: ReplyContext, content_kind: FlirtistContentKind) -> str:
+    if content_kind == "bio":
+        if language == "ko":
+            return "칭찬만 던지지 말고, 상대가 답하기 쉬운 질문 하나로 시작하세요."
+        return "Send one specific opener that asks an easy question from the profile."
     if language == "ko":
         match context.scenario:
             case "celebration":
@@ -250,8 +277,134 @@ def _reply_option(language: FlirtistLanguage, style: str, text: str, why: str, i
     )
 
 
-def _why_for_style(language: FlirtistLanguage, style: str, index: int) -> str:
+def _bio_opener_texts(
+    language: FlirtistLanguage,
+    style: str,
+    context: ReplyContext,
+    focus: str | None,
+) -> list[str]:
+    hook = _profile_hook(language, context, focus)
+    if language == "ko":
+        match style:
+            case "witty":
+                return [
+                    f"{hook} 이거 그냥 못 지나가겠는데요ㅋㅋ 사연 있어요?",
+                    f"{hook} 보고 질문권 하나 써도 돼요?",
+                    f"프로필에서 {hook}만 눈에 띄었어요. 이거 입장료 내고 물어봐야 하나요?",
+                    f"{hook} 쪽으로 말 걸면 답장 받을 확률 좀 있나요ㅋㅋ",
+                ]
+            case "flirty":
+                return [
+                    f"{hook} 얘기하는 사람은 좀 궁금해지는데요.",
+                    f"{hook} 보고 말 걸고 싶어졌어요. 제일 좋아하는 포인트가 뭐예요?",
+                    f"프로필에서 {hook}가 제일 눈에 들어왔어요. 살짝 반칙 아닌가요?",
+                    f"{hook} 취향이면 대화도 재밌을 것 같은데, 맞나요?",
+                ]
+            case "romantic":
+                return [
+                    f"{hook} 좋아하는 이유가 궁금해요. 왠지 얘기 들으면 재밌을 것 같아서요.",
+                    f"프로필에서 {hook}가 편하게 느껴졌어요. 언제부터 좋아했어요?",
+                    f"{hook} 얘기는 조용히 들어보고 싶어지네요. 하나만 골라 말해준다면요?",
+                    f"{hook} 같은 취향은 사람 분위기도 보여주는 것 같아요. 맞아요?",
+                ]
+            case "nsfw":
+                return [
+                    f"{hook} 보고 그냥 넘기기엔 좀 아까웠어요. 질문 하나 해도 돼요?",
+                    f"프로필에서 {hook}가 제일 위험하게 궁금했어요.",
+                    f"{hook} 얘기 시작하면 대화가 꽤 재밌어질 것 같은데요.",
+                    f"{hook} 하나로 말 걸 명분은 충분한 것 같아요.",
+                ]
+            case _:
+                return [
+                    f"{hook} 보고 궁금해졌어요. 언제부터 좋아했어요?",
+                    f"프로필에서 {hook}가 제일 눈에 들어왔어요. 하나만 물어봐도 돼요?",
+                    f"{hook} 얘기 듣고 싶은데, 제일 먼저 뭘 물어보면 좋을까요?",
+                    f"{hook} 취향이면 추천 하나만 받아도 될까요?",
+                ]
+    match style:
+        case "witty":
+            return [
+                f"{hook} is doing a lot of work on your profile. Should I ask for the story now?",
+                f"I was going to say hey, but {hook} gave me a better opening.",
+                f"{hook} feels like a profile plot twist. What is the backstory?",
+                f"Quick ruling: is {hook} a casual detail or your whole personality?",
+            ]
+        case "flirty":
+            return [
+                f"{hook} made me want to start this properly. What should I ask you first?",
+                f"I was not planning to overthink an opener, but {hook} got me curious.",
+                f"{hook} is a pretty good reason to say hi. What is the story there?",
+                f"Your {hook} detail is dangerously easy to start a conversation from.",
+            ]
+        case "romantic":
+            return [
+                f"{hook} feels like the detail with the best story. What made it yours?",
+                f"I like profiles that give me one real thing to ask about. For you, it is {hook}.",
+                f"{hook} caught my attention in a quiet way. What is the story behind it?",
+                f"If I ask about {hook}, am I starting with the right part of your profile?",
+            ]
+        case "nsfw":
+            return [
+                f"{hook} made this profile harder to scroll past. What should I know first?",
+                f"I could pretend I did not pause at {hook}, but that would be dishonest.",
+                f"{hook} is a bold little hook. Is there a story I should earn?",
+                f"Starting with {hook} feels risky in the fun way. What is the story?",
+            ]
+        case _:
+            return [
+                f"Your {hook} detail got me curious. What should I ask about first?",
+                f"I noticed {hook} on your profile. What is the story behind that?",
+                f"{hook} feels like the best place to start. What got you into it?",
+                f"I was going to send a simple hey, but {hook} deserves a better question.",
+            ]
+
+
+def _profile_hook(language: FlirtistLanguage, context: ReplyContext, focus: str | None) -> str:
+    raw_hook = focus_or_topic(context.topic or context.last_them, focus)
+    hook = " ".join(raw_hook.replace("Profile bio:", "").replace("Bio:", "").split()).strip()
+    if not hook:
+        return "프로필" if language == "ko" else "profile"
+    return hook[:34]
+
+
+def _why_for_style(language: FlirtistLanguage, style: str, index: int, content_kind: FlirtistContentKind) -> str:
     tactic_index = index % 4
+    if content_kind == "bio":
+        if language == "ko":
+            tactic = (
+                "프로필 디테일을 바로 질문으로 바꿉니다.",
+                "두 가지 관심사를 연결해 티가 덜 납니다.",
+                "가벼운 관찰이라 부담이 낮습니다.",
+                "상대가 자기 얘기를 꺼내기 쉽습니다.",
+            )[tactic_index]
+            match style:
+                case "nsfw":
+                    return f"궁금함은 살리되 선을 지킵니다. {tactic}"
+                case "witty":
+                    return f"프로필 훅을 티키타카로 바꿉니다. {tactic}"
+                case "romantic":
+                    return f"차분하게 관심을 보여줍니다. {tactic}"
+                case "flirty":
+                    return f"호감을 가볍게 보여줍니다. {tactic}"
+                case _:
+                    return f"첫 메시지 명분이 구체적입니다. {tactic}"
+        tactic_en = (
+            "It turns a profile detail into a question.",
+            "It connects real profile hooks.",
+            "It feels light, not generic.",
+            "It invites their story easily.",
+        )[tactic_index]
+        match style:
+            case "nsfw":
+                return f"It adds tension without pressure. {tactic_en}"
+            case "witty":
+                return f"It turns the profile hook into banter. {tactic_en}"
+            case "romantic":
+                return f"It shows calm interest. {tactic_en}"
+            case "flirty":
+                return f"It shows interest lightly. {tactic_en}"
+            case _:
+                return f"It gives the opener a real reason. {tactic_en}"
     if language == "ko":
         tactic = (
             "다음 행동을 쉽게 정해 답장이 편합니다.",

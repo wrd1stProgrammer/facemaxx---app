@@ -161,6 +161,101 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
         with self.assertRaisesRegex(FlirtistProductAIError, "분석에 실패했습니다"):
             service.create_session(request)
 
+    def test_profile_bio_screenshot_returns_bio_content_kind_and_openers(self) -> None:
+        # Given
+        transport = FixedTransport(
+            json.dumps(
+                {
+                    "contentKind": "bio",
+                    "chatPreview": [
+                        {
+                            "role": "them",
+                            "text": "Profile bio: Weekend climber, bad at choosing ramen spots, ask me about Jeju.",
+                        }
+                    ],
+                    "replyCoaching": {
+                        "headline": "First messages",
+                        "summary": "Open from a real bio detail instead of pretending there is a chat.",
+                        "nextMove": "Send one profile-specific opener with an easy question.",
+                        "replies": [
+                            {
+                                "id": "bio_genuine_1",
+                                "style": "genuine",
+                                "text": "Your Jeju line got me curious. What memory should I ask about first?",
+                                "whyItWorks": "It uses a real profile hook.",
+                                "aiObviousness": 8,
+                                "pressure": 14,
+                                "replyLikelihood": 89,
+                            },
+                            {
+                                "id": "bio_genuine_2",
+                                "style": "genuine",
+                                "text": "Weekend climber and ramen scout is a strong combo. Which one came first?",
+                                "whyItWorks": "It combines two bio details.",
+                                "aiObviousness": 9,
+                                "pressure": 16,
+                                "replyLikelihood": 87,
+                            },
+                            {
+                                "id": "bio_genuine_3",
+                                "style": "genuine",
+                                "text": "I need the Jeju story before I trust your ramen rankings.",
+                                "whyItWorks": "It gives an easy reply path.",
+                                "aiObviousness": 10,
+                                "pressure": 17,
+                                "replyLikelihood": 86,
+                            },
+                            {
+                                "id": "bio_genuine_4",
+                                "style": "genuine",
+                                "text": "Bad at choosing ramen spots sounds fixable. What makes a place worth it?",
+                                "whyItWorks": "It asks from the bio.",
+                                "aiObviousness": 11,
+                                "pressure": 15,
+                                "replyLikelihood": 88,
+                            },
+                        ],
+                        "replyPacks": _complete_bio_opener_packs_payload(),
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            required_prompt_fragment="Profile bio:",
+        )
+        ai = FlirtistProductAI(
+            config=FlirtistAIConfig(
+                requested_provider="gemini",
+                effective_provider="gemini",
+                openai_model="gpt-test",
+                anthropic_model="claude-test",
+                gemini_model="gemini-test",
+            ),
+            provider_transport=transport,
+        )
+        service = FlirtistProductService(
+            ai=ai,
+            image_storage=NoopImageStorage(),
+            repository=NoopRepository(),
+        )
+        request = FlirtistProductSessionRequest(
+            mode="reply_coach",
+            source="screenshot",
+            locale="en-US",
+            imageBase64="aW1hZ2U=",
+            text="Profile bio: Weekend climber, bad at choosing ramen spots, ask me about Jeju.",
+        )
+
+        # When
+        response = service.create_session(request)
+
+        # Then
+        self.assertEqual(response.contentKind, "bio")
+        self.assertIn("first-message openers", transport.prompts[0])
+        self.assertNotIn("answer the latest meaningful Them message", response.replyCoaching.summary)
+        assert response.replyCoaching is not None
+        self.assertEqual(response.replyCoaching.replies[0].text, "Your Jeju line got me curious. What memory should I ask about first?")
+        self.assertTrue(all(len(pack.replies) == 4 for pack in response.replyCoaching.replyPacks))
+
     def test_score_analysis_provider_failure_does_not_return_contextless_fallback(self) -> None:
         # Given
         ai = FlirtistProductAI(
@@ -287,15 +382,16 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
 
 
 class FixedTransport:
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, required_prompt_fragment: str = "오늘는 광주에 사는거야") -> None:
         self._text = text
+        self._required_prompt_fragment = required_prompt_fragment
         self.providers: list[FlirtistProvider] = []
         self.prompts: list[str] = []
 
     def complete_text(self, *, provider: FlirtistProvider, prompt: str, config: FlirtistAIConfig) -> str:
         self.providers.append(provider)
         self.prompts.append(prompt)
-        if "오늘는 광주에 사는거야" not in prompt:
+        if self._required_prompt_fragment not in prompt:
             raise AssertionError("Product prompt did not include the submitted transcript text.")
         return self._text
 
@@ -320,6 +416,37 @@ def _complete_reply_packs_payload() -> list[JsonValue]:
                     "style": style,
                     "text": f"광주 맛난 약속을 {style} 톤으로 이어가기 {index}",
                     "whyItWorks": "광주와 맛난 약속을 살린다.",
+                    "aiObviousness": 8 + index,
+                    "pressure": 14 + index,
+                    "replyLikelihood": 84 + index,
+                }
+                for index in range(1, 5)
+            ],
+        }
+        for style, label, button_title, icon_name in pack_specs
+    ]
+
+
+def _complete_bio_opener_packs_payload() -> list[JsonValue]:
+    pack_specs = (
+        ("genuine", "Natural", "Natural openers", "bolt.fill"),
+        ("witty", "Witty", "Witty openers", "sparkles"),
+        ("flirty", "Flirty", "Flirty openers", "heart.fill"),
+        ("romantic", "Warm", "Warm openers", "heart.circle.fill"),
+        ("nsfw", "Bold", "Bolder openers", "flame.fill"),
+    )
+    return [
+        {
+            "style": style,
+            "label": label,
+            "buttonTitle": button_title,
+            "iconName": icon_name,
+            "replies": [
+                {
+                    "id": f"bio_{style}_{index}",
+                    "style": style,
+                    "text": f"Bio-specific {style} opener about Jeju and ramen {index}",
+                    "whyItWorks": f"It uses a profile detail {index}.",
                     "aiObviousness": 8 + index,
                     "pressure": 14 + index,
                     "replyLikelihood": 84 + index,
