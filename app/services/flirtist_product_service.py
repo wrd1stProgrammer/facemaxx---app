@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+import logging
+from time import perf_counter
 from typing import assert_never
 from uuid import uuid4
 
@@ -29,6 +32,8 @@ from app.services.flirtist_product_reply_fallback import ensure_reply_packs, rep
 from app.services.flirtist_product_transcript import clean_preview_messages, preview_messages
 from app.services.flirtist_language_profile import analysis_title
 
+LOGGER = logging.getLogger(__name__)
+
 
 class FlirtistProductService:
     def __init__(
@@ -48,21 +53,20 @@ class FlirtistProductService:
         user_id: str | None = None,
         client_install_id: str | None = None,
     ) -> FlirtistProductSessionResponse:
-        stored_image = (
-            self._image_storage.store_session_image(
-                request,
-                user_id=user_id,
-                client_install_id=client_install_id,
-            )
-            if _should_store_session_image(request)
-            else None
-        )
-        fallback = _fallback_session(request, stored_image)
-        response = self._ai.complete_session(
-            request=request,
-            fallback=fallback,
-            image_url=_ai_image_url(request, stored_image),
-        )
+        session_started = perf_counter()
+        if self._can_analyze_during_image_storage(request):
+            with ThreadPoolExecutor(max_workers=1, thread_name_prefix="flirtist-image-store") as executor:
+                stored_image_future = executor.submit(
+                    self._store_session_image,
+                    request,
+                    user_id,
+                    client_install_id,
+                )
+                response, ai_seconds = self._complete_session(request, None)
+                stored_image, storage_seconds = stored_image_future.result()
+        else:
+            stored_image, storage_seconds = self._store_session_image(request, user_id, client_install_id)
+            response, ai_seconds = self._complete_session(request, stored_image)
         if response.replyCoaching:
             language = _language(response.language, response.locale)
             content_kind = response.contentKind
@@ -91,6 +95,7 @@ class FlirtistProductService:
                     "imageStoragePath": stored_image.storage_path,
                 }
             )
+        persistence_started = perf_counter()
         persisted = self._repository.save_session(
             request=request,
             response=response,
@@ -98,7 +103,58 @@ class FlirtistProductService:
             user_id=user_id,
             client_install_id=client_install_id,
         )
+        persistence_seconds = perf_counter() - persistence_started
+        total_seconds = perf_counter() - session_started
+        log_session_timing = LOGGER.warning if total_seconds >= 15 else LOGGER.info
+        log_session_timing(
+            "Flirtist session stages mode=%s source=%s storage_ms=%.0f ai_ms=%.0f persistence_ms=%.0f total_ms=%.0f",
+            request.mode,
+            request.source,
+            storage_seconds * 1000,
+            ai_seconds * 1000,
+            persistence_seconds * 1000,
+            total_seconds * 1000,
+        )
         return response.model_copy(update={"saved": True, "serverPersisted": persisted})
+
+    def _can_analyze_during_image_storage(self, request: FlirtistProductSessionRequest) -> bool:
+        return (
+            _should_store_session_image(request)
+            and isinstance(self._ai, FlirtistProductAI)
+            and self._ai.can_use_inline_session_image(request)
+        )
+
+    def _store_session_image(
+        self,
+        request: FlirtistProductSessionRequest,
+        user_id: str | None,
+        client_install_id: str | None,
+    ) -> tuple[FlirtistStoredImage | None, float]:
+        started = perf_counter()
+        stored_image = (
+            self._image_storage.store_session_image(
+                request,
+                user_id=user_id,
+                client_install_id=client_install_id,
+            )
+            if _should_store_session_image(request)
+            else None
+        )
+        return stored_image, perf_counter() - started
+
+    def _complete_session(
+        self,
+        request: FlirtistProductSessionRequest,
+        stored_image: FlirtistStoredImage | None,
+    ) -> tuple[FlirtistProductSessionResponse, float]:
+        started = perf_counter()
+        fallback = _fallback_session(request, stored_image)
+        response = self._ai.complete_session(
+            request=request,
+            fallback=fallback,
+            image_url=_ai_image_url(request, stored_image),
+        )
+        return response, perf_counter() - started
 
     def regenerate_reply(self, request: FlirtistReplyStyleRequest) -> FlirtistReplyStyleResponse:
         language = _language(request.language, request.locale)

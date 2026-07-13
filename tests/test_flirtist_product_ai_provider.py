@@ -75,7 +75,7 @@ class FlirtistProductAIProviderTest(unittest.TestCase):
         # Then
         self.assertEqual(transport.providers, ["gemini"])
         self.assertIn("exactly four copy-ready replies", transport.prompts[0])
-        self.assertIn("replyCoaching.replies is invalid", transport.prompts[0])
+        self.assertIn("server derives top-level replies", transport.prompts[0])
         self.assertNotIn("one short reply per style", transport.prompts[0])
         assert response.replyCoaching is not None
         self.assertEqual(

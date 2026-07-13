@@ -17,7 +17,11 @@ from app.schemas.flirtist import (
     normalize_flirtist_language,
 )
 from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
-from app.services.flirtist_pickup_lines import curate_pickup_lines, pickup_lines
+from app.services.flirtist_pickup_lines import (
+    curate_pickup_lines,
+    pickup_lines,
+    requires_strict_pickup_constraints,
+)
 from app.services.flirtist_provider import FlirtistAIProviderGateway, FlirtistProviderTransport
 
 
@@ -75,6 +79,8 @@ class FlirtistService:
             language=language,
             locale=_locale(language, request.locale),
         )
+        if requires_strict_pickup_constraints(request.situation):
+            return fallback
         response = self.provider_gateway.complete_pickup_lines(request=request, fallback=fallback)
         return response.model_copy(
             update={

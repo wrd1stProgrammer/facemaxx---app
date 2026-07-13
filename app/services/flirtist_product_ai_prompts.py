@@ -64,11 +64,11 @@ def _session_prompt(request: FlirtistProductSessionRequest, fallback: FlirtistPr
             f"For score_analysis, localize the analysisCard title as: {analysis_title(target_language)}.",
             "For score_analysis, meaningfulWordsYou and meaningfulWordsThem must be concise words or short phrases copied from the real chat topic, not UI words, timestamps, placeholders, or generic labels.",
             "For score_analysis, keep redFlags, greenFlags, and attachment style phrases short enough for a mobile card while still specific to the chat.",
-            "For reply_coach, return replyCoaching.replies as the same four genuine replies/openers used in the genuine style pack, and return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, witty, flirty, romantic, nsfw.",
-            "A reply_coach response with only replyCoaching.replies is invalid; replyCoaching.replyPacks is required.",
-            "Every one of the five replyPacks must include its own replies array with exactly four complete reply options.",
+            "For reply_coach, return replyCoaching.replyPacks with exactly these five style packs in this order: genuine, witty, flirty, romantic, nsfw. The server derives top-level replies and fixed display metadata.",
+            "Every one of the five replyPacks must include only style and its own replies array with exactly four complete reply options.",
+            "Each reply option must include only text and whyItWorks. Do not emit ids, style copies, labels, icons, scores, pressure, likelihood, or AI-obviousness values.",
             *STYLE_PURPOSE_CONTRACT,
-            "For contentKind=chat, each style pack must be grounded in the same latest actionable chat context and include exactly four copy-ready replies that would be wrong for a different chat.",
+            "Each style pack must be grounded in the same latest actionable chat context for contentKind=chat and include exactly four copy-ready replies that would be wrong for a different chat.",
             "For contentKind=bio, each style pack must be grounded in the same profile/bio context and include exactly four copy-ready first-message openers that would be wrong for a different profile.",
             "For contentKind=chat, the four replies must use four different tactics: 1) move the accepted plan forward, 2) ask one concrete missing detail, 3) add a light emotional reaction, 4) make a playful callback to a real chat detail.",
             "For contentKind=bio, the four openers must use four different tactics: 1) ask about a bio/prompt hook, 2) connect two profile details, 3) add a light playful observation, 4) invite a specific story or preference.",
@@ -177,7 +177,7 @@ def _contract_json(fallback: FacemaxxBaseModel) -> str:
             {"role": "me", "text": "<visible chat message>"},
         ]
         if fallback.replyCoaching is not None:
-            payload["replyCoaching"] = _reply_coaching_contract(include_all_packs=True)
+            payload["replyCoaching"] = _compact_reply_coaching_contract()
         if fallback.analysisCard is not None:
             payload["analysisCard"] = _analysis_card_contract()
     elif isinstance(fallback, FlirtistReplyStyleResponse):
@@ -241,6 +241,29 @@ def _reply_coaching_contract(
         "summary": "<short situation read>",
         "nextMove": "<one next step>",
         "replies": options,
+        "replyPacks": packs,
+    }
+
+
+def _compact_reply_coaching_contract() -> dict[str, JsonValue]:
+    packs = []
+    for style in ("genuine", "witty", "flirty", "romantic", "nsfw"):
+        packs.append(
+            {
+                "style": style,
+                "replies": [
+                    {
+                        "text": f"<copy-ready {style} reply {index}>",
+                        "whyItWorks": "<brief context-specific reason>",
+                    }
+                    for index in range(1, 5)
+                ],
+            }
+        )
+    return {
+        "headline": "<short title>",
+        "summary": "<short context summary>",
+        "nextMove": "<short next move>",
         "replyPacks": packs,
     }
 

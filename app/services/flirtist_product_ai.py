@@ -4,10 +4,11 @@ import json
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import TypeAlias, TypeVar, assert_never
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from app.core.config import get_settings
 from app.schemas.common import FacemaxxBaseModel
@@ -36,11 +37,32 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 LOGGER = logging.getLogger(__name__)
 
 
+class FlirtistAIReplyOption(FacemaxxBaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+    whyItWorks: str = Field(min_length=1, max_length=240)
+
+
+class FlirtistAIReplyPack(FacemaxxBaseModel):
+    style: str = Field(min_length=2, max_length=40)
+    replies: list[FlirtistAIReplyOption] = Field(min_length=4, max_length=4)
+
+
+class FlirtistAIReplyCoaching(FacemaxxBaseModel):
+    headline: str = Field(min_length=1, max_length=120)
+    summary: str = Field(min_length=1, max_length=240)
+    nextMove: str = Field(min_length=1, max_length=240)
+    replyPacks: list[FlirtistAIReplyPack] = Field(min_length=5, max_length=5)
+
+
 class FlirtistProductSessionAIOutput(FacemaxxBaseModel):
     contentKind: str | None = None
     chatPreview: list[FlirtistPreviewMessage] | None = None
-    replyCoaching: FlirtistReplyCoaching | None = None
+    replyCoaching: FlirtistAIReplyCoaching | None = None
     analysisCard: FlirtistAnalysisCard | None = None
+
+
+class FlirtistOpenAIWallTimeout(Exception):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,12 +89,13 @@ class FlirtistProductAI:
         fallback: FlirtistProductSessionResponse,
         image_url: str | None,
     ) -> FlirtistProductSessionResponse:
+        effective_image_url = provider_image_url(request, image_url, self._config.effective_provider)
         text = self._complete_json_text(
             prompt=_session_prompt(request, fallback),
-            image_url=provider_image_url(request, image_url, self._config.effective_provider),
+            image_url=effective_image_url,
             response_model=FlirtistProductSessionAIOutput,
             max_output_tokens=_session_max_output_tokens(request),
-            timeout_seconds=_session_timeout_seconds(request, image_url),
+            timeout_seconds=_session_timeout_seconds(request, effective_image_url),
         )
         if text is None:
             if _should_fail_without_provider_result(request, self._config.effective_provider):
@@ -84,6 +107,13 @@ class FlirtistProductAI:
                 raise FlirtistProductAIError(reason=_analysis_failure_message(request.locale))
             return fallback
         return response
+
+    def can_use_inline_session_image(self, request: FlirtistProductSessionRequest) -> bool:
+        return (
+            self._config.effective_provider == "openai"
+            and request.source == "screenshot"
+            and bool(request.imageBase64)
+        )
 
     def complete_style(
         self,
@@ -174,7 +204,7 @@ class FlirtistProductAI:
         timeout_seconds: float,
     ) -> str | None:
         try:
-            from openai import OpenAI, OpenAIError
+            from openai import APIConnectionError, APITimeoutError, OpenAI, OpenAIError
         except ImportError:
             LOGGER.warning("Flirtist product OpenAI package is not installed; using fallback")
             return None
@@ -184,7 +214,6 @@ class FlirtistProductAI:
             if api_key is None:
                 LOGGER.warning("Flirtist product OpenAI key is not configured; using fallback")
                 return None
-            client = OpenAI(api_key=api_key, timeout=timeout_seconds)
             content = [{"type": "input_text", "text": prompt}]
             if image_url:
                 content.append(
@@ -193,15 +222,32 @@ class FlirtistProductAI:
                         "image_url": image_url,
                     }
                 )
-            response = client.responses.create(
-                model=self._config.openai_model,
-                input=[{"role": "user", "content": content}],
-                max_output_tokens=max_output_tokens,
-                text=_response_text_format(response_model),
-                **_openai_latency_options(self._config.openai_model),
-            )
-            return response.output_text or None
-        except (OpenAIError, AttributeError) as exc:
+            attempt_timeouts = _openai_attempt_timeouts(timeout_seconds, image_url)
+            for attempt, attempt_timeout in enumerate(attempt_timeouts):
+                client = OpenAI(api_key=api_key, timeout=attempt_timeout, max_retries=0)
+                try:
+                    response = _create_openai_response(
+                        client,
+                        timeout_seconds=attempt_timeout,
+                        request_kwargs={
+                            "model": self._config.openai_model,
+                            "input": [{"role": "user", "content": content}],
+                            "max_output_tokens": max_output_tokens,
+                            "text": _response_text_format(response_model),
+                            **_openai_latency_options(self._config.openai_model),
+                        },
+                    )
+                    return response.output_text or None
+                except (APITimeoutError, APIConnectionError, FlirtistOpenAIWallTimeout) as exc:
+                    if attempt + 1 < len(attempt_timeouts):
+                        LOGGER.warning(
+                            "Flirtist product OpenAI attempt failed; retrying within request budget: %s",
+                            exc,
+                        )
+                        continue
+                    raise
+            return None
+        except (OpenAIError, FlirtistOpenAIWallTimeout, AttributeError) as exc:
             LOGGER.warning("Flirtist product OpenAI completion failed: %s", exc)
             return None
 
@@ -230,11 +276,12 @@ def _session_max_output_tokens(request: FlirtistProductSessionRequest) -> int:
 
 
 def _session_timeout_seconds(request: FlirtistProductSessionRequest, image_url: str | None = None) -> float:
+    is_inline_image = bool(image_url and image_url.startswith("data:image/"))
     match request.mode:
         case "reply_coach":
-            return 55.0 if image_url else 18.0
+            return 55.0 if is_inline_image else 55.0 if image_url else 18.0
         case "score_analysis":
-            return 45.0 if image_url else 18.0
+            return 35.0 if is_inline_image else 45.0 if image_url else 18.0
         case unreachable:
             assert_never(unreachable)
 
@@ -282,7 +329,7 @@ def _merge_response_or_none(text: str, fallback: ProductModel, model: type[Produ
     try:
         base = fallback.model_dump(mode="json")
         _drop_provider_session_metadata(payload, fallback)
-        _normalize_provider_reply_packs(payload)
+        _normalize_provider_reply_packs(payload, fallback)
         _deep_update(base, payload)
         return model.model_validate(base)
     except (ValidationError, AttributeError) as exc:
@@ -306,9 +353,13 @@ def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: Pro
         "imageStoragePath",
     ):
         payload.pop(key, None)
+    if fallback.mode == "score_analysis":
+        payload.pop("replyCoaching", None)
+    else:
+        payload.pop("analysisCard", None)
 
 
-def _normalize_provider_reply_packs(payload: dict[str, JsonValue]) -> None:
+def _normalize_provider_reply_packs(payload: dict[str, JsonValue], fallback: ProductModel) -> None:
     reply_coaching = payload.get("replyCoaching")
     if not isinstance(reply_coaching, dict):
         return
@@ -320,6 +371,11 @@ def _normalize_provider_reply_packs(payload: dict[str, JsonValue]) -> None:
     if not isinstance(reply_packs, list):
         reply_coaching["replyPacks"] = []
         return
+    fallback_coaching = getattr(fallback, "replyCoaching", None)
+    fallback_packs = {
+        pack.style.casefold(): pack
+        for pack in fallback_coaching.replyPacks
+    } if fallback_coaching is not None else {}
     complete_packs: list[JsonValue] = []
     for pack in reply_packs:
         if not isinstance(pack, dict):
@@ -327,8 +383,33 @@ def _normalize_provider_reply_packs(payload: dict[str, JsonValue]) -> None:
         replies = pack.get("replies")
         if not isinstance(replies, list) or not replies:
             continue
-        complete_packs.append(pack)
+        style = str(pack.get("style") or "").casefold()
+        fallback_pack = fallback_packs.get(style)
+        enriched_pack = fallback_pack.model_dump(mode="json") if fallback_pack is not None else dict(pack)
+        enriched_pack.update({key: value for key, value in pack.items() if key != "replies"})
+        enriched_replies: list[JsonValue] = []
+        for index, reply in enumerate(replies):
+            if not isinstance(reply, dict):
+                continue
+            fallback_reply = (
+                fallback_pack.replies[index]
+                if fallback_pack is not None and index < len(fallback_pack.replies)
+                else None
+            )
+            enriched_reply = fallback_reply.model_dump(mode="json") if fallback_reply is not None else {}
+            enriched_reply.update(reply)
+            enriched_reply["id"] = f"reply_ai_{style}_{index + 1}"
+            enriched_reply["style"] = style
+            enriched_replies.append(enriched_reply)
+        enriched_pack["replies"] = enriched_replies
+        complete_packs.append(enriched_pack)
     reply_coaching["replyPacks"] = complete_packs
+    genuine_pack = next(
+        (pack for pack in complete_packs if isinstance(pack, dict) and pack.get("style") == "genuine"),
+        None,
+    )
+    if isinstance(genuine_pack, dict) and "replies" not in reply_coaching:
+        reply_coaching["replies"] = genuine_pack.get("replies", [])
 
 
 def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
@@ -347,6 +428,31 @@ def _openai_latency_options(model: str) -> dict[str, JsonValue]:
     if normalized.startswith("gpt-5") or normalized.startswith(("o3", "o4")):
         return {"reasoning": {"effort": "minimal"}}
     return {}
+
+
+def _openai_attempt_timeouts(timeout_seconds: float, image_url: str | None) -> tuple[float, ...]:
+    if not image_url or not image_url.startswith("data:image/"):
+        return (timeout_seconds,)
+    if timeout_seconds >= 55:
+        return (40.0, timeout_seconds - 40.0)
+    if timeout_seconds >= 35:
+        return (25.0, timeout_seconds - 25.0)
+    return (timeout_seconds,)
+
+
+def _create_openai_response(client, *, timeout_seconds: float, request_kwargs: dict[str, object]):
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="flirtist-openai")
+    future = executor.submit(client.responses.create, **request_kwargs)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+        raise FlirtistOpenAIWallTimeout(f"OpenAI exceeded {timeout_seconds:.0f}s wall-clock budget") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _json_object_from_text(text: str):

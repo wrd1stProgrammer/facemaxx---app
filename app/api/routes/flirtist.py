@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 from app.api.deps import RequestIdentity, get_request_identity
 
@@ -42,7 +43,7 @@ async def generate_replies(request: FlirtistGenerateRequest) -> FlirtistResponse
 
 @router.post("/pickup-lines", response_model=FlirtistPickupLinesResponse)
 async def pickup_lines(request: FlirtistPickupLinesRequest) -> FlirtistPickupLinesResponse:
-    return FlirtistService().generate_pickup_lines(request)
+    return await run_in_threadpool(FlirtistService().generate_pickup_lines, request)
 
 
 @router.post("/check-draft", response_model=FlirtistResponse)
@@ -71,7 +72,8 @@ async def create_product_session(
     identity: Annotated[RequestIdentity, Depends(get_request_identity)],
 ) -> FlirtistProductSessionResponse:
     try:
-        return FlirtistProductService().create_session(
+        return await run_in_threadpool(
+            FlirtistProductService().create_session,
             request,
             user_id=identity.user_id,
             client_install_id=identity.client_install_id,

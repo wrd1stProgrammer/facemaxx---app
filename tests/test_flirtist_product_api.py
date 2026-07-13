@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import asyncio
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,6 +10,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.api.deps import RequestIdentity
+from app.api.routes.flirtist import create_product_session
 from app.schemas.analysis import PhotoOut
 from app.schemas.flirtist_product import FlirtistProductSessionRequest
 from app.schemas.flirtist_product import FlirtistProductSessionResponse
@@ -51,6 +55,35 @@ class FlirtistProductApiTest(unittest.TestCase):
         self.image_patch.stop()
         self.supabase_patch.stop()
         self.env_patch.stop()
+
+    def test_session_route_does_not_serialize_blocking_service_calls(self) -> None:
+        request = FlirtistProductSessionRequest(
+            mode="score_analysis",
+            source="manual",
+            locale="ko-KR",
+            text="Them: 안녕",
+        )
+        identity = RequestIdentity(user_id=None, client_install_id="test-install")
+
+        def blocking_create_session(*args, **kwargs):
+            time.sleep(0.15)
+            return object()
+
+        async def run_two_requests() -> float:
+            started = time.perf_counter()
+            await asyncio.gather(
+                create_product_session(request, identity),
+                create_product_session(request, identity),
+            )
+            return time.perf_counter() - started
+
+        with patch(
+            "app.api.routes.flirtist.FlirtistProductService.create_session",
+            side_effect=blocking_create_session,
+        ):
+            elapsed = asyncio.run(run_two_requests())
+
+        self.assertLess(elapsed, 0.25)
 
     def test_reply_session_returns_album_ready_coaching_when_text_is_submitted(self) -> None:
         # Given

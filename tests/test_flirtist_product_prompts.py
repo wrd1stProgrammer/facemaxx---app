@@ -40,7 +40,7 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("Quality bar", prompt)
         self.assertIn("Do not copy fallback wording", prompt)
         self.assertIn("would be wrong for a different chat", prompt)
-        self.assertIn("<copy-ready reply text 1>", prompt)
+        self.assertIn("<copy-ready genuine reply 1>", prompt)
         self.assertNotIn("얘기 조금 더 듣고 싶어", prompt)
         self.assertNotIn("그 말 괜히 좋네", prompt)
 
@@ -75,7 +75,8 @@ class FlirtistProductPromptTest(unittest.TestCase):
         self.assertIn("exactly four copy-ready replies", prompt)
         self.assertIn("four different tactics", prompt)
         self.assertIn("Do not anchor all replies on the same visible noun or phrase", prompt)
-        self.assertIn("same four genuine replies", prompt)
+        self.assertIn("server derives top-level replies", prompt)
+        self.assertIn("only text and whyItWorks", prompt)
         self.assertIn("Do not invent missing plan details", prompt)
         self.assertIn("광주", prompt)
         self.assertIn("웅 조아네", prompt)
