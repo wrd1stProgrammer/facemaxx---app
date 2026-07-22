@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 import re
 from datetime import UTC, datetime
+
+from openai import AsyncOpenAI, OpenAIError
 
 from app.core.config import Settings, get_settings
 from app.schemas.habitdot import HabitdotMotivationRequest, HabitdotMotivationResponse
 
 
 class HabitdotMotivationService:
-    provider_name = "gemini"
-    transient_status_codes = {429, 500, 502, 503, 504}
+    provider_name = "openai"
 
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
@@ -21,13 +20,13 @@ class HabitdotMotivationService:
         generated_at = datetime.now(UTC)
         fallback_text = self._clean_text(self._fallback_text(request), request.locale)
 
-        if not self.settings.gemini_api_key:
+        if not self.settings.openai_api_key:
             return self._response(fallback_text, generated_at)
 
         try:
-            text, model_name = await self._generate_with_gemini(request)
-        except Exception as exc:
-            print("Habitdot Gemini motivation failed; using fallback:", repr(exc))
+            text, model_name = await self._generate_with_openai(request)
+        except OpenAIError as exc:
+            print("Habitdot OpenAI motivation failed; using fallback:", repr(exc))
             return self._response(fallback_text, generated_at)
 
         text = self._clean_text(text, request.locale)
@@ -42,57 +41,25 @@ class HabitdotMotivationService:
             generated_at=generated_at,
         )
 
-    async def _generate_with_gemini(self, request: HabitdotMotivationRequest) -> tuple[str, str]:
-        from google import genai
-        from google.genai import types
-
-        previous_google_api_key = os.environ.pop("GOOGLE_API_KEY", None)
-        try:
-            client = genai.Client(api_key=self.settings.gemini_api_key)
-        finally:
-            if previous_google_api_key is not None:
-                os.environ["GOOGLE_API_KEY"] = previous_google_api_key
-
-        config = types.GenerateContentConfig(
-            temperature=0.7,
-            max_output_tokens=42,
-        )
-        response, model_name = await self._generate_content_with_fallback(
-            client=client,
-            contents=[self._prompt(request)],
-            config=config,
-        )
-        return response.text or "", model_name
-
-    async def _generate_content_with_fallback(self, client, contents: list[str], config):
-        attempts_per_model = max(1, self.settings.gemini_retry_attempts)
-        model_candidates = self.settings.gemini_model_candidates or [self.settings.gemini_model]
-        last_exc: Exception | None = None
-
-        for model_index, model_name in enumerate(model_candidates):
-            for attempt_index in range(attempts_per_model):
-                try:
-                    response = await asyncio.to_thread(
-                        client.models.generate_content,
-                        model=model_name,
-                        contents=contents,
-                        config=config,
-                    )
-                    return response, model_name
-                except Exception as exc:
-                    last_exc = exc
-                    is_transient = self._is_transient_model_error(exc)
-                    has_more_attempts = attempt_index < attempts_per_model - 1
-                    has_fallback_model = model_index < len(model_candidates) - 1
-                    if not is_transient or (not has_more_attempts and not has_fallback_model):
-                        raise
-
-                    delay = self._retry_delay_seconds(attempt_index, model_index)
-                    await asyncio.sleep(delay)
-
-        if last_exc is not None:
-            raise last_exc
-        raise RuntimeError("No Gemini model candidates configured")
+    async def _generate_with_openai(self, request: HabitdotMotivationRequest) -> tuple[str, str]:
+        client = AsyncOpenAI(api_key=self.settings.openai_api_key)
+        model_name = self.settings.openai_model
+        prompt = self._prompt(request)
+        normalized_model = model_name.lower()
+        if normalized_model.startswith("gpt-5") or normalized_model.startswith(("o3", "o4")):
+            response = await client.responses.create(
+                model=model_name,
+                input=prompt,
+                max_output_tokens=120,
+                reasoning={"effort": "minimal"},
+            )
+        else:
+            response = await client.responses.create(
+                model=model_name,
+                input=prompt,
+                max_output_tokens=120,
+            )
+        return response.output_text or "", model_name
 
     def _prompt(self, request: HabitdotMotivationRequest) -> str:
         habits = [
@@ -245,33 +212,3 @@ class HabitdotMotivationService:
     @staticmethod
     def _strip_wrapping_quotes(text: str) -> str:
         return text.strip().strip("\"'“”‘’「」『』").strip()
-
-    @classmethod
-    def _is_transient_model_error(cls, exc: Exception) -> bool:
-        status_code = cls._exception_status_code(exc)
-        if status_code in cls.transient_status_codes:
-            return True
-
-        text = str(exc).lower()
-        transient_markers = (
-            "unavailable",
-            "high demand",
-            "temporarily",
-            "resource_exhausted",
-            "deadline",
-            "timeout",
-            "rate limit",
-        )
-        return any(marker in text for marker in transient_markers)
-
-    @staticmethod
-    def _exception_status_code(exc: Exception) -> int | None:
-        status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-        try:
-            return int(status_code) if status_code is not None else None
-        except (TypeError, ValueError):
-            return None
-
-    def _retry_delay_seconds(self, attempt_index: int, model_index: int) -> float:
-        base_delay = max(0.1, self.settings.gemini_retry_base_delay_seconds)
-        return round(base_delay * (2 ** attempt_index) + (0.25 * model_index), 2)

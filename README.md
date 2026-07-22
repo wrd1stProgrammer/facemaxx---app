@@ -84,9 +84,9 @@ OPENAI_MODEL=gpt-5-mini
 
 `POST /v1/habitdot/motivation` returns a short stateless motivation line for Habitdot. Because the app mounts the API router both with and without `API_PREFIX`, the same endpoint is also available at `POST /habitdot/motivation`.
 
-The endpoint currently uses server-side `GEMINI_API_KEY` when configured. If the key is missing or generation fails, it returns deterministic fallback copy with `provider="fallback"` and `model_name=null`.
+The endpoint uses server-side `OPENAI_API_KEY` and `OPENAI_MODEL` when configured. If the key is missing or generation fails, it returns deterministic fallback copy with `provider="fallback"` and `model_name=null`.
 
-The iOS client should send `X-Facemaxx-Install-Id`; the route applies a small in-memory per-install/IP rate limit to protect Gemini usage. App-side caching should still keep normal usage to about one request per relevant daily habit state.
+The iOS client should send `X-Facemaxx-Install-Id`; the route applies a small in-memory per-install/IP rate limit to protect OpenAI usage. App-side caching should still keep normal usage to about one request per relevant daily habit state.
 
 Example payload:
 

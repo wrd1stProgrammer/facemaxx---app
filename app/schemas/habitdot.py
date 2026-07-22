@@ -67,7 +67,7 @@ class HabitdotMotivationRequest(FacemaxxBaseModel):
 
 class HabitdotMotivationResponse(FacemaxxBaseModel):
     text: str
-    provider: Literal["gemini", "fallback"]
+    provider: Literal["openai", "fallback"]
     model_name: Optional[str] = None
     generated_at: datetime
 
