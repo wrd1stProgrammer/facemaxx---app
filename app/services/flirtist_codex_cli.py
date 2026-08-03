@@ -78,7 +78,7 @@ class FlirtistCodexCLI:
             work_dir = root / "work"
             work_dir.mkdir()
             schema_path.write_text(
-                json.dumps(response_model.model_json_schema(), ensure_ascii=False),
+                json.dumps(_codex_response_schema(response_model), ensure_ascii=False),
                 encoding="utf-8",
             )
             image_path = self._materialize_image(image_url, root) if image_url else None
@@ -288,6 +288,8 @@ def _classify_process_error(stderr: str) -> str:
     message = stderr.lower()
     if "unexpected argument" in message or "unrecognized option" in message:
         return "invalid_arguments"
+    if "invalid_json_schema" in message or "invalid schema" in message or "response_format" in message:
+        return "invalid_schema"
     if "login" in message or "not authenticated" in message or "unauthorized" in message:
         return "not_authenticated"
     if "model" in message and any(term in message for term in ("not found", "unknown", "unavailable")):
@@ -295,3 +297,26 @@ def _classify_process_error(stderr: str) -> str:
     if "rate limit" in message or "rate_limit" in message:
         return "rate_limited"
     return "process_exit"
+
+
+def _codex_response_schema(response_model: type[BaseModel]) -> dict[str, object]:
+    schema = response_model.model_json_schema()
+    _normalize_codex_schema(schema)
+    return schema
+
+
+def _normalize_codex_schema(value: object) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _normalize_codex_schema(item)
+        return
+    if not isinstance(value, dict):
+        return
+
+    properties = value.get("properties")
+    if isinstance(properties, dict):
+        value["additionalProperties"] = False
+        value["required"] = list(properties.keys())
+    value.pop("default", None)
+    for child in value.values():
+        _normalize_codex_schema(child)
