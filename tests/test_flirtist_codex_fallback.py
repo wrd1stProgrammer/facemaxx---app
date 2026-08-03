@@ -4,7 +4,7 @@ import json
 import unittest
 
 from app.schemas.flirtist import FlirtistChatRequest, FlirtistResponse
-from app.schemas.flirtist_product import FlirtistCoachChatRequest
+from app.schemas.flirtist_product import FlirtistCoachChatRequest, FlirtistReplyStyleRequest
 from app.services.flirtist_codex_cli import FlirtistCodexCLIError
 from app.services.flirtist_config import FlirtistAIConfig, FlirtistProvider
 from app.services.flirtist_product_ai import FlirtistProductAI
@@ -32,7 +32,7 @@ class FlirtistCodexFallbackTest(unittest.TestCase):
         self.assertEqual(codex.calls, 1)
         self.assertEqual(transport.providers, ["gemini"])
 
-    def test_product_ai_does_not_call_api_when_codex_returns_valid_json(self) -> None:
+    def test_training_coach_chat_uses_api_without_calling_codex(self) -> None:
         codex = FakeCodex(
             text=json.dumps(
                 {
@@ -42,7 +42,15 @@ class FlirtistCodexFallbackTest(unittest.TestCase):
                 ensure_ascii=False,
             )
         )
-        transport = FixedTransport("should-not-run")
+        transport = FixedTransport(
+            json.dumps(
+                {
+                    "message": {"role": "assistant", "text": "API 코치 답변"},
+                    "suggestions": ["하나", "둘"],
+                },
+                ensure_ascii=False,
+            )
+        )
         ai = FlirtistProductAI(
             config=_config(fallback_provider="gemini"),
             provider_transport=transport,
@@ -54,11 +62,11 @@ class FlirtistCodexFallbackTest(unittest.TestCase):
             fallback=_coach_fallback(),
         )
 
-        self.assertEqual(response.message.text, "이 답장으로 자연스럽게 이어가 보자.")
-        self.assertEqual(codex.calls, 1)
-        self.assertEqual(transport.providers, [])
+        self.assertEqual(response.message.text, "API 코치 답변")
+        self.assertEqual(codex.calls, 0)
+        self.assertEqual(transport.providers, ["gemini"])
 
-    def test_product_ai_uses_api_provider_after_codex_failure(self) -> None:
+    def test_training_coach_chat_does_not_try_codex_when_api_is_used(self) -> None:
         codex = FakeCodex(error=FlirtistCodexCLIError("process_exit"))
         transport = FixedTransport(
             json.dumps(
@@ -81,8 +89,31 @@ class FlirtistCodexFallbackTest(unittest.TestCase):
         )
 
         self.assertEqual(response.message.text, "API fallback 답변")
-        self.assertEqual(codex.calls, 1)
+        self.assertEqual(codex.calls, 0)
         self.assertEqual(transport.providers, ["gemini"])
+
+    def test_other_product_features_keep_codex_as_primary_provider(self) -> None:
+        codex = FakeCodex(text=json.dumps({"replyCoaching": {"headline": "Codex 스타일"}}, ensure_ascii=False))
+        transport = FixedTransport("should-not-run")
+        ai = FlirtistProductAI(
+            config=_config(fallback_provider="gemini"),
+            provider_transport=transport,
+            codex_provider=codex,
+        )
+
+        response = ai.complete_style(
+            request=FlirtistReplyStyleRequest(
+                locale="ko-KR",
+                context="상대가 오늘 뭐 했냐고 물었다.",
+                baseReply="오늘은 쉬었어.",
+                style="genuine",
+            ),
+            fallback=_style_fallback(),
+        )
+
+        self.assertEqual(response.replyCoaching.headline, "Codex 스타일")
+        self.assertEqual(codex.calls, 1)
+        self.assertEqual(transport.providers, [])
 
 
 class FakeCodex:
@@ -151,6 +182,33 @@ def _coach_fallback():
         message=FlirtistCoachMessage(role="assistant", text="fallback"),
         suggestions=["fallback suggestion"],
         memorySummary=None,
+    )
+
+
+def _style_fallback():
+    from app.schemas.flirtist_product import (
+        FlirtistReplyCoaching,
+        FlirtistReplyOption,
+        FlirtistReplyStyleResponse,
+    )
+
+    option = FlirtistReplyOption(
+        id="reply_test",
+        style="genuine",
+        text="오늘은 푹 쉬었어.",
+        whyItWorks="자연스럽고 부담이 적어요.",
+        aiObviousness=10,
+        pressure=10,
+        replyLikelihood=80,
+    )
+    return FlirtistReplyStyleResponse(
+        sessionId="style_test",
+        replyCoaching=FlirtistReplyCoaching(
+            headline="기본 스타일",
+            summary="가볍게 이어가요.",
+            nextMove="질문을 하나 덧붙여 보세요.",
+            replies=[option],
+        ),
     )
 
 

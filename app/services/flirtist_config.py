@@ -190,3 +190,12 @@ def provider_chain(config: FlirtistAIConfig) -> tuple[FlirtistProvider, ...]:
     if config.fallback_provider == "codex_cli":
         return ("codex_cli",)
     return ("codex_cli", config.fallback_provider)
+
+
+def api_provider_chain(config: FlirtistAIConfig) -> tuple[FlirtistProvider, ...]:
+    """Return the provider chain for latency-sensitive API-only product features."""
+    if config.effective_provider != "codex_cli":
+        return (config.effective_provider,)
+    if config.fallback_provider == "codex_cli":
+        return ("mock",)
+    return (config.fallback_provider,)

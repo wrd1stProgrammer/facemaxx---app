@@ -24,7 +24,13 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleResponse,
 )
 from app.services.flirtist_codex_cli import FlirtistCodexCLI, FlirtistCodexCLIError
-from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config, provider_chain
+from app.services.flirtist_config import (
+    FlirtistAIConfig,
+    FlirtistProvider,
+    api_provider_chain,
+    load_flirtist_ai_config,
+    provider_chain,
+)
 from app.services.flirtist_product_image_input import provider_image_url
 from app.services.flirtist_provider import (
     FlirtistProviderError,
@@ -157,6 +163,7 @@ class FlirtistProductAI:
             max_output_tokens=450,
             timeout_seconds=30.0,
             fallback=fallback,
+            providers=api_provider_chain(self._config),
         )
         if text is None:
             return fallback
@@ -171,8 +178,10 @@ class FlirtistProductAI:
         fallback: ProductModel,
         max_output_tokens: int = 1400,
         timeout_seconds: float = 30.0,
+        providers: tuple[FlirtistProvider, ...] | None = None,
     ) -> str | None:
-        for provider in provider_chain(self._config):
+        provider_candidates = providers if providers is not None else provider_chain(self._config)
+        for provider in provider_candidates:
             match provider:
                 case "mock":
                     LOGGER.warning(
@@ -372,7 +381,8 @@ def _merge_response_or_none(text: str, fallback: ProductModel, model: type[Produ
 
 def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: ProductModel) -> None:
     if isinstance(fallback, (FlirtistCoachChatResponse, FlirtistReplyStyleResponse)):
-        payload.pop("sessionId", None)
+        if payload.get("sessionId") is None:
+            payload.pop("sessionId", None)
         return
     if not isinstance(fallback, FlirtistProductSessionResponse):
         return
