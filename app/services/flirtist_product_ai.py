@@ -371,6 +371,9 @@ def _merge_response_or_none(text: str, fallback: ProductModel, model: type[Produ
 
 
 def _drop_provider_session_metadata(payload: dict[str, JsonValue], fallback: ProductModel) -> None:
+    if isinstance(fallback, (FlirtistCoachChatResponse, FlirtistReplyStyleResponse)):
+        payload.pop("sessionId", None)
+        return
     if not isinstance(fallback, FlirtistProductSessionResponse):
         return
     for key in (

@@ -34,6 +34,7 @@ class FlirtistCodexCLITest(unittest.TestCase):
         command = popen.call_args.args[0]
         environment = popen.call_args.kwargs["env"]
         self.assertEqual(result, '{"ok": true}')
+        self.assertEqual(command[:4], ["codex", "--ask-for-approval", "never", "exec"])
         self.assertEqual(command[command.index("--model") + 1], "gpt-5.6-luna")
         self.assertIn('model_reasoning_effort="low"', command)
         self.assertIn("--sandbox", command)

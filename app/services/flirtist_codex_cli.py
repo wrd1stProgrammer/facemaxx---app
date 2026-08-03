@@ -119,12 +119,12 @@ class FlirtistCodexCLI:
     ) -> list[str]:
         command = [
             config.codex_binary,
+            "--ask-for-approval",
+            "never",
             "exec",
             "--ephemeral",
             "--sandbox",
             "read-only",
-            "--ask-for-approval",
-            "never",
             "--skip-git-repo-check",
             "--ignore-user-config",
             "--ignore-rules",
@@ -196,12 +196,14 @@ class FlirtistCodexCLI:
             raise FlirtistCodexCLIError("timeout") from exc
 
         if process.returncode != 0:
+            reason = _classify_process_error(stderr)
             LOGGER.warning(
-                "Flirtist Codex process failed exit_code=%s stderr_bytes=%s",
+                "Flirtist Codex process failed exit_code=%s reason=%s stderr_bytes=%s",
                 process.returncode,
+                reason,
                 len(stderr.encode("utf-8", errors="ignore")),
             )
-            raise FlirtistCodexCLIError("process_exit")
+            raise FlirtistCodexCLIError(reason)
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
     @staticmethod
@@ -280,3 +282,16 @@ def _safe_prompt(prompt: str) -> str:
             prompt,
         ]
     )
+
+
+def _classify_process_error(stderr: str) -> str:
+    message = stderr.lower()
+    if "unexpected argument" in message or "unrecognized option" in message:
+        return "invalid_arguments"
+    if "login" in message or "not authenticated" in message or "unauthorized" in message:
+        return "not_authenticated"
+    if "model" in message and any(term in message for term in ("not found", "unknown", "unavailable")):
+        return "model_unavailable"
+    if "rate limit" in message or "rate_limit" in message:
+        return "rate_limited"
+    return "process_exit"
