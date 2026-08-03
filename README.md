@@ -124,14 +124,21 @@ Provider selection is independent from the Facemaxx face-analysis provider:
 AI_PROVIDER=openai
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5-mini
-FLIRTIST_AI_PROVIDER=openai
+FLIRTIST_AI_PROVIDER=codex_cli
+FLIRTIST_AI_FALLBACK_PROVIDER=openai
 FLIRTIST_OPENAI_API_KEY=
 FLIRTIST_OPENAI_MODEL=gpt-4.1-mini
 FLIRTIST_ANTHROPIC_API_KEY=
 FLIRTIST_GEMINI_API_KEY=
+FLIRTIST_CODEX_MODEL=gpt-5.6-luna
+FLIRTIST_CODEX_REASONING_EFFORT=low
+FLIRTIST_CODEX_BIN=/usr/local/bin/codex
+FLIRTIST_CODEX_TIMEOUT_SECONDS=45
+FLIRTIST_CODEX_MAX_CONCURRENCY=2
+CODEX_HOME=/home/app/.codex
 ```
 
-If `FLIRTIST_AI_PROVIDER` is omitted but `FLIRTIST_OPENAI_API_KEY` exists, Flirtist defaults to OpenAI. If the selected provider key is absent, Flirtist falls back to deterministic mock responses while preserving the response contract. `/health` reports both the global `ai_provider` and Flirtist's `flirtist_ai_provider`.
+If `FLIRTIST_AI_PROVIDER` is omitted but `FLIRTIST_OPENAI_API_KEY` exists, Flirtist defaults to OpenAI. With `codex_cli`, Codex runs first and the configured fallback provider runs only when Codex fails or returns an invalid contract. `/health` reports both the global `ai_provider` and Flirtist's requested/effective/fallback provider settings. Authenticate the persistent Docker volume with `docker compose exec -it api codex login --device-auth`; never commit the resulting credentials.
 
 ## RevenueCat
 

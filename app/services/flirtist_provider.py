@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Protocol, assert_never
 
@@ -19,7 +20,8 @@ from app.schemas.flirtist import (
     FlirtistProfileRequest,
     FlirtistResponse,
 )
-from app.services.flirtist_config import FlirtistAIConfig, FlirtistProvider
+from app.services.flirtist_codex_cli import FlirtistCodexCLI, FlirtistCodexCLIError
+from app.services.flirtist_config import FlirtistAIConfig, FlirtistProvider, provider_chain
 from app.services.flirtist_pickup_lines import pickup_lines_prompt
 from app.services.flirtist_provider_payloads import (
     FlirtistAIAction,
@@ -31,6 +33,8 @@ from app.services.flirtist_provider_payloads import (
     response_from_text,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 class FlirtistProviderTransport(Protocol):
     def complete_text(self, *, provider: FlirtistProvider, prompt: str, config: FlirtistAIConfig) -> str: ...
@@ -41,9 +45,11 @@ class FlirtistAIProviderGateway:
         self,
         config: FlirtistAIConfig,
         transport: FlirtistProviderTransport | None = None,
+        codex_provider: FlirtistCodexCLI | None = None,
     ) -> None:
         self._config = config
         self._transport = transport or LiveFlirtistProviderTransport()
+        self._codex_provider = codex_provider or FlirtistCodexCLI()
 
     def complete(
         self,
@@ -52,23 +58,29 @@ class FlirtistAIProviderGateway:
         request: FlirtistAIRequest,
         fallback: FlirtistResponse,
     ) -> FlirtistResponse:
-        provider = self._config.effective_provider
-        match provider:
-            case "mock":
-                return fallback
-            case "openai" | "anthropic" | "gemini":
-                pass
-            case unreachable:
-                assert_never(unreachable)
-        try:
-            text = self._transport.complete_text(
-                provider=provider,
-                prompt=prompt(action=action, request=request, fallback=fallback),
-                config=self._config,
-            )
-            return response_from_text(text, fallback=fallback, provider=provider)
-        except (FlirtistProviderError, ValidationError, json.JSONDecodeError):
-            return fallback
+        request_prompt = prompt(action=action, request=request, fallback=fallback)
+        for provider in provider_chain(self._config):
+            if provider == "mock":
+                continue
+            try:
+                if provider == "codex_cli":
+                    text = self._codex_provider.complete_json(
+                        prompt=request_prompt,
+                        response_model=FlirtistResponse,
+                        config=self._config,
+                        image_url=_codex_image_url(request),
+                        timeout_seconds=self._config.codex_timeout_seconds,
+                    )
+                else:
+                    text = self._transport.complete_text(
+                        provider=provider,
+                        prompt=request_prompt,
+                        config=self._config,
+                    )
+                return response_from_text(text, fallback=fallback, provider=provider)
+            except (FlirtistCodexCLIError, FlirtistProviderError, ValidationError, json.JSONDecodeError) as exc:
+                LOGGER.warning("Flirtist provider failed provider=%s reason=%s", provider, _safe_reason(exc))
+        return fallback
 
     def complete_pickup_lines(
         self,
@@ -76,23 +88,28 @@ class FlirtistAIProviderGateway:
         request: FlirtistPickupLinesRequest,
         fallback: FlirtistPickupLinesResponse,
     ) -> FlirtistPickupLinesResponse:
-        provider = self._config.effective_provider
-        match provider:
-            case "mock":
-                return fallback
-            case "openai" | "anthropic" | "gemini":
-                pass
-            case unreachable:
-                assert_never(unreachable)
-        try:
-            text = self._transport.complete_text(
-                provider=provider,
-                prompt=pickup_lines_prompt(request=request, fallback=fallback),
-                config=self._config,
-            )
-            return pickup_lines_from_text(text, fallback=fallback, provider=provider)
-        except (FlirtistProviderError, ValidationError, json.JSONDecodeError):
-            return fallback
+        request_prompt = pickup_lines_prompt(request=request, fallback=fallback)
+        for provider in provider_chain(self._config):
+            if provider == "mock":
+                continue
+            try:
+                if provider == "codex_cli":
+                    text = self._codex_provider.complete_json(
+                        prompt=request_prompt,
+                        response_model=FlirtistPickupLinesResponse,
+                        config=self._config,
+                        timeout_seconds=self._config.codex_timeout_seconds,
+                    )
+                else:
+                    text = self._transport.complete_text(
+                        provider=provider,
+                        prompt=request_prompt,
+                        config=self._config,
+                    )
+                return pickup_lines_from_text(text, fallback=fallback, provider=provider)
+            except (FlirtistCodexCLIError, FlirtistProviderError, ValidationError, json.JSONDecodeError) as exc:
+                LOGGER.warning("Flirtist provider failed provider=%s reason=%s", provider, _safe_reason(exc))
+        return fallback
 
 
 class LiveFlirtistProviderTransport:
@@ -106,6 +123,8 @@ class LiveFlirtistProviderTransport:
                 return self._anthropic_text(prompt=prompt, config=config)
             case "gemini":
                 return self._gemini_text(prompt=prompt, config=config)
+            case "codex_cli":
+                raise FlirtistProviderError(provider=provider, reason="codex uses the CLI adapter")
             case unreachable:
                 assert_never(unreachable)
 
@@ -186,6 +205,24 @@ def _provider_key(primary: str, fallback: str, provider: FlirtistProvider) -> st
                 return settings.gemini_api_key
         case "anthropic" | "mock":
             pass
+        case "codex_cli":
+            pass
         case unreachable:
             assert_never(unreachable)
     raise FlirtistProviderError(provider=provider, reason=f"{primary} is not configured")
+
+
+def _codex_image_url(request: FlirtistAIRequest) -> str | None:
+    if not isinstance(request, FlirtistOCRRequest) or not request.imageBase64:
+        return None
+    if request.imageBase64.startswith("data:"):
+        return request.imageBase64
+    return f"data:image/jpeg;base64,{request.imageBase64}"
+
+
+def _safe_reason(error: Exception) -> str:
+    if isinstance(error, FlirtistCodexCLIError):
+        return error.reason
+    if isinstance(error, FlirtistProviderError):
+        return error.reason
+    return type(error).__name__

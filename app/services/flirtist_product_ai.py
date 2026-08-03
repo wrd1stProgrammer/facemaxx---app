@@ -23,7 +23,8 @@ from app.schemas.flirtist_product import (
     FlirtistReplyStyleRequest,
     FlirtistReplyStyleResponse,
 )
-from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config
+from app.services.flirtist_codex_cli import FlirtistCodexCLI, FlirtistCodexCLIError
+from app.services.flirtist_config import FlirtistAIConfig, load_flirtist_ai_config, provider_chain
 from app.services.flirtist_product_image_input import provider_image_url
 from app.services.flirtist_provider import (
     FlirtistProviderError,
@@ -78,9 +79,11 @@ class FlirtistProductAI:
         self,
         config: FlirtistAIConfig | None = None,
         provider_transport: FlirtistProviderTransport | None = None,
+        codex_provider: FlirtistCodexCLI | None = None,
     ) -> None:
         self._config = config or load_flirtist_ai_config()
         self._provider_transport = provider_transport or LiveFlirtistProviderTransport()
+        self._codex_provider = codex_provider or FlirtistCodexCLI()
 
     def complete_session(
         self,
@@ -96,6 +99,7 @@ class FlirtistProductAI:
             response_model=FlirtistProductSessionAIOutput,
             max_output_tokens=_session_max_output_tokens(request),
             timeout_seconds=_session_timeout_seconds(request, effective_image_url),
+            fallback=fallback,
         )
         if text is None:
             if _should_fail_without_provider_result(request, self._config.effective_provider):
@@ -110,7 +114,7 @@ class FlirtistProductAI:
 
     def can_use_inline_session_image(self, request: FlirtistProductSessionRequest) -> bool:
         return (
-            self._config.effective_provider == "openai"
+            any(provider in {"openai", "codex_cli"} for provider in provider_chain(self._config))
             and request.source == "screenshot"
             and bool(request.imageBase64)
         )
@@ -127,6 +131,7 @@ class FlirtistProductAI:
             response_model=FlirtistReplyStyleResponse,
             max_output_tokens=2400,
             timeout_seconds=24.0,
+            fallback=fallback,
         )
         if text is None:
             if self._config.effective_provider != "mock":
@@ -151,6 +156,7 @@ class FlirtistProductAI:
             response_model=FlirtistCoachChatResponse,
             max_output_tokens=450,
             timeout_seconds=12.0,
+            fallback=fallback,
         )
         if text is None:
             return fallback
@@ -162,37 +168,64 @@ class FlirtistProductAI:
         prompt: str,
         image_url: str | None,
         response_model: type[ProductModel],
+        fallback: ProductModel,
         max_output_tokens: int = 1400,
         timeout_seconds: float = 30.0,
     ) -> str | None:
-        provider = self._config.effective_provider
-        match provider:
-            case "mock":
-                LOGGER.warning(
-                    "Flirtist product AI using fallback because provider is mock "
-                    "(requested=%s, effective=%s)",
-                    self._config.requested_provider,
-                    self._config.effective_provider,
-                )
-                return None
-            case "openai":
-                return self._complete_openai_json_text(
-                    prompt=prompt,
-                    image_url=image_url,
-                    response_model=response_model,
-                    max_output_tokens=max_output_tokens,
-                    timeout_seconds=timeout_seconds,
-                )
-            case "anthropic" | "gemini":
-                try:
-                    return self._provider_transport.complete_text(
-                        provider=provider,
-                        prompt=_transport_prompt(prompt, image_url=image_url),
-                        config=self._config,
+        for provider in provider_chain(self._config):
+            match provider:
+                case "mock":
+                    LOGGER.warning(
+                        "Flirtist product AI using fallback because provider is mock "
+                        "(requested=%s, effective=%s)",
+                        self._config.requested_provider,
+                        self._config.effective_provider,
                     )
-                except FlirtistProviderError as exc:
-                    LOGGER.warning("Flirtist product provider completion failed: %s", exc)
-                    return None
+                    continue
+                case "codex_cli":
+                    try:
+                        text = self._codex_provider.complete_json(
+                            prompt=prompt,
+                            response_model=response_model,
+                            config=self._config,
+                            image_url=image_url,
+                            timeout_seconds=min(timeout_seconds, self._config.codex_timeout_seconds),
+                        )
+                    except FlirtistCodexCLIError as exc:
+                        LOGGER.warning("Flirtist product provider failed provider=codex_cli reason=%s", exc.reason)
+                        continue
+                    if _merge_response_or_none(text, fallback, response_model) is None:
+                        LOGGER.warning("Flirtist product provider failed provider=codex_cli reason=invalid_contract")
+                        continue
+                    return text
+                case "openai":
+                    text = self._complete_openai_json_text(
+                        prompt=prompt,
+                        image_url=image_url,
+                        response_model=response_model,
+                        max_output_tokens=max_output_tokens,
+                        timeout_seconds=timeout_seconds,
+                    )
+                    if text:
+                        return text
+                case "anthropic" | "gemini":
+                    try:
+                        text = self._provider_transport.complete_text(
+                            provider=provider,
+                            prompt=_transport_prompt(
+                                prompt,
+                                image_url=image_url if not image_url or not image_url.startswith("data:") else None,
+                            ),
+                            config=self._config,
+                        )
+                    except FlirtistProviderError as exc:
+                        LOGGER.warning("Flirtist product provider failed provider=%s reason=%s", provider, exc.reason)
+                        continue
+                    if text:
+                        return text
+                case unreachable:
+                    assert_never(unreachable)
+        return None
 
     def _complete_openai_json_text(
         self,

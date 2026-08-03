@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - photo-data:/app/.data
+      - codex-home:/home/app/.codex
     healthcheck:
       test:
         [
@@ -24,3 +25,4 @@ services:
 
 volumes:
   photo-data:
+  codex-home:

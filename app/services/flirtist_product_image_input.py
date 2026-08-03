@@ -12,7 +12,7 @@ def provider_image_url(
     provider: FlirtistProvider,
 ) -> str | None:
     match provider:
-        case "openai":
+        case "openai" | "codex_cli":
             return _openai_inline_image_url(request) or stored_image_url
         case "anthropic" | "gemini" | "mock":
             return stored_image_url

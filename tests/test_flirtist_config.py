@@ -148,6 +148,38 @@ class FlirtistConfigTest(unittest.TestCase):
         self.assertEqual(config.effective_provider, "gemini")
         self.assertEqual(config.gemini_model, "gemini-test-model")
 
+    def test_codex_cli_uses_luna_light_defaults_and_api_fallback(self) -> None:
+        # Given
+        env = {
+            "FLIRTIST_AI_PROVIDER": "codex",
+            "FLIRTIST_AI_FALLBACK_PROVIDER": "openai",
+            "FLIRTIST_CODEX_MODEL": "gpt-5.6-luna",
+            "FLIRTIST_CODEX_REASONING_EFFORT": "light",
+            "FLIRTIST_CODEX_TIMEOUT_SECONDS": "61",
+            "FLIRTIST_CODEX_MAX_CONCURRENCY": "3",
+            "CODEX_HOME": "/tmp/flirtist-codex-home",
+        }
+        settings = Settings(openai_api_key=None, openai_model="gpt-default")
+
+        # When
+        with (
+            patch.dict("os.environ", env, clear=False),
+            patch("app.services.flirtist_config.get_settings", return_value=settings),
+        ):
+            from app.services.flirtist_config import load_flirtist_ai_config
+
+            config = load_flirtist_ai_config()
+
+        # Then
+        self.assertEqual(config.requested_provider, "codex_cli")
+        self.assertEqual(config.effective_provider, "codex_cli")
+        self.assertEqual(config.fallback_provider, "openai")
+        self.assertEqual(config.codex_model, "gpt-5.6-luna")
+        self.assertEqual(config.codex_reasoning_effort, "low")
+        self.assertEqual(config.codex_timeout_seconds, 61.0)
+        self.assertEqual(config.codex_max_concurrency, 3)
+        self.assertEqual(config.codex_home, "/tmp/flirtist-codex-home")
+
     def test_health_reports_flirtist_openai_separately_from_global_provider(self) -> None:
         # Given
         env = {
