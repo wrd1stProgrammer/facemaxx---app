@@ -155,7 +155,7 @@ class FlirtistProductAI:
             image_url=None,
             response_model=FlirtistCoachChatResponse,
             max_output_tokens=450,
-            timeout_seconds=12.0,
+            timeout_seconds=30.0,
             fallback=fallback,
         )
         if text is None:
