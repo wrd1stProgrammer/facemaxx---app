@@ -8,6 +8,7 @@ from app.schemas import (
     ChartValidation,
     Consensus,
     DataQuality,
+    NewsImpact,
 )
 
 
@@ -35,6 +36,13 @@ def valid_payload() -> AnalysisPayload:
         structure=[],
         meeting_script=[],
         data_quality=DataQuality(chart="good", price_axis="partial", timeframe="good", news="unused"),
+        news_impact=NewsImpact(
+            collected_count=0,
+            used_count=0,
+            effect="none",
+            summary="뉴스를 사용하지 않았습니다.",
+            used_titles=[],
+        ),
         follow_up_suggestions=[],
     )
 

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from app.analysis_service import AnalysisService
+from app.analysis_service import AnalysisService, _normalize_news_impact
 from app.errors import InvalidChartError, InvalidSymbolError
-from app.schemas import AnalysisPayload, AnalysisRequestContext, NewsItem, SymbolInfo
+from app.schemas import AnalysisPayload, AnalysisRequestContext, NewsImpact, NewsItem, SymbolInfo
 
 
 class FailingProvider:
@@ -115,3 +115,32 @@ async def test_missing_image_timeframe_returns_typed_error(tmp_path: Path, valid
         )
 
     assert raised.value.code == "missing_timeframe"
+
+
+def test_news_impact_keeps_only_titles_returned_by_insightsentry(valid_payload: AnalysisPayload) -> None:
+    payload = valid_payload.model_copy(
+        update={
+            "news_impact": NewsImpact(
+                collected_count=99,
+                used_count=2,
+                effect="reinforced",
+                summary="차트의 상방 조건을 보조했습니다.",
+                used_titles=["실제 기사", "존재하지 않는 기사"],
+            )
+        }
+    )
+    news = [
+        NewsItem(
+            title="실제 기사",
+            source="InsightSentry",
+            published_at=1_700_000_000,
+            related_symbols=["NASDAQ:AAPL"],
+            relevance="",
+        )
+    ]
+
+    normalized = _normalize_news_impact(payload, news, include_news=True)
+
+    assert normalized.news_impact.collected_count == 1
+    assert normalized.news_impact.used_count == 1
+    assert normalized.news_impact.used_titles == ["실제 기사"]

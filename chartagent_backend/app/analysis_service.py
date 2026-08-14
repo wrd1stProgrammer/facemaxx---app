@@ -17,6 +17,7 @@ from app.schemas import (
     FollowUpPayload,
     FollowUpResponse,
     NewsItem,
+    NewsImpact,
     SymbolInfo,
 )
 
@@ -78,6 +79,7 @@ class AnalysisService:
                 response_model=AnalysisPayload,
             )
             symbol, timeframe = await self._resolve_chart_context(payload.validation)
+        payload = _normalize_news_impact(payload, news, context.include_news)
         return AnalysisResponse.create(
             provider=provider_name,
             symbol=symbol,
@@ -160,6 +162,47 @@ def _raise_for_invalid_chart(validation: ChartValidation) -> None:
         raise InvalidChartError("missing_symbol", "이미지에서 거래소와 종목 심볼을 확인할 수 없습니다.")
     if not (validation.detected_timeframe or "").strip():
         raise InvalidChartError("missing_timeframe", "이미지에서 차트 시간대를 확인할 수 없습니다.")
+
+
+def _normalize_news_impact(
+    payload: AnalysisPayload,
+    news: list[NewsItem],
+    include_news: bool,
+) -> AnalysisPayload:
+    if not include_news:
+        impact = NewsImpact(
+            collected_count=0,
+            used_count=0,
+            effect="none",
+            summary="뉴스 옵션을 사용하지 않아 차트 이미지 근거만 반영했습니다.",
+            used_titles=[],
+        )
+        return payload.model_copy(update={"news_impact": impact})
+
+    available_titles = {item.title for item in news}
+    used_titles = list(dict.fromkeys(title for title in payload.news_impact.used_titles if title in available_titles))
+    if not used_titles:
+        impact = NewsImpact(
+            collected_count=len(news),
+            used_count=0,
+            effect="none",
+            summary=(
+                "관련 뉴스가 없어 차트 이미지 근거만 반영했습니다."
+                if not news
+                else "수집한 뉴스는 차트 판단을 바꿀 직접 근거로 사용하지 않았습니다."
+            ),
+            used_titles=[],
+        )
+        return payload.model_copy(update={"news_impact": impact})
+
+    impact = payload.news_impact.model_copy(
+        update={
+            "collected_count": len(news),
+            "used_count": len(used_titles),
+            "used_titles": used_titles,
+        }
+    )
+    return payload.model_copy(update={"news_impact": impact})
 
 
 def _normalize_timeframe(value: str) -> str | None:

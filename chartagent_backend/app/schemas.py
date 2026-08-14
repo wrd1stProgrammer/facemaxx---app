@@ -89,6 +89,14 @@ class DataQuality(APIModel):
     news: Literal["included", "empty", "unused"]
 
 
+class NewsImpact(APIModel):
+    collected_count: int = Field(ge=0, le=10)
+    used_count: int = Field(ge=0, le=6)
+    effect: Literal["reinforced", "softened", "changed", "none"]
+    summary: str = Field(min_length=5, max_length=300)
+    used_titles: list[str] = Field(max_length=6)
+
+
 class AnalysisPayload(APIModel):
     validation: ChartValidation
     consensus: Consensus
@@ -98,6 +106,7 @@ class AnalysisPayload(APIModel):
     structure: list[StructureLevel] = Field(min_length=2, max_length=4)
     meeting_script: list[MeetingLine] = Field(min_length=3, max_length=8)
     data_quality: DataQuality
+    news_impact: NewsImpact
     follow_up_suggestions: list[str] = Field(min_length=2, max_length=4)
 
 
