@@ -123,6 +123,12 @@ jobs:
             printf 'CHARTAGENT_IMAGE=%s\n' "$CHARTAGENT_IMAGE" >> "$tmp"
             mv "$tmp" .env
             chmod 600 .env
+            if [ ! -f /opt/chartagent/.env ]; then
+              echo "/opt/chartagent/.env is missing" >&2
+              exit 1
+            fi
+            sudo chown root:docker /opt/chartagent/.env
+            sudo chmod 640 /opt/chartagent/.env
             docker compose pull
             docker compose up -d --remove-orphans
             sudo bash /opt/facemaxx/install-chartagent-nginx.sh
