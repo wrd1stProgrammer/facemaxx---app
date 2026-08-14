@@ -2,14 +2,10 @@
 .env.*
 !.env.example
 .venv/
-.data/
 __pycache__/
 *.py[cod]
-*.pyo
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .DS_Store
+tests/
+deploy/
 README.md
-supabase/
-chartagent_backend/

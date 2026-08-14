@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "app/**"
+      - "chartagent_backend/**"
       - "requirements.txt"
       - "Dockerfile"
       - ".dockerignore"
@@ -18,7 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: facemaxx
+  FACEMAXX_IMAGE_NAME: facemaxx
+  CHARTAGENT_IMAGE_NAME: chartagent
 
 jobs:
   build-and-deploy:
@@ -42,7 +44,8 @@ jobs:
           fi
           echo "::add-mask::$USERNAME"
           echo "username=$USERNAME" >> "$GITHUB_OUTPUT"
-          echo "image=$USERNAME/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+          echo "facemaxx_image=$USERNAME/${{ env.FACEMAXX_IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+          echo "chartagent_image=$USERNAME/${{ env.CHARTAGENT_IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -50,7 +53,7 @@ jobs:
           username: ${{ steps.dockerhub.outputs.username }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: Build and push FaceMaxx image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -58,8 +61,19 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ steps.dockerhub.outputs.image }}:latest
-            ${{ steps.dockerhub.outputs.image }}:${{ github.sha }}
+            ${{ steps.dockerhub.outputs.facemaxx_image }}:latest
+            ${{ steps.dockerhub.outputs.facemaxx_image }}:${{ github.sha }}
+
+      - name: Build and push ChartAgent image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./chartagent_backend
+          file: ./chartagent_backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.dockerhub.outputs.chartagent_image }}:latest
+            ${{ steps.dockerhub.outputs.chartagent_image }}:${{ github.sha }}
 
       - name: Prepare SSH key
         run: |
@@ -71,7 +85,11 @@ jobs:
       - name: Upload compose file
         run: |
           ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "sudo mkdir -p /opt/facemaxx && sudo chown ${{ secrets.EC2_USER }}:${{ secrets.EC2_USER }} /opt/facemaxx"
-          scp -i ~/.ssh/ec2_key deploy/ec2/docker-compose.yml "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/facemaxx/docker-compose.yml"
+          scp -i ~/.ssh/ec2_key \
+            deploy/ec2/docker-compose.yml \
+            deploy/ec2/install-chartagent-nginx.sh \
+            deploy/ec2/nginx-chartagent.conf.example \
+            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/facemaxx/"
 
       - name: Log in to Docker Hub on EC2
         run: |
@@ -79,8 +97,9 @@ jobs:
 
       - name: Pull and restart container
         run: |
-          IMAGE="${{ steps.dockerhub.outputs.image }}:${{ github.sha }}"
-          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "IMAGE='$IMAGE' bash -se" <<'REMOTE'
+          FACEMAXX_IMAGE="${{ steps.dockerhub.outputs.facemaxx_image }}:${{ github.sha }}"
+          CHARTAGENT_IMAGE="${{ steps.dockerhub.outputs.chartagent_image }}:${{ github.sha }}"
+          ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "FACEMAXX_IMAGE='$FACEMAXX_IMAGE' CHARTAGENT_IMAGE='$CHARTAGENT_IMAGE' bash -se" <<'REMOTE'
             cd /opt/facemaxx
             echo "Disk usage before Docker cleanup:"
             df -h / /var/lib/docker /var/lib/containerd 2>/dev/null || df -h /
@@ -98,13 +117,15 @@ jobs:
 
             tmp="$(mktemp)"
             if [ -f .env ]; then
-              grep -v '^FACEMAXX_IMAGE=' .env > "$tmp"
+              grep -Ev '^(FACEMAXX_IMAGE|CHARTAGENT_IMAGE)=' .env > "$tmp"
             fi
-            printf '\nFACEMAXX_IMAGE=%s\n' "$IMAGE" >> "$tmp"
+            printf '\nFACEMAXX_IMAGE=%s\n' "$FACEMAXX_IMAGE" >> "$tmp"
+            printf 'CHARTAGENT_IMAGE=%s\n' "$CHARTAGENT_IMAGE" >> "$tmp"
             mv "$tmp" .env
             chmod 600 .env
             docker compose pull
             docker compose up -d --remove-orphans
+            sudo bash /opt/facemaxx/install-chartagent-nginx.sh
             docker image prune -af || true
           REMOTE
 
@@ -113,7 +134,8 @@ jobs:
           ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
             cd /opt/facemaxx
             for i in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:8000/health; then
+              if curl -fsS http://127.0.0.1:8000/health >/dev/null \
+                && curl -fsS http://127.0.0.1:8010/health >/dev/null; then
                 exit 0
               fi
               sleep 2
@@ -122,6 +144,6 @@ jobs:
             echo "Deployment health check failed. Container status:"
             docker compose ps
             echo "Recent container logs:"
-            docker compose logs --tail=120 api
+            docker compose logs --tail=120 api chartagent-api
             exit 1
           '

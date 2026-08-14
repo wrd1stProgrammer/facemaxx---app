@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+from pathlib import Path
+import re
+import tempfile
+
+from fastapi import FastAPI, File, Form, Query, Request, UploadFile
+from fastapi.responses import ORJSONResponse
+
+from app.analysis_service import AnalysisService
+from app.config import get_settings
+from app.errors import ChartAgentError
+from app.image_validation import validate_image_bytes
+from app.insightsentry import InsightSentryClient
+from app.providers.codex_cli import CodexCLIProvider
+from app.providers.openai_api import OpenAIAPIProvider
+from app.schemas import (
+    AnalysisRequestContext,
+    AnalysisResponse,
+    ErrorResponse,
+    FollowUpRequest,
+    FollowUpResponse,
+    SymbolSearchResponse,
+)
+
+
+_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9_./-]+:[A-Z0-9_./!-]+$")
+_TIMEFRAMES = {"1M", "5M", "15M", "30M", "1H", "2H", "4H", "6H", "12H", "1D", "1W"}
+_AGENT_IDS = {"trend", "pattern", "momentum", "risk", "devil"}
+settings = get_settings()
+market_data = InsightSentryClient(settings)
+service = AnalysisService(
+    market_data=market_data,
+    codex=CodexCLIProvider(settings),
+    fallback=OpenAIAPIProvider(settings),
+)
+
+app = FastAPI(
+    title="ChartAgent API",
+    version="1.0.0",
+    default_response_class=ORJSONResponse,
+)
+
+
+@app.exception_handler(ChartAgentError)
+async def chartagent_error_handler(_: Request, error: ChartAgentError) -> ORJSONResponse:
+    payload = ErrorResponse(code=error.code, message=error.message, recovery=error.recovery)
+    return ORJSONResponse(status_code=error.status_code, content=payload.model_dump(mode="json"))
+
+
+@app.get("/health")
+async def health() -> dict[str, str | bool]:
+    return {
+        "status": "ok",
+        "service": "chartagent",
+        "codex_model": settings.codex_model,
+        "codex_reasoning_effort": settings.codex_reasoning_effort,
+        "openai_fallback_configured": bool(settings.openai_api_key),
+        "insightsentry_configured": settings.insightsentry_connection is not None,
+    }
+
+
+@app.get("/v1/symbols/search", response_model=SymbolSearchResponse)
+async def search_symbols(query: str = Query(min_length=2, max_length=50)) -> SymbolSearchResponse:
+    return SymbolSearchResponse(symbols=await market_data.search_symbols(query.strip()))
+
+
+@app.post(
+    "/v1/analyses",
+    response_model=AnalysisResponse,
+    responses={422: {"model": ErrorResponse}, 502: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+async def create_analysis(
+    image: UploadFile = File(),
+    symbol_code: str = Form(),
+    timeframe: str = Form(),
+    include_news: bool = Form(default=False),
+    active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
+) -> AnalysisResponse:
+    normalized_symbol = symbol_code.strip().upper()
+    normalized_timeframe = timeframe.strip().upper()
+    if not _SYMBOL_PATTERN.fullmatch(normalized_symbol):
+        from app.errors import InvalidSymbolError
+
+        raise InvalidSymbolError(normalized_symbol)
+    if normalized_timeframe not in _TIMEFRAMES:
+        from app.errors import InvalidChartError
+
+        raise InvalidChartError("invalid_timeframe", "지원하지 않는 시간대입니다.")
+    requested_agents = [value.strip() for value in active_agent_ids.split(",") if value.strip()]
+    if not 3 <= len(requested_agents) <= 5 or len(set(requested_agents)) != len(requested_agents) or not set(requested_agents).issubset(_AGENT_IDS):
+        from app.errors import InvalidChartError
+
+        raise InvalidChartError("invalid_agents", "분석 에이전트 구성은 서로 다른 3~5명이어야 합니다.")
+    data = await image.read()
+    image_format = validate_image_bytes(data, max_bytes=settings.max_image_bytes)
+    suffix = {"png": ".png", "webp": ".webp"}.get(image_format, ".jpg")
+    with tempfile.TemporaryDirectory(prefix="chartagent-upload-") as temp_dir:
+        image_path = Path(temp_dir) / f"chart{suffix}"
+        image_path.write_bytes(data)
+        return await service.analyze(
+            context=AnalysisRequestContext(
+                symbol_code=normalized_symbol,
+                timeframe=normalized_timeframe,
+                include_news=include_news,
+                active_agent_ids=requested_agents,
+            ),
+            image_path=image_path,
+        )
+
+
+@app.post(
+    "/v1/follow-ups",
+    response_model=FollowUpResponse,
+    responses={502: {"model": ErrorResponse}},
+)
+async def follow_up(request: FollowUpRequest) -> FollowUpResponse:
+    # The original image is intentionally not retained server-side. The compact report is the evidence boundary.
+    return await service.follow_up(request=request)
