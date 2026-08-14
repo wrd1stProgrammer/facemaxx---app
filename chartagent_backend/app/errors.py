@@ -20,7 +20,7 @@ class InvalidSymbolError(ChartAgentError):
             code="invalid_symbol",
             message=f"이미지에서 판독한 {symbol} 심볼을 확인할 수 없습니다.",
             status_code=422,
-            recovery="거래소와 종목명이 함께 보이는 차트 캡처를 올려 주세요.",
+            recovery="종목 심볼과 시간대가 보이는 차트 캡처를 올려 주세요.",
         )
 
 

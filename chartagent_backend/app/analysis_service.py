@@ -59,11 +59,18 @@ class AnalysisService:
     async def analyze(self, *, context: AnalysisRequestContext, image_path: Path) -> AnalysisResponse:
         news: list[NewsItem] = []
         if context.include_news:
-            validation, _ = await self._complete(
-                prompt=build_detection_prompt(),
+            detection_prompt = build_detection_prompt()
+            validation, detection_provider = await self._complete(
+                prompt=detection_prompt,
                 image_path=image_path,
                 response_model=ChartValidation,
             )
+            if detection_provider == "codex_cli" and _needs_metadata_recovery(validation):
+                validation = await self.fallback.complete(
+                    prompt=detection_prompt,
+                    image_path=image_path,
+                    response_model=ChartValidation,
+                )
             symbol, timeframe = await self._resolve_chart_context(validation)
             news = await self.market_data.fetch_news(symbol.code)
             payload, provider_name = await self._complete(
@@ -73,11 +80,19 @@ class AnalysisService:
             )
             _raise_for_invalid_chart(payload.validation)
         else:
+            analysis_prompt = build_analysis_prompt(context, None, None, [])
             payload, provider_name = await self._complete(
-                prompt=build_analysis_prompt(context, None, None, []),
+                prompt=analysis_prompt,
                 image_path=image_path,
                 response_model=AnalysisPayload,
             )
+            if provider_name == "codex_cli" and _needs_metadata_recovery(payload.validation):
+                payload = await self.fallback.complete(
+                    prompt=analysis_prompt,
+                    image_path=image_path,
+                    response_model=AnalysisPayload,
+                )
+                provider_name = "openai_fallback"
             symbol, timeframe = await self._resolve_chart_context(payload.validation)
         payload = _normalize_news_impact(payload, news, context.include_news)
         return AnalysisResponse.create(
@@ -159,9 +174,16 @@ def _raise_for_invalid_chart(validation: ChartValidation) -> None:
     if not validation.is_chart or not validation.is_readable:
         raise InvalidChartError(validation.reason_code, validation.message)
     if not (validation.detected_symbol or "").strip():
-        raise InvalidChartError("missing_symbol", "이미지에서 거래소와 종목 심볼을 확인할 수 없습니다.")
+        raise InvalidChartError("missing_symbol", "이미지에서 종목 심볼을 확인할 수 없습니다.")
     if not (validation.detected_timeframe or "").strip():
         raise InvalidChartError("missing_timeframe", "이미지에서 차트 시간대를 확인할 수 없습니다.")
+
+
+def _needs_metadata_recovery(validation: ChartValidation) -> bool:
+    return validation.is_chart and validation.is_readable and (
+        not (validation.detected_symbol or "").strip()
+        or not (validation.detected_timeframe or "").strip()
+    )
 
 
 def _normalize_news_impact(

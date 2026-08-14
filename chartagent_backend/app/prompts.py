@@ -10,10 +10,10 @@ def build_detection_prompt() -> str:
         [
             "Inspect exactly one user-provided trading chart screenshot.",
             "Only validate the screenshot and identify the market symbol and chart timeframe visibly present in the image.",
-            "detected_symbol must be an exchange-qualified market code such as NASDAQ:AAPL or BINANCE:BTCUSDT when it can be read reliably.",
+            "Read the visible ticker exactly as shown. A TradingView ticker such as BTCUSD, BTCUSDT, AAPL, or TSLA is valid even when the exchange label is absent; the server resolves the exchange afterward.",
             "detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
             "Set symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
-            "Do not guess a missing symbol, exchange, or timeframe. Use missing_symbol or missing_timeframe when absent or ambiguous.",
+            "Do not reject a readable ticker solely because its exchange is absent. Use missing_symbol only when no ticker can be read, and missing_timeframe only when no timeframe can be read.",
             "Write the validation message in concise natural Korean.",
         ]
     )
@@ -44,9 +44,9 @@ def build_analysis_prompt(
         if symbol is not None and timeframe is not None
         else [
             "Read the symbol, exchange, and timeframe directly from the image before analyzing it.",
-            "validation.detected_symbol must be exchange-qualified, for example NASDAQ:AAPL or BINANCE:BTCUSDT.",
+            "validation.detected_symbol may be the visible raw TradingView ticker such as BTCUSD or AAPL; the server resolves the exchange afterward.",
             "validation.detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
-            "Do not guess missing or ambiguous market metadata; return missing_symbol or missing_timeframe instead.",
+            "Do not reject a readable ticker solely because its exchange is absent. Return missing_symbol only when no ticker can be read.",
         ]
     )
     return "\n".join(

@@ -57,6 +57,37 @@ async def test_openai_is_always_used_after_codex_failure(tmp_path: Path, valid_p
 
 
 @pytest.mark.anyio
+async def test_openai_recovers_metadata_omitted_by_codex(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
+    missing_metadata = valid_payload.model_copy(
+        update={
+            "validation": valid_payload.validation.model_copy(
+                update={
+                    "detected_symbol": None,
+                    "reason_code": "missing_symbol",
+                    "message": "이미지에서 거래소를 확정할 수 없습니다.",
+                }
+            )
+        }
+    )
+    codex = FixedProvider(missing_metadata)
+    fallback = FixedProvider(valid_payload)
+    service = AnalysisService(
+        market_data=FixedMarketData(SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock")),
+        codex=codex,
+        fallback=fallback,
+    )
+
+    result = await service.analyze(
+        context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+        image_path=tmp_path / "chart.png",
+    )
+
+    assert result.provider == "openai_fallback"
+    assert codex.calls == 1
+    assert fallback.calls == 1
+
+
+@pytest.mark.anyio
 async def test_unresolved_detected_symbol_returns_typed_error(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
     fallback = FixedProvider(valid_payload)
     service = AnalysisService(market_data=FixedMarketData(None), codex=fallback, fallback=fallback)
