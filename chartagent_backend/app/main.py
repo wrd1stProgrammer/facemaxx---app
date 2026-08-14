@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 import tempfile
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
@@ -24,8 +23,6 @@ from app.schemas import (
 )
 
 
-_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9_./-]+:[A-Z0-9_./!-]+$")
-_TIMEFRAMES = {"1M", "5M", "15M", "30M", "1H", "2H", "4H", "6H", "12H", "1D", "1W"}
 _AGENT_IDS = {"trend", "pattern", "momentum", "risk", "devil"}
 settings = get_settings()
 market_data = InsightSentryClient(settings)
@@ -72,21 +69,9 @@ async def search_symbols(query: str = Query(min_length=2, max_length=50)) -> Sym
 )
 async def create_analysis(
     image: UploadFile = File(),
-    symbol_code: str = Form(),
-    timeframe: str = Form(),
     include_news: bool = Form(default=False),
     active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
 ) -> AnalysisResponse:
-    normalized_symbol = symbol_code.strip().upper()
-    normalized_timeframe = timeframe.strip().upper()
-    if not _SYMBOL_PATTERN.fullmatch(normalized_symbol):
-        from app.errors import InvalidSymbolError
-
-        raise InvalidSymbolError(normalized_symbol)
-    if normalized_timeframe not in _TIMEFRAMES:
-        from app.errors import InvalidChartError
-
-        raise InvalidChartError("invalid_timeframe", "지원하지 않는 시간대입니다.")
     requested_agents = [value.strip() for value in active_agent_ids.split(",") if value.strip()]
     if not 3 <= len(requested_agents) <= 5 or len(set(requested_agents)) != len(requested_agents) or not set(requested_agents).issubset(_AGENT_IDS):
         from app.errors import InvalidChartError
@@ -100,8 +85,6 @@ async def create_analysis(
         image_path.write_bytes(data)
         return await service.analyze(
             context=AnalysisRequestContext(
-                symbol_code=normalized_symbol,
-                timeframe=normalized_timeframe,
                 include_news=include_news,
                 active_agent_ids=requested_agents,
             ),

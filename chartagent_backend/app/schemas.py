@@ -33,9 +33,11 @@ class NewsItem(APIModel):
 class ChartValidation(APIModel):
     is_chart: bool
     is_readable: bool
-    symbol_matches: bool
+    # Retained for decoding analysis records produced before server-side auto-detection.
+    symbol_matches: bool = True
     detected_symbol: str | None
-    reason_code: Literal["ok", "not_chart", "unreadable_chart", "symbol_mismatch", "missing_symbol"]
+    detected_timeframe: str | None = None
+    reason_code: Literal["ok", "not_chart", "unreadable_chart", "symbol_mismatch", "missing_symbol", "missing_timeframe"]
     message: str
 
 
@@ -100,8 +102,6 @@ class AnalysisPayload(APIModel):
 
 
 class AnalysisRequestContext(APIModel):
-    symbol_code: str
-    timeframe: str
     include_news: bool
     active_agent_ids: list[Literal["trend", "pattern", "momentum", "risk", "devil"]] = Field(min_length=3, max_length=5)
 

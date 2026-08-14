@@ -18,7 +18,8 @@ def valid_payload() -> AnalysisPayload:
             is_chart=True,
             is_readable=True,
             symbol_matches=True,
-            detected_symbol="AAPL",
+            detected_symbol="NASDAQ:AAPL",
+            detected_timeframe="1D",
             reason_code="ok",
             message="차트를 읽을 수 있습니다.",
         ),
@@ -47,6 +48,7 @@ def invalid_payload(valid_payload: AnalysisPayload) -> AnalysisPayload:
                 is_readable=False,
                 symbol_matches=False,
                 detected_symbol=None,
+                detected_timeframe=None,
                 reason_code="not_chart",
                 message="차트 이미지가 아닙니다.",
             )

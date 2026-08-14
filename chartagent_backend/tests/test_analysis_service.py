@@ -31,6 +31,9 @@ class FixedMarketData:
     async def resolve_symbol(self, code: str) -> SymbolInfo | None:
         return self.symbol
 
+    async def search_symbols(self, query: str) -> list[SymbolInfo]:
+        return [self.symbol] if self.symbol is not None else []
+
     async def fetch_news(self, code: str) -> list[NewsItem]:
         return []
 
@@ -45,7 +48,7 @@ async def test_openai_is_always_used_after_codex_failure(tmp_path: Path, valid_p
     )
 
     result = await service.analyze(
-        context=AnalysisRequestContext(symbol_code="NASDAQ:AAPL", timeframe="1D", include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+        context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
         image_path=tmp_path / "chart.png",
     )
 
@@ -54,17 +57,17 @@ async def test_openai_is_always_used_after_codex_failure(tmp_path: Path, valid_p
 
 
 @pytest.mark.anyio
-async def test_invalid_symbol_stops_before_ai(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
+async def test_unresolved_detected_symbol_returns_typed_error(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
     fallback = FixedProvider(valid_payload)
     service = AnalysisService(market_data=FixedMarketData(None), codex=fallback, fallback=fallback)
 
     with pytest.raises(InvalidSymbolError):
         await service.analyze(
-            context=AnalysisRequestContext(symbol_code="NOPE:VOID", timeframe="4H", include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+            context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
             image_path=tmp_path / "chart.png",
         )
 
-    assert fallback.calls == 0
+    assert fallback.calls == 1
 
 
 @pytest.mark.anyio
@@ -78,8 +81,37 @@ async def test_ai_rejected_non_chart_returns_typed_error(tmp_path: Path, invalid
 
     with pytest.raises(InvalidChartError) as raised:
         await service.analyze(
-            context=AnalysisRequestContext(symbol_code="NASDAQ:AAPL", timeframe="1D", include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+            context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
             image_path=tmp_path / "chart.png",
         )
 
     assert raised.value.code == "not_chart"
+
+
+@pytest.mark.anyio
+async def test_missing_image_timeframe_returns_typed_error(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
+    invalid_payload = valid_payload.model_copy(
+        update={
+            "validation": valid_payload.validation.model_copy(
+                update={
+                    "detected_timeframe": None,
+                    "reason_code": "missing_timeframe",
+                    "message": "이미지에서 시간대를 확인할 수 없습니다.",
+                }
+            )
+        }
+    )
+    provider = FixedProvider(invalid_payload)
+    service = AnalysisService(
+        market_data=FixedMarketData(SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock")),
+        codex=provider,
+        fallback=provider,
+    )
+
+    with pytest.raises(InvalidChartError) as raised:
+        await service.analyze(
+            context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+            image_path=tmp_path / "chart.png",
+        )
+
+    assert raised.value.code == "missing_timeframe"

@@ -5,9 +5,24 @@ import json
 from app.schemas import AnalysisRequestContext, AnalysisResponse, NewsItem, SymbolInfo
 
 
+def build_detection_prompt() -> str:
+    return "\n".join(
+        [
+            "Inspect exactly one user-provided trading chart screenshot.",
+            "Only validate the screenshot and identify the market symbol and chart timeframe visibly present in the image.",
+            "detected_symbol must be an exchange-qualified market code such as NASDAQ:AAPL or BINANCE:BTCUSDT when it can be read reliably.",
+            "detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
+            "Set symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
+            "Do not guess a missing symbol, exchange, or timeframe. Use missing_symbol or missing_timeframe when absent or ambiguous.",
+            "Write the validation message in concise natural Korean.",
+        ]
+    )
+
+
 def build_analysis_prompt(
     context: AnalysisRequestContext,
-    symbol: SymbolInfo,
+    symbol: SymbolInfo | None,
+    timeframe: str | None,
     news: list[NewsItem],
 ) -> str:
     news_payload = [
@@ -20,14 +35,28 @@ def build_analysis_prompt(
         }
         for item in news
     ]
+    market_context = (
+        [
+            f"Server-resolved symbol: {symbol.code} ({symbol.name}, {symbol.instrument_type}).",
+            f"Image-detected timeframe: {timeframe}.",
+            "Set validation.detected_symbol and validation.detected_timeframe to those same resolved values.",
+        ]
+        if symbol is not None and timeframe is not None
+        else [
+            "Read the symbol, exchange, and timeframe directly from the image before analyzing it.",
+            "validation.detected_symbol must be exchange-qualified, for example NASDAQ:AAPL or BINANCE:BTCUSDT.",
+            "validation.detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
+            "Do not guess missing or ambiguous market metadata; return missing_symbol or missing_timeframe instead.",
+        ]
+    )
     return "\n".join(
         [
             "Analyze exactly one user-provided trading chart screenshot for a Korean mobile app.",
-            f"Requested symbol: {symbol.code} ({symbol.name}, {symbol.instrument_type}).",
-            f"User-selected timeframe: {context.timeframe}.",
             f"News option enabled: {str(context.include_news).lower()}.",
             f"Active agent ids: {', '.join(context.active_agent_ids)}.",
-            "First validate that the image is a readable financial price chart and that any visible symbol does not contradict the requested symbol.",
+            *market_context,
+            "First validate that the image is a readable financial price chart and that its symbol and timeframe are visible.",
+            "Set validation.symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
             "If invalid, fill validation accurately and keep the rest conservative but schema-valid.",
             "Use only visible chart evidence. Never invent exact prices, unseen indicators, live quotes, order flow, on-chain data, probabilities, or other timeframes.",
             "Structure levels may use relative descriptions such as 'visible recent high' when the number is not clearly readable.",

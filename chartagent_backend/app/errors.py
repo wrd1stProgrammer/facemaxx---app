@@ -18,9 +18,9 @@ class InvalidSymbolError(ChartAgentError):
     def __init__(self, symbol: str) -> None:
         super().__init__(
             code="invalid_symbol",
-            message=f"{symbol} 심볼을 확인할 수 없습니다.",
+            message=f"이미지에서 판독한 {symbol} 심볼을 확인할 수 없습니다.",
             status_code=422,
-            recovery="검색 결과에서 거래소가 포함된 심볼을 다시 선택해 주세요.",
+            recovery="거래소와 종목명이 함께 보이는 차트 캡처를 올려 주세요.",
         )
 
 
