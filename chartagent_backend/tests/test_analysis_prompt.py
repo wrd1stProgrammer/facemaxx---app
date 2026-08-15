@@ -26,5 +26,8 @@ def test_analysis_prompt_requires_specific_agent_judgements_and_news_usage() -> 
     assert "actual directional or conditional judgement" in prompt
     assert "visible swing highs/lows" in prompt
     assert "false-break or opposing scenario" in prompt
+    assert "Lead with a decisive call" in prompt
+    assert "Do not dilute a supported call with stacked hedges" in prompt
+    assert "Challenge another specialist directly" in prompt
     assert "news_impact.used_titles" in prompt
     assert "Set news_impact.collected_count to 1" in prompt
