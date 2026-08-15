@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 import httpx
@@ -49,6 +50,8 @@ class _NewsRow(BaseModel):
 
 class _NewsPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    page: int = 1
+    has_next: bool = False
     data: list[_NewsRow] = Field(default_factory=list)
 
 
@@ -84,18 +87,44 @@ class InsightSentryClient:
         return SymbolInfo(code=item.code, name=item.name or item.code, instrument_type=item.type)
 
     async def fetch_news(self, code: str) -> list[NewsItem]:
+        now = int(time.time())
+        common_params = {
+            "limit": "500",
+            "from": (datetime.fromtimestamp(now, UTC) - timedelta(hours=48)).strftime("%Y-%m-%d"),
+        }
+        rows: list[_NewsRow]
         try:
-            payload = await self._get(
-                "/v3/newsfeed",
-                params={"related_symbols": code, "limit": "100", "page": "1"},
+            rows = await self._fetch_news_pages(
+                params={
+                    **common_params,
+                    "related_symbols": ",".join(_news_symbol_aliases(code)),
+                },
+                now_timestamp=now,
             )
-        except httpx.HTTPError as error:
+        except (httpx.HTTPError, ValidationError) as error:
             raise DependencyError("InsightSentry 뉴스") from error
-        try:
-            rows = _NewsPayload.model_validate(payload).data
-        except ValidationError as error:
-            raise DependencyError("InsightSentry 뉴스") from error
-        selected = _select_recent_news(rows)
+
+        primary_count = len(rows)
+        keywords = _news_keywords(code)
+        if len(_select_recent_news(rows, now_timestamp=now)) < 20 and keywords:
+            try:
+                rows.extend(
+                    await self._fetch_news_pages(
+                        params={**common_params, "keywords": ",".join(keywords)},
+                        now_timestamp=now,
+                    )
+                )
+            except (httpx.HTTPError, ValidationError):
+                LOGGER.warning("InsightSentry keyword news fallback failed code=%s", code)
+
+        selected = _select_recent_news(rows, now_timestamp=now)
+        LOGGER.info(
+            "InsightSentry news collection code=%s primary_rows=%d merged_rows=%d selected=%d",
+            code,
+            primary_count,
+            len(rows),
+            len(selected),
+        )
         return [
             NewsItem(
                 title=row.title or "제목 없음",
@@ -107,6 +136,21 @@ class InsightSentryClient:
             )
             for row in selected
         ]
+
+    async def _fetch_news_pages(
+        self,
+        *,
+        params: dict[str, str],
+        now_timestamp: int,
+    ) -> list[_NewsRow]:
+        rows: list[_NewsRow] = []
+        for page in range(1, 4):
+            payload = await self._get("/v3/newsfeed", params={**params, "page": str(page)})
+            parsed = _NewsPayload.model_validate(payload)
+            rows.extend(parsed.data)
+            if len(_select_recent_news(rows, now_timestamp=now_timestamp)) == 20 or not parsed.has_next:
+                break
+        return rows
 
     async def _get(self, path: str, params: dict[str, str] | None = None) -> JSONObject:
         connection = self.settings.insightsentry_connection
@@ -162,3 +206,33 @@ def _select_recent_news(
 
 def _published_seconds(value: int) -> int:
     return value // 1_000 if value > 10_000_000_000 else value
+
+
+def _news_symbol_aliases(code: str) -> list[str]:
+    ticker = code.rsplit(":", 1)[-1].strip().upper()
+    aliases = [ticker]
+    base = ticker
+    for quote_currency in ("USDT", "USDC", "USD"):
+        if ticker.endswith(quote_currency) and len(ticker) > len(quote_currency):
+            base = ticker[: -len(quote_currency)]
+            aliases.extend(f"{base}{quote}" for quote in ("USD", "USDT", "USDC"))
+            break
+    if base in {"BTC", "XBT"}:
+        alternate = "XBT" if base == "BTC" else "BTC"
+        aliases.extend(f"{alternate}{quote}" for quote in ("USD", "USDT", "USDC"))
+    return list(dict.fromkeys(alias for alias in aliases if len(alias) >= 2))[:10]
+
+
+def _news_keywords(code: str) -> list[str]:
+    ticker = code.rsplit(":", 1)[-1].strip().upper()
+    for quote_currency in ("USDT", "USDC", "USD"):
+        if ticker.endswith(quote_currency) and len(ticker) > len(quote_currency):
+            ticker = ticker[: -len(quote_currency)]
+            break
+    return {
+        "BTC": ["Bitcoin", "BTC"],
+        "XBT": ["Bitcoin", "BTC"],
+        "ETH": ["Ethereum", "ETH"],
+        "SOL": ["Solana", "SOL"],
+        "XRP": ["XRP", "Ripple"],
+    }.get(ticker, [])
