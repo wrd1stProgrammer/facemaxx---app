@@ -45,3 +45,20 @@ def test_analysis_accepts_one_image_without_user_market_fields(
     assert captured["image_exists"] is True
     assert not hasattr(captured["context"], "symbol_code")
     assert not hasattr(captured["context"], "timeframe")
+
+
+def test_analysis_returns_structured_json_for_unexpected_server_error(monkeypatch) -> None:
+    class FailingService:
+        async def analyze(self, *, context, image_path):
+            raise RuntimeError("unexpected provider failure")
+
+    monkeypatch.setattr(main_module, "service", FailingService())
+    response = TestClient(main_module.app, raise_server_exceptions=False).post(
+        "/v1/analyses",
+        data={"include_news": "false", "active_agent_ids": "trend,pattern,risk"},
+        files={"image": ("chart.png", _chart_png(), "image/png")},
+    )
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["code"] == "internal_error"

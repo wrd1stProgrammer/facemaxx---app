@@ -23,6 +23,7 @@ def test_analysis_prompt_builds_for_selected_response_language() -> None:
     )
 
     assert isinstance(prompt, str)
+    assert "one complete spoken line for every active agent id" in prompt
     assert prompt
 
 

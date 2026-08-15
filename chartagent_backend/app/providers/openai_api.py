@@ -42,7 +42,14 @@ class OpenAIAPIProvider:
                     "detail": "high",
                 }
             )
-        client = AsyncOpenAI(api_key=self.settings.openai_api_key)
+        # Codex is attempted first. Keep the fallback inside a bounded wall-clock
+        # window so the reverse proxy can always return a structured API error
+        # instead of closing the request with an HTML gateway response.
+        client = AsyncOpenAI(
+            api_key=self.settings.openai_api_key,
+            timeout=55.0,
+            max_retries=0,
+        )
         try:
             response = await client.responses.create(
                 model=self.settings.openai_model,

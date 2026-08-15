@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 import tempfile
 
@@ -24,6 +25,7 @@ from app.schemas import (
 
 
 _AGENT_IDS = {"trend", "pattern", "momentum", "risk", "devil"}
+LOGGER = logging.getLogger(__name__)
 settings = get_settings()
 market_data = InsightSentryClient(settings)
 service = AnalysisService(
@@ -43,6 +45,20 @@ app = FastAPI(
 async def chartagent_error_handler(_: Request, error: ChartAgentError) -> ORJSONResponse:
     payload = ErrorResponse(code=error.code, message=error.message, recovery=error.recovery)
     return ORJSONResponse(status_code=error.status_code, content=payload.model_dump(mode="json"))
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(_: Request, error: Exception) -> ORJSONResponse:
+    LOGGER.error(
+        "Unhandled ChartAgent request error",
+        exc_info=(type(error), error, error.__traceback__),
+    )
+    payload = ErrorResponse(
+        code="internal_error",
+        message="분석 서버가 응답을 완료하지 못했습니다.",
+        recovery="잠시 후 같은 입력으로 다시 시도해 주세요.",
+    )
+    return ORJSONResponse(status_code=500, content=payload.model_dump(mode="json"))
 
 
 @app.get("/health")
