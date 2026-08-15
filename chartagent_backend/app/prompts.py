@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
-from app.schemas import AnalysisRequestContext, AnalysisResponse, NewsItem, SymbolInfo
+from app.schemas import AnalysisRequestContext, AnalysisResponse, FollowUpHistoryItem, NewsItem, SymbolInfo
 
 
 def build_detection_prompt() -> str:
@@ -25,11 +26,13 @@ def build_analysis_prompt(
     timeframe: str | None,
     news: list[NewsItem],
 ) -> str:
+    now = datetime.now(UTC).timestamp()
     news_payload = [
         {
             "title": item.title,
             "source": item.source,
             "published_at": item.published_at,
+            "window": "0-24h" if now - item.published_at < 86_400 else "24-48h",
             "related_symbols": item.related_symbols,
             "content_excerpt": item.relevance,
         }
@@ -77,6 +80,8 @@ def build_analysis_prompt(
             "Scenarios must cover a confirmation path, a wait/base path, and an invalidation path whenever the screenshot supports all three.",
             "Produce a short meeting script whose lines are grounded in those same specialist judgements, not new claims. Challenge another specialist directly in each debate line and name the visible evidence that wins or loses the objection.",
             "News is optional supporting context, never a substitute for chart evidence.",
+            "Evaluate every collected item: up to 10 items from the latest 24 hours and up to 10 items from the preceding 24–48 hour window. Do this quickly with the configured Codex Luna low provider; provider failure is handled by the server fallback.",
+            "Use all materially relevant items in news_impact.used_titles instead of arbitrarily capping citations at six, but do not claim an irrelevant headline affected the chart decision.",
             f"Set news_impact.collected_count to {len(news_payload)}.",
             "news_impact.used_titles must contain only exact titles copied from InsightSentry news JSON, and used_count must equal its length.",
             "Set news_impact.effect to reinforced, softened, changed, or none and explain in Korean exactly how those used articles affected the chart judgement.",
@@ -87,7 +92,12 @@ def build_analysis_prompt(
     )
 
 
-def build_follow_up_prompt(agent_id: str, question: str, analysis: AnalysisResponse) -> str:
+def build_follow_up_prompt(
+    agent_id: str,
+    question: str,
+    analysis: AnalysisResponse,
+    history: list[FollowUpHistoryItem] | None = None,
+) -> str:
     compact = {
         "symbol": analysis.symbol.model_dump(),
         "timeframe": analysis.timeframe,
@@ -96,13 +106,17 @@ def build_follow_up_prompt(agent_id: str, question: str, analysis: AnalysisRespo
         "agent_opinions": [item.model_dump() for item in analysis.result.agent_opinions],
         "structure": [item.model_dump() for item in analysis.result.structure],
     }
+    history_payload = [item.model_dump() for item in (history or [])[-12:]]
     return "\n".join(
         [
             "Answer one follow-up question in Korean as the selected ChartAgent specialist.",
             f"Selected agent id: {agent_id}.",
             f"User question: {question}",
             "Stay inside the evidence and limitations of the original screenshot analysis. Do not invent live prices or unseen data.",
+            "Continue naturally from the saved conversation history. Respect the agent identity stored on each prior turn, and do not repeat an answer unless the new question asks for it.",
             "Put the direct answer in answer and the most important limitation in caveat.",
+            "Conversation history JSON (oldest to newest):",
+            json.dumps(history_payload, ensure_ascii=False),
             "Original analysis JSON:",
             json.dumps(compact, ensure_ascii=False),
         ]

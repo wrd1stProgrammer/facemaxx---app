@@ -152,7 +152,7 @@ def test_news_impact_keeps_only_titles_returned_by_insightsentry(valid_payload: 
     payload = valid_payload.model_copy(
         update={
             "news_impact": NewsImpact(
-                collected_count=99,
+                collected_count=20,
                 used_count=2,
                 effect="reinforced",
                 summary="차트의 상방 조건을 보조했습니다.",

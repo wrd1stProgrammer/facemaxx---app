@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.prompts import build_analysis_prompt
-from app.schemas import AnalysisRequestContext, NewsItem, SymbolInfo
+from app.prompts import build_analysis_prompt, build_follow_up_prompt
+from app.schemas import AnalysisRequestContext, AnalysisResponse, FollowUpHistoryItem, NewsItem, SymbolInfo
 
 
 def test_analysis_prompt_requires_specific_agent_judgements_and_news_usage() -> None:
@@ -33,3 +33,32 @@ def test_analysis_prompt_requires_specific_agent_judgements_and_news_usage() -> 
     assert "Challenge another specialist directly" in prompt
     assert "news_impact.used_titles" in prompt
     assert "Set news_impact.collected_count to 1" in prompt
+    assert "Evaluate every collected item" in prompt
+
+
+def test_follow_up_prompt_includes_persisted_conversation_history(valid_payload) -> None:
+    analysis = AnalysisResponse.create(
+        provider="codex_cli",
+        symbol=SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock"),
+        timeframe="1D",
+        included_news=False,
+        result=valid_payload,
+        news=[],
+    )
+
+    prompt = build_follow_up_prompt(
+        "risk",
+        "그럼 무효화 조건은?",
+        analysis,
+        [
+            FollowUpHistoryItem(
+                agent_id="trend",
+                question="현재 구조는?",
+                answer="현재 보이는 구조에서는 매도 우위입니다.",
+            )
+        ],
+    )
+
+    assert "Conversation history JSON" in prompt
+    assert "현재 구조는?" in prompt
+    assert "현재 보이는 구조에서는 매도 우위입니다." in prompt

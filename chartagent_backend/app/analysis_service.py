@@ -142,7 +142,7 @@ class AnalysisService:
         return symbol, timeframe
 
     async def follow_up(self, *, request: FollowUpRequest) -> FollowUpResponse:
-        prompt = build_follow_up_prompt(request.agent_id, request.question, request.analysis)
+        prompt = build_follow_up_prompt(request.agent_id, request.question, request.analysis, request.history)
         try:
             response = await self.codex.complete(
                 prompt=prompt,

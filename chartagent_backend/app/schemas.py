@@ -90,11 +90,11 @@ class DataQuality(APIModel):
 
 
 class NewsImpact(APIModel):
-    collected_count: int = Field(ge=0, le=10)
-    used_count: int = Field(ge=0, le=6)
+    collected_count: int = Field(ge=0, le=20)
+    used_count: int = Field(ge=0, le=20)
     effect: Literal["reinforced", "softened", "changed", "none"]
     summary: str = Field(min_length=5, max_length=300)
-    used_titles: list[str] = Field(max_length=6)
+    used_titles: list[str] = Field(max_length=20)
 
 
 class AnalysisPayload(APIModel):
@@ -148,10 +148,17 @@ class AnalysisResponse(APIModel):
         )
 
 
+class FollowUpHistoryItem(APIModel):
+    agent_id: Literal["trend", "pattern", "momentum", "risk", "devil"]
+    question: str = Field(min_length=2, max_length=800)
+    answer: str = Field(min_length=10, max_length=1400)
+
+
 class FollowUpRequest(APIModel):
     agent_id: Literal["trend", "pattern", "momentum", "risk", "devil"]
     question: str = Field(min_length=2, max_length=800)
     analysis: AnalysisResponse
+    history: list[FollowUpHistoryItem] = Field(default_factory=list, max_length=12)
 
 
 class FollowUpPayload(APIModel):

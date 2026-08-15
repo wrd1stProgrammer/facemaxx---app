@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from urllib.parse import quote
 
 import httpx
@@ -86,7 +87,7 @@ class InsightSentryClient:
         try:
             payload = await self._get(
                 "/v3/newsfeed",
-                params={"related_symbols": code, "limit": "6", "page": "1"},
+                params={"related_symbols": code, "limit": "100", "page": "1"},
             )
         except httpx.HTTPError as error:
             raise DependencyError("InsightSentry 뉴스") from error
@@ -94,16 +95,17 @@ class InsightSentryClient:
             rows = _NewsPayload.model_validate(payload).data
         except ValidationError as error:
             raise DependencyError("InsightSentry 뉴스") from error
+        selected = _select_recent_news(rows)
         return [
             NewsItem(
                 title=row.title or "제목 없음",
                 source=row.source or "출처 미상",
-                published_at=row.published_at,
+                published_at=_published_seconds(row.published_at),
                 url=row.link,
                 related_symbols=row.related_symbols,
-                relevance=row.content[:280],
+                relevance=row.content[:240],
             )
-            for row in rows
+            for row in selected
         ]
 
     async def _get(self, path: str, params: dict[str, str] | None = None) -> JSONObject:
@@ -123,3 +125,40 @@ class InsightSentryClient:
         if not isinstance(value, dict):
             raise DependencyError("InsightSentry")
         return value
+
+
+def _select_recent_news(
+    rows: list[_NewsRow],
+    *,
+    now_timestamp: int | None = None,
+) -> list[_NewsRow]:
+    """Return at most 10 stories from 0–24h and 10 from 24–48h."""
+    now = now_timestamp if now_timestamp is not None else int(time.time())
+    deduplicated: list[_NewsRow] = []
+    seen: set[str] = set()
+    for row in sorted(rows, key=lambda item: _published_seconds(item.published_at), reverse=True):
+        identity = (row.title or row.link or "").strip().casefold()
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+        deduplicated.append(row)
+
+    recent: list[_NewsRow] = []
+    prior: list[_NewsRow] = []
+    for row in deduplicated:
+        age = now - _published_seconds(row.published_at)
+        if age < 0:
+            continue
+        if age < 86_400:
+            if len(recent) < 10:
+                recent.append(row)
+        elif age < 172_800:
+            if len(prior) < 10:
+                prior.append(row)
+        if len(recent) == 10 and len(prior) == 10:
+            break
+    return recent + prior
+
+
+def _published_seconds(value: int) -> int:
+    return value // 1_000 if value > 10_000_000_000 else value
