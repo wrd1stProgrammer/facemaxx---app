@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 
 class APIModel(BaseModel):
@@ -55,7 +57,8 @@ class AnalysisScope(APIModel):
 
 class AgentOpinion(APIModel):
     agent_id: Literal["trend", "pattern", "momentum", "risk", "devil"]
-    stance: str = Field(min_length=1, max_length=24)
+    stance_code: Literal["bullish", "bearish", "observe", "neutral"]
+    stance: str = Field(min_length=1, max_length=12)
     confidence: int = Field(ge=0, le=100)
     thesis: str = Field(min_length=10, max_length=260)
     evidence: list[str] = Field(min_length=2, max_length=4)
@@ -97,6 +100,38 @@ class NewsImpact(APIModel):
     used_titles: list[str] = Field(max_length=20)
 
 
+class TradePlan(APIModel):
+    direction_code: Literal["bullish", "bearish", "observe", "neutral"]
+    reference_price: str = Field(min_length=1, max_length=40)
+    entry: str = Field(min_length=1, max_length=60)
+    stop: str = Field(min_length=1, max_length=60)
+    target: str = Field(min_length=1, max_length=60)
+    risk_reward: str = Field(min_length=1, max_length=20)
+    trigger: str = Field(min_length=10, max_length=180)
+    rationale: str = Field(min_length=15, max_length=260)
+
+    @model_validator(mode="after")
+    def entry_must_not_copy_reference_price(self) -> TradePlan:
+        reference_number = _first_number(self.reference_price)
+        entry_number = _first_number(self.entry)
+        same_numeric_level = (
+            reference_number is not None
+            and entry_number is not None
+            and reference_number == entry_number
+        )
+        same_relative_level = _normalized_level(self.reference_price) == _normalized_level(self.entry)
+        if same_numeric_level or same_relative_level:
+            raise ValueError("entry must be a distinct pullback, retest, or confirmed-break level")
+        ratio_match = re.search(r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)", self.risk_reward)
+        if ratio_match is None:
+            raise ValueError("risk_reward must use a numeric risk:reward ratio")
+        risk = Decimal(ratio_match.group(1))
+        reward = Decimal(ratio_match.group(2))
+        if risk <= 0 or reward / risk < Decimal("1.8"):
+            raise ValueError("reward-to-risk must be at least 1.8")
+        return self
+
+
 class AnalysisPayload(APIModel):
     validation: ChartValidation
     consensus: Consensus
@@ -107,12 +142,14 @@ class AnalysisPayload(APIModel):
     meeting_script: list[MeetingLine] = Field(min_length=3, max_length=8)
     data_quality: DataQuality
     news_impact: NewsImpact
+    trade_plan: TradePlan
     follow_up_suggestions: list[str] = Field(min_length=2, max_length=4)
 
 
 class AnalysisRequestContext(APIModel):
     include_news: bool
     active_agent_ids: list[Literal["trend", "pattern", "momentum", "risk", "devil"]] = Field(min_length=3, max_length=5)
+    response_language: Literal["ko", "en"] = "ko"
 
 
 class AnalysisResponse(APIModel):
@@ -159,6 +196,7 @@ class FollowUpRequest(APIModel):
     question: str = Field(min_length=2, max_length=800)
     analysis: AnalysisResponse
     history: list[FollowUpHistoryItem] = Field(default_factory=list, max_length=12)
+    response_language: Literal["ko", "en"] = "ko"
 
 
 class FollowUpPayload(APIModel):
@@ -175,3 +213,17 @@ class ErrorResponse(APIModel):
     code: str
     message: str
     recovery: str | None
+
+
+def _first_number(value: str) -> Decimal | None:
+    match = re.search(r"-?\d[\d,]*(?:\.\d+)?", value)
+    if match is None:
+        return None
+    try:
+        return Decimal(match.group(0).replace(",", ""))
+    except InvalidOperation:
+        return None
+
+
+def _normalized_level(value: str) -> str:
+    return "".join(character.lower() for character in value if character.isalnum())

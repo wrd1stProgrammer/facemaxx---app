@@ -9,6 +9,7 @@ from app.schemas import (
     Consensus,
     DataQuality,
     NewsImpact,
+    TradePlan,
 )
 
 
@@ -42,6 +43,16 @@ def valid_payload() -> AnalysisPayload:
             effect="none",
             summary="뉴스를 사용하지 않았습니다.",
             used_titles=[],
+        ),
+        trade_plan=TradePlan(
+            direction_code="observe",
+            reference_price="현재 표시가",
+            entry="확인선 재시험 구간",
+            stop="최근 무효화선 바깥",
+            target="다음 가시 저항",
+            risk_reward="최소 1:2",
+            trigger="확인선 회복 뒤 재시험이 지지로 전환되는지 확인합니다.",
+            rationale="현재는 확인 조건이 부족해 가격을 추격하지 않고 조건 충족을 기다립니다.",
         ),
         follow_up_suggestions=[],
     )

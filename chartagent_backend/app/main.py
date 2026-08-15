@@ -71,6 +71,7 @@ async def create_analysis(
     image: UploadFile = File(),
     include_news: bool = Form(default=False),
     active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
+    locale: str = Form(default="ko"),
 ) -> AnalysisResponse:
     requested_agents = [value.strip() for value in active_agent_ids.split(",") if value.strip()]
     if not 3 <= len(requested_agents) <= 5 or len(set(requested_agents)) != len(requested_agents) or not set(requested_agents).issubset(_AGENT_IDS):
@@ -87,6 +88,7 @@ async def create_analysis(
             context=AnalysisRequestContext(
                 include_news=include_news,
                 active_agent_ids=requested_agents,
+                response_language="en" if locale.lower().startswith("en") else "ko",
             ),
             image_path=image_path,
         )

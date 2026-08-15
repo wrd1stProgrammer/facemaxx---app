@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -59,7 +59,7 @@ class AnalysisService:
     async def analyze(self, *, context: AnalysisRequestContext, image_path: Path) -> AnalysisResponse:
         news: list[NewsItem] = []
         if context.include_news:
-            detection_prompt = build_detection_prompt()
+            detection_prompt = build_detection_prompt(context.response_language)
             validation, detection_provider = await self._complete(
                 prompt=detection_prompt,
                 image_path=image_path,
@@ -95,6 +95,7 @@ class AnalysisService:
                 provider_name = "openai_fallback"
             symbol, timeframe = await self._resolve_chart_context(payload.validation)
         payload = _normalize_news_impact(payload, news, context.include_news)
+        payload = _normalize_decision_labels(payload, context.response_language)
         return AnalysisResponse.create(
             provider=provider_name,
             symbol=symbol,
@@ -142,7 +143,7 @@ class AnalysisService:
         return symbol, timeframe
 
     async def follow_up(self, *, request: FollowUpRequest) -> FollowUpResponse:
-        prompt = build_follow_up_prompt(request.agent_id, request.question, request.analysis, request.history)
+        prompt = build_follow_up_prompt(request)
         try:
             response = await self.codex.complete(
                 prompt=prompt,
@@ -225,6 +226,22 @@ def _normalize_news_impact(
         }
     )
     return payload.model_copy(update={"news_impact": impact})
+
+
+def _normalize_decision_labels(
+    payload: AnalysisPayload,
+    language: Literal["ko", "en"],
+) -> AnalysisPayload:
+    labels = {
+        "ko": {"bullish": "매수", "bearish": "매도", "observe": "관망", "neutral": "중립"},
+        "en": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT", "neutral": "NEUTRAL"},
+    }[language]
+    consensus = payload.consensus.model_copy(update={"title": labels[payload.consensus.stance_code]})
+    opinions = [
+        opinion.model_copy(update={"stance": labels[opinion.stance_code]})
+        for opinion in payload.agent_opinions
+    ]
+    return payload.model_copy(update={"consensus": consensus, "agent_opinions": opinions})
 
 
 def _normalize_timeframe(value: str) -> str | None:

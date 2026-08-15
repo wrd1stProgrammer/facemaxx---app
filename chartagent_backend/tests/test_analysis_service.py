@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from app.analysis_service import AnalysisService, _normalize_news_impact
+from app.analysis_service import AnalysisService, _normalize_decision_labels, _normalize_news_impact
 from app.errors import InvalidChartError, InvalidSymbolError
-from app.schemas import AnalysisPayload, AnalysisRequestContext, NewsImpact, NewsItem, SymbolInfo
+from app.schemas import AgentOpinion, AnalysisPayload, AnalysisRequestContext, NewsImpact, NewsItem, SymbolInfo, TradePlan
 
 
 class FailingProvider:
@@ -36,6 +37,56 @@ class FixedMarketData:
 
     async def fetch_news(self, code: str) -> list[NewsItem]:
         return []
+
+
+def test_decision_labels_are_one_word_in_response_language(valid_payload: AnalysisPayload) -> None:
+    payload = valid_payload.model_copy(
+        update={
+            "agent_opinions": [
+                AgentOpinion(
+                    agent_id="trend",
+                    stance_code="bearish",
+                    stance="하락 압력 우세",
+                    confidence=72,
+                    thesis="최근 스윙 고점 회복 전까지 하락 구조가 유지됩니다.",
+                    evidence=["고점 하락", "지지 재시험"],
+                )
+            ]
+        }
+    )
+
+    normalized = _normalize_decision_labels(payload, "ko")
+
+    assert normalized.consensus.title == "관망"
+    assert normalized.agent_opinions[0].stance == "매도"
+
+
+def test_trade_plan_rejects_current_price_as_entry() -> None:
+    with pytest.raises(ValidationError):
+        TradePlan(
+            direction_code="bearish",
+            reference_price="63,888",
+            entry="63,888",
+            stop="65,603",
+            target="61,000",
+            risk_reward="1:2",
+            trigger="저항 재시험에서 다시 밀리는지 확인합니다.",
+            rationale="현재가 추격 대신 확인된 저항 재시험에서 손익비를 확보합니다.",
+        )
+
+
+def test_trade_plan_rejects_weak_reward_to_risk() -> None:
+    with pytest.raises(ValidationError):
+        TradePlan(
+            direction_code="bearish",
+            reference_price="63,888",
+            entry="65,200 재시험",
+            stop="65,700",
+            target="64,450",
+            risk_reward="1:1.5",
+            trigger="저항 재시험에서 다시 밀리는지 확인합니다.",
+            rationale="현재가 추격 대신 확인된 저항 재시험에서 손익비를 확보합니다.",
+        )
 
 
 @pytest.mark.anyio
