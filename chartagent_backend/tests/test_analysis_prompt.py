@@ -27,6 +27,8 @@ def test_analysis_prompt_requires_specific_agent_judgements_and_news_usage() -> 
     assert "visible swing highs/lows" in prompt
     assert "false-break or opposing scenario" in prompt
     assert "Lead with a decisive call" in prompt
+    assert "Never output the English labels buy-side, sell-side, BUY, SELL, or WAIT" in prompt
+    assert "매수 우위, 매도 우위, or 관망" in prompt
     assert "Do not dilute a supported call with stacked hedges" in prompt
     assert "Challenge another specialist directly" in prompt
     assert "news_impact.used_titles" in prompt
