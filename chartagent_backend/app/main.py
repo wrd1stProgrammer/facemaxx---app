@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 from pathlib import Path
 import tempfile
 
@@ -15,6 +16,7 @@ from app.insightsentry import InsightSentryClient
 from app.providers.codex_cli import CodexCLIProvider
 from app.providers.openai_api import OpenAIAPIProvider
 from app.schemas import (
+    AgentCustomization,
     AnalysisRequestContext,
     AnalysisResponse,
     ErrorResponse,
@@ -88,12 +90,21 @@ async def create_analysis(
     include_news: bool = Form(default=False),
     active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
     locale: str = Form(default="ko"),
+    agent_profiles: str = Form(default="[]"),
 ) -> AnalysisResponse:
     requested_agents = [value.strip() for value in active_agent_ids.split(",") if value.strip()]
     if not 3 <= len(requested_agents) <= 5 or len(set(requested_agents)) != len(requested_agents) or not set(requested_agents).issubset(_AGENT_IDS):
         from app.errors import InvalidChartError
 
         raise InvalidChartError("invalid_agents", "분석 에이전트 구성은 서로 다른 3~5명이어야 합니다.")
+    from app.errors import InvalidChartError
+
+    try:
+        raw_profiles = json.loads(agent_profiles)
+        parsed_profiles = [AgentCustomization.model_validate(item) for item in raw_profiles]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        raise InvalidChartError("invalid_agent_profiles", "에이전트 커스터마이징 정보를 읽을 수 없습니다.") from None
+
     data = await image.read()
     image_format = validate_image_bytes(data, max_bytes=settings.max_image_bytes)
     suffix = {"png": ".png", "webp": ".webp"}.get(image_format, ".jpg")
@@ -105,6 +116,7 @@ async def create_analysis(
                 include_news=include_news,
                 active_agent_ids=requested_agents,
                 response_language="en" if locale.lower().startswith("en") else "ko",
+                agent_customizations=parsed_profiles,
             ),
             image_path=image_path,
         )

@@ -1,16 +1,67 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+
+
+AgentRoleID = Literal["trend", "pattern", "momentum", "risk", "devil"]
+AgentConcept = Literal[
+    "trend_following",
+    "swing_structure",
+    "breakout_retest",
+    "support_resistance",
+    "candlestick",
+    "momentum",
+    "mean_reversion",
+    "volatility_breakout",
+    "volume_price_action",
+    "moving_average",
+    "divergence",
+    "market_structure",
+    "liquidity_sweep",
+    "false_breakout",
+    "risk_invalidation",
+    "risk_reward",
+    "reversal",
+    "range_trading",
+    "pullback",
+    "contrarian",
+]
+AgentAppearanceID = Literal[
+    "default_trendy",
+    "default_patty",
+    "default_momo",
+    "default_gadi",
+    "default_devil",
+    "neo_quant",
+    "classic_strategist",
+]
 
 
 class APIModel(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class AgentCustomization(APIModel):
+    role_id: AgentRoleID
+    display_name: str = Field(min_length=1, max_length=10)
+    tone: str = Field(min_length=1, max_length=20)
+    concept: AgentConcept
+    appearance_id: AgentAppearanceID
+
+    @field_validator("display_name", "tone")
+    @classmethod
+    def reject_control_characters(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or any(unicodedata.category(character).startswith("C") for character in normalized):
+            raise ValueError("custom text must not contain control characters")
+        return normalized
 
 
 class SymbolInfo(APIModel):
@@ -148,8 +199,18 @@ class AnalysisPayload(APIModel):
 
 class AnalysisRequestContext(APIModel):
     include_news: bool
-    active_agent_ids: list[Literal["trend", "pattern", "momentum", "risk", "devil"]] = Field(min_length=3, max_length=5)
+    active_agent_ids: list[AgentRoleID] = Field(min_length=3, max_length=5)
     response_language: Literal["ko", "en"] = "ko"
+    agent_customizations: list[AgentCustomization] = Field(default_factory=list, max_length=5)
+
+    @model_validator(mode="after")
+    def customization_roles_must_be_unique_and_active(self) -> AnalysisRequestContext:
+        role_ids = [profile.role_id for profile in self.agent_customizations]
+        if len(role_ids) != len(set(role_ids)):
+            raise ValueError("agent customization role ids must be unique")
+        if not set(role_ids).issubset(self.active_agent_ids):
+            raise ValueError("agent customizations must target active agents")
+        return self
 
 
 class AnalysisResponse(APIModel):
@@ -161,6 +222,7 @@ class AnalysisResponse(APIModel):
     included_news: bool
     result: AnalysisPayload
     news: list[NewsItem]
+    agent_profiles: list[AgentCustomization] = Field(default_factory=list, max_length=5)
 
     @classmethod
     def create(
@@ -172,6 +234,7 @@ class AnalysisResponse(APIModel):
         included_news: bool,
         result: AnalysisPayload,
         news: list[NewsItem],
+        agent_profiles: list[AgentCustomization] | None = None,
     ) -> AnalysisResponse:
         return cls(
             id=str(uuid4()),
@@ -182,6 +245,7 @@ class AnalysisResponse(APIModel):
             included_news=included_news,
             result=result,
             news=news,
+            agent_profiles=agent_profiles or [],
         )
 
 
@@ -197,6 +261,7 @@ class FollowUpRequest(APIModel):
     analysis: AnalysisResponse
     history: list[FollowUpHistoryItem] = Field(default_factory=list, max_length=12)
     response_language: Literal["ko", "en"] = "ko"
+    agent_profile: AgentCustomization | None = None
 
 
 class FollowUpPayload(APIModel):

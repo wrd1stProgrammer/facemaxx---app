@@ -103,6 +103,7 @@ class AnalysisService:
             included_news=context.include_news,
             result=payload,
             news=news,
+            agent_profiles=context.agent_customizations,
         )
 
     async def _complete(
