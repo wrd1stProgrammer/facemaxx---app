@@ -3,11 +3,52 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from app.schemas import AnalysisRequestContext, FollowUpRequest, NewsItem, SymbolInfo
+from app.schemas import AnalysisRequestContext, FollowUpRequest, NewsItem, ResponseLanguage, SymbolInfo
 
 
-def build_detection_prompt(response_language: str = "ko") -> str:
-    language_name = {"ko": "Korean", "en": "English"}.get(response_language, "Korean")
+LANGUAGE_NAMES: dict[ResponseLanguage, str] = {
+    "en-US": "English (United States)",
+    "en": "English (United States)",
+    "ko": "Korean",
+    "ja": "Japanese",
+    "de": "German",
+    "fr-FR": "French (France)",
+    "es-MX": "Spanish (Mexico)",
+    "pt-BR": "Portuguese (Brazil)",
+    "zh-Hant": "Traditional Chinese",
+    "id": "Indonesian",
+    "th": "Thai",
+    "zh-Hans": "Simplified Chinese",
+    "vi": "Vietnamese",
+    "it": "Italian",
+    "tr": "Turkish",
+    "es-ES": "Spanish (Spain)",
+    "fr-CA": "French (Canada)",
+}
+
+STANCE_VOCABULARY: dict[ResponseLanguage, str] = {
+    "en-US": "BUY, SELL, WAIT, NEUTRAL",
+    "en": "BUY, SELL, WAIT, NEUTRAL",
+    "ko": "매수, 매도, 관망, 중립",
+    "ja": "買い, 売り, 様子見, 中立",
+    "de": "KAUFEN, VERKAUFEN, ABWARTEN, NEUTRAL",
+    "fr-FR": "ACHAT, VENTE, ATTENDRE, NEUTRE",
+    "es-MX": "COMPRAR, VENDER, ESPERAR, NEUTRAL",
+    "pt-BR": "COMPRAR, VENDER, AGUARDAR, NEUTRO",
+    "zh-Hant": "買入, 賣出, 觀望, 中立",
+    "id": "BELI, JUAL, TUNGGU, NETRAL",
+    "th": "ซื้อ, ขาย, รอดู, เป็นกลาง",
+    "zh-Hans": "买入, 卖出, 观望, 中立",
+    "vi": "MUA, BÁN, CHỜ, TRUNG LẬP",
+    "it": "ACQUISTA, VENDI, ATTENDI, NEUTRALE",
+    "tr": "AL, SAT, BEKLE, NÖTR",
+    "es-ES": "COMPRAR, VENDER, ESPERAR, NEUTRAL",
+    "fr-CA": "ACHAT, VENTE, ATTENDRE, NEUTRE",
+}
+
+
+def build_detection_prompt(response_language: ResponseLanguage = "en-US") -> str:
+    language_name = LANGUAGE_NAMES[response_language]
     return "\n".join(
         [
             "Inspect exactly one user-provided trading chart screenshot.",
@@ -27,11 +68,8 @@ def build_analysis_prompt(
     timeframe: str | None,
     news: list[NewsItem],
 ) -> str:
-    response_language = {"ko": "Korean", "en": "English"}[context.response_language]
-    stance_vocabulary = {
-        "ko": "매수, 매도, 관망, 중립",
-        "en": "BUY, SELL, WAIT, NEUTRAL",
-    }[context.response_language]
+    response_language = LANGUAGE_NAMES[context.response_language]
+    stance_vocabulary = STANCE_VOCABULARY[context.response_language]
     now = datetime.now(UTC).timestamp()
     news_payload = [
         {
@@ -66,6 +104,7 @@ def build_analysis_prompt(
     return "\n".join(
         [
             f"Analyze exactly one user-provided trading chart screenshot and write every user-facing field in {response_language}.",
+            "Translate foreign source text internally and never leave English prose in user-facing fields unless English is the requested response language. Tickers, exchange names, proper nouns, prices, and timeframes may remain unchanged.",
             f"News option enabled: {str(context.include_news).lower()}.",
             f"Active agent ids: {', '.join(context.active_agent_ids)}.",
             *market_context,
@@ -115,7 +154,7 @@ def build_analysis_prompt(
 def build_follow_up_prompt(
     request: FollowUpRequest,
 ) -> str:
-    language_name = {"ko": "Korean", "en": "English"}[request.response_language]
+    language_name = LANGUAGE_NAMES[request.response_language]
     analysis = request.analysis
     compact = {
         "symbol": analysis.symbol.model_dump(),

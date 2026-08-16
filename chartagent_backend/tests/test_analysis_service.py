@@ -61,6 +61,13 @@ def test_decision_labels_are_one_word_in_response_language(valid_payload: Analys
     assert normalized.agent_opinions[0].stance == "매도"
 
 
+def test_decision_labels_are_localized_for_japanese(valid_payload: AnalysisPayload) -> None:
+    normalized = _normalize_decision_labels(valid_payload, "ja")
+
+    assert normalized.consensus.title == "様子見"
+    assert all(item.stance in {"買い", "売り", "様子見", "中立"} for item in normalized.agent_opinions)
+
+
 def test_trade_plan_rejects_current_price_as_entry() -> None:
     with pytest.raises(ValidationError):
         TradePlan(

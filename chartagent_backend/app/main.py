@@ -9,6 +9,7 @@ from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import ORJSONResponse
 
 from app.analysis_service import AnalysisService
+from app.analysis_jobs import AnalysisJobManager
 from app.config import get_settings
 from app.errors import ChartAgentError
 from app.image_validation import validate_image_bytes
@@ -17,12 +18,15 @@ from app.providers.codex_cli import CodexCLIProvider
 from app.providers.openai_api import OpenAIAPIProvider
 from app.schemas import (
     AgentCustomization,
+    AnalysisJobAccepted,
+    AnalysisJobSnapshot,
     AnalysisRequestContext,
     AnalysisResponse,
     ErrorResponse,
     FollowUpRequest,
     FollowUpResponse,
     SymbolSearchResponse,
+    normalize_response_language,
 )
 
 
@@ -35,6 +39,7 @@ service = AnalysisService(
     codex=CodexCLIProvider(settings),
     fallback=OpenAIAPIProvider(settings),
 )
+analysis_jobs = AnalysisJobManager()
 
 app = FastAPI(
     title="ChartAgent API",
@@ -89,9 +94,59 @@ async def create_analysis(
     image: UploadFile = File(),
     include_news: bool = Form(default=False),
     active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
-    locale: str = Form(default="ko"),
+    locale: str = Form(default="en-US"),
     agent_profiles: str = Form(default="[]"),
 ) -> AnalysisResponse:
+    context = _analysis_context(
+        include_news=include_news,
+        active_agent_ids=active_agent_ids,
+        locale=locale,
+        agent_profiles=agent_profiles,
+    )
+    data = await image.read()
+    image_format = validate_image_bytes(data, max_bytes=settings.max_image_bytes)
+    return await _analyze_uploaded_data(data=data, image_format=image_format, context=context)
+
+
+@app.post(
+    "/v1/analysis-jobs",
+    response_model=AnalysisJobAccepted,
+    status_code=202,
+    responses={422: {"model": ErrorResponse}},
+)
+async def create_analysis_job(
+    image: UploadFile = File(),
+    include_news: bool = Form(default=False),
+    active_agent_ids: str = Form(default="trend,pattern,momentum,risk,devil"),
+    locale: str = Form(default="en-US"),
+    agent_profiles: str = Form(default="[]"),
+) -> AnalysisJobAccepted:
+    context = _analysis_context(
+        include_news=include_news,
+        active_agent_ids=active_agent_ids,
+        locale=locale,
+        agent_profiles=agent_profiles,
+    )
+    data = await image.read()
+    image_format = validate_image_bytes(data, max_bytes=settings.max_image_bytes)
+    job_id = analysis_jobs.submit(
+        lambda: _analyze_uploaded_data(data=data, image_format=image_format, context=context)
+    )
+    return AnalysisJobAccepted(job_id=job_id)
+
+
+@app.get("/v1/analysis-jobs/{job_id}", response_model=AnalysisJobSnapshot)
+async def get_analysis_job(job_id: str) -> AnalysisJobSnapshot:
+    return analysis_jobs.get(job_id)
+
+
+def _analysis_context(
+    *,
+    include_news: bool,
+    active_agent_ids: str,
+    locale: str,
+    agent_profiles: str,
+) -> AnalysisRequestContext:
     requested_agents = [value.strip() for value in active_agent_ids.split(",") if value.strip()]
     if not 3 <= len(requested_agents) <= 5 or len(set(requested_agents)) != len(requested_agents) or not set(requested_agents).issubset(_AGENT_IDS):
         from app.errors import InvalidChartError
@@ -105,21 +160,25 @@ async def create_analysis(
     except (json.JSONDecodeError, TypeError, ValueError):
         raise InvalidChartError("invalid_agent_profiles", "에이전트 커스터마이징 정보를 읽을 수 없습니다.") from None
 
-    data = await image.read()
-    image_format = validate_image_bytes(data, max_bytes=settings.max_image_bytes)
+    return AnalysisRequestContext(
+        include_news=include_news,
+        active_agent_ids=requested_agents,
+        response_language=normalize_response_language(locale),
+        agent_customizations=parsed_profiles,
+    )
+
+
+async def _analyze_uploaded_data(
+    *,
+    data: bytes,
+    image_format: str,
+    context: AnalysisRequestContext,
+) -> AnalysisResponse:
     suffix = {"png": ".png", "webp": ".webp"}.get(image_format, ".jpg")
     with tempfile.TemporaryDirectory(prefix="chartagent-upload-") as temp_dir:
         image_path = Path(temp_dir) / f"chart{suffix}"
         image_path.write_bytes(data)
-        return await service.analyze(
-            context=AnalysisRequestContext(
-                include_news=include_news,
-                active_agent_ids=requested_agents,
-                response_language="en" if locale.lower().startswith("en") else "ko",
-                agent_customizations=parsed_profiles,
-            ),
-            image_path=image_path,
-        )
+        return await service.analyze(context=context, image_path=image_path)
 
 
 @app.post(

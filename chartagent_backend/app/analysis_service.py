@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Protocol, TypeVar
+import time
+from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -18,6 +19,7 @@ from app.schemas import (
     FollowUpResponse,
     NewsItem,
     NewsImpact,
+    ResponseLanguage,
     SymbolInfo,
 )
 
@@ -113,19 +115,36 @@ class AnalysisService:
         image_path: Path | None,
         response_model: type[ResponseModel],
     ) -> tuple[ResponseModel, str]:
+        started_at = time.monotonic()
         try:
             result = await self.codex.complete(
                 prompt=prompt,
                 image_path=image_path,
                 response_model=response_model,
             )
+            LOGGER.info(
+                "Codex completion succeeded response_model=%s elapsed_seconds=%.2f",
+                response_model.__name__,
+                time.monotonic() - started_at,
+            )
             return result, "codex_cli"
         except Exception as error:  # noqa: BLE001 - provider boundary must always fall back
-            LOGGER.warning("Codex completion failed; using OpenAI fallback reason=%s", type(error).__name__)
+            LOGGER.warning(
+                "Codex completion failed; using OpenAI fallback response_model=%s reason=%s elapsed_seconds=%.2f",
+                response_model.__name__,
+                type(error).__name__,
+                time.monotonic() - started_at,
+            )
+            fallback_started_at = time.monotonic()
             result = await self.fallback.complete(
                 prompt=prompt,
                 image_path=image_path,
                 response_model=response_model,
+            )
+            LOGGER.info(
+                "OpenAI fallback succeeded response_model=%s elapsed_seconds=%.2f",
+                response_model.__name__,
+                time.monotonic() - fallback_started_at,
             )
             return result, "openai_fallback"
 
@@ -231,11 +250,26 @@ def _normalize_news_impact(
 
 def _normalize_decision_labels(
     payload: AnalysisPayload,
-    language: Literal["ko", "en"],
+    language: ResponseLanguage,
 ) -> AnalysisPayload:
     labels = {
-        "ko": {"bullish": "매수", "bearish": "매도", "observe": "관망", "neutral": "중립"},
+        "en-US": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT", "neutral": "NEUTRAL"},
         "en": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT", "neutral": "NEUTRAL"},
+        "ko": {"bullish": "매수", "bearish": "매도", "observe": "관망", "neutral": "중립"},
+        "ja": {"bullish": "買い", "bearish": "売り", "observe": "様子見", "neutral": "中立"},
+        "de": {"bullish": "KAUFEN", "bearish": "VERKAUFEN", "observe": "ABWARTEN", "neutral": "NEUTRAL"},
+        "fr-FR": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE", "neutral": "NEUTRE"},
+        "es-MX": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR", "neutral": "NEUTRAL"},
+        "pt-BR": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "AGUARDAR", "neutral": "NEUTRO"},
+        "zh-Hant": {"bullish": "買入", "bearish": "賣出", "observe": "觀望", "neutral": "中立"},
+        "id": {"bullish": "BELI", "bearish": "JUAL", "observe": "TUNGGU", "neutral": "NETRAL"},
+        "th": {"bullish": "ซื้อ", "bearish": "ขาย", "observe": "รอดู", "neutral": "เป็นกลาง"},
+        "zh-Hans": {"bullish": "买入", "bearish": "卖出", "observe": "观望", "neutral": "中立"},
+        "vi": {"bullish": "MUA", "bearish": "BÁN", "observe": "CHỜ", "neutral": "TRUNG LẬP"},
+        "it": {"bullish": "ACQUISTA", "bearish": "VENDI", "observe": "ATTENDI", "neutral": "NEUTRALE"},
+        "tr": {"bullish": "AL", "bearish": "SAT", "observe": "BEKLE", "neutral": "NÖTR"},
+        "es-ES": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR", "neutral": "NEUTRAL"},
+        "fr-CA": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE", "neutral": "NEUTRE"},
     }[language]
     consensus = payload.consensus.model_copy(update={"title": labels[payload.consensus.stance_code]})
     opinions = [

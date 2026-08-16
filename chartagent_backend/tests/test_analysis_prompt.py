@@ -27,6 +27,39 @@ def test_analysis_prompt_builds_for_selected_response_language() -> None:
     assert prompt
 
 
+def test_analysis_prompt_supports_regional_and_script_locales() -> None:
+    context = AnalysisRequestContext(
+        include_news=False,
+        active_agent_ids=["trend", "pattern", "risk"],
+        response_language="zh-Hant",
+    )
+    prompt = build_analysis_prompt(
+        context,
+        SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock"),
+        "1D",
+        [],
+    )
+
+    assert "Traditional Chinese" in prompt
+    assert "買入, 賣出, 觀望, 中立" in prompt
+
+
+def test_analysis_prompt_forbids_english_prose_in_localized_fields() -> None:
+    context = AnalysisRequestContext(
+        include_news=False,
+        active_agent_ids=["trend", "pattern", "risk"],
+        response_language="ko",
+    )
+    prompt = build_analysis_prompt(
+        context,
+        SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock"),
+        "1D",
+        [],
+    )
+
+    assert "never leave English prose in user-facing fields" in prompt
+
+
 def test_follow_up_prompt_accepts_saved_history(valid_payload) -> None:
     analysis = AnalysisResponse.create(
         provider="codex_cli",

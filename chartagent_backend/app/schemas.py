@@ -4,7 +4,7 @@ import re
 import unicodedata
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Literal
+from typing import Literal, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
@@ -42,6 +42,61 @@ AgentAppearanceID = Literal[
     "neo_quant",
     "classic_strategist",
 ]
+ResponseLanguage = Literal[
+    "en-US",
+    "en",
+    "ko",
+    "ja",
+    "de",
+    "fr-FR",
+    "es-MX",
+    "pt-BR",
+    "zh-Hant",
+    "id",
+    "th",
+    "zh-Hans",
+    "vi",
+    "it",
+    "tr",
+    "es-ES",
+    "fr-CA",
+]
+
+
+def normalize_response_language(identifier: str) -> ResponseLanguage:
+    normalized = identifier.strip().replace("_", "-").lower()
+    if normalized.startswith("ko"):
+        return "ko"
+    if normalized.startswith("ja"):
+        return "ja"
+    if normalized.startswith("de"):
+        return "de"
+    if normalized.startswith("fr-ca"):
+        return "fr-CA"
+    if normalized.startswith("fr"):
+        return "fr-FR"
+    if normalized.startswith("es-mx"):
+        return "es-MX"
+    if normalized.startswith("es"):
+        return "es-ES"
+    if normalized.startswith("pt"):
+        return "pt-BR"
+    if normalized.startswith("zh"):
+        traditional = any(token in normalized for token in ("hant", "-tw", "-hk", "-mo"))
+        return "zh-Hant" if traditional else "zh-Hans"
+    if normalized.startswith("id"):
+        return "id"
+    if normalized.startswith("th"):
+        return "th"
+    if normalized.startswith("vi"):
+        return "vi"
+    if normalized.startswith("it"):
+        return "it"
+    if normalized.startswith("tr"):
+        return "tr"
+    if normalized == "en":
+        return "en"
+    return cast(ResponseLanguage, "en-US")
 
 
 class APIModel(BaseModel):
@@ -200,7 +255,7 @@ class AnalysisPayload(APIModel):
 class AnalysisRequestContext(APIModel):
     include_news: bool
     active_agent_ids: list[AgentRoleID] = Field(min_length=3, max_length=5)
-    response_language: Literal["ko", "en"] = "ko"
+    response_language: ResponseLanguage = "en-US"
     agent_customizations: list[AgentCustomization] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode="after")
@@ -249,6 +304,32 @@ class AnalysisResponse(APIModel):
         )
 
 
+class AnalysisJobAccepted(APIModel):
+    job_id: str
+    status: Literal["pending"] = "pending"
+
+
+class ErrorResponse(APIModel):
+    code: str
+    message: str
+    recovery: str | None
+
+
+class AnalysisJobSnapshot(APIModel):
+    job_id: str
+    status: Literal["pending", "completed", "failed"]
+    result: AnalysisResponse | None = None
+    error: ErrorResponse | None = None
+
+    @model_validator(mode="after")
+    def payload_matches_status(self) -> AnalysisJobSnapshot:
+        if self.status == "completed" and self.result is None:
+            raise ValueError("completed analysis job requires a result")
+        if self.status == "failed" and self.error is None:
+            raise ValueError("failed analysis job requires an error")
+        return self
+
+
 class FollowUpHistoryItem(APIModel):
     agent_id: Literal["trend", "pattern", "momentum", "risk", "devil"]
     question: str = Field(min_length=2, max_length=800)
@@ -260,7 +341,7 @@ class FollowUpRequest(APIModel):
     question: str = Field(min_length=2, max_length=800)
     analysis: AnalysisResponse
     history: list[FollowUpHistoryItem] = Field(default_factory=list, max_length=12)
-    response_language: Literal["ko", "en"] = "ko"
+    response_language: ResponseLanguage = "en-US"
     agent_profile: AgentCustomization | None = None
 
 
@@ -272,12 +353,6 @@ class FollowUpPayload(APIModel):
 
 class FollowUpResponse(FollowUpPayload):
     provider: Literal["codex_cli", "openai_fallback"]
-
-
-class ErrorResponse(APIModel):
-    code: str
-    message: str
-    recovery: str | None
 
 
 def _first_number(value: str) -> Decimal | None:

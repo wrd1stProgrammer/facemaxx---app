@@ -54,7 +54,10 @@ class OpenAIAPIProvider:
             response = await client.responses.create(
                 model=self.settings.openai_model,
                 reasoning={"effort": "low"},
-                max_output_tokens=2800,
+                # Five opinions, council dialogue, scenarios, structure, and a
+                # trade plan no longer fit reliably inside the original 2,800
+                # token cap. This is an output ceiling, not reserved usage.
+                max_output_tokens=5200,
                 input=[
                     {
                         "role": "user",
