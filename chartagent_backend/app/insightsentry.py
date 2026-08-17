@@ -86,8 +86,9 @@ class InsightSentryClient:
             raise DependencyError("InsightSentry") from error
         return SymbolInfo(code=item.code, name=item.name or item.code, instrument_type=item.type)
 
-    async def fetch_news(self, code: str) -> list[NewsItem]:
+    async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
         now = int(time.time())
+        asset_root = _news_asset_root(code)
         common_params = {
             "limit": "500",
             "from": (datetime.fromtimestamp(now, UTC) - timedelta(hours=48)).strftime("%Y-%m-%d"),
@@ -97,7 +98,10 @@ class InsightSentryClient:
             rows = await self._fetch_news_pages(
                 params={
                     **common_params,
-                    "related_symbols": ",".join(_news_symbol_aliases(code)),
+                    # InsightSentry documents symbol-only values as exchange-agnostic.
+                    # Searching BTC instead of BITSTAMP:BTCUSD avoids collapsing the
+                    # result set to one venue and one quote currency.
+                    "related_symbols": asset_root,
                 },
                 now_timestamp=now,
             )
@@ -105,7 +109,7 @@ class InsightSentryClient:
             raise DependencyError("InsightSentry 뉴스") from error
 
         primary_count = len(rows)
-        keywords = _news_keywords(code)
+        keywords = _news_keywords(code, name)
         if len(_select_recent_news(rows, now_timestamp=now)) < 20 and keywords:
             try:
                 rows.extend(
@@ -132,7 +136,7 @@ class InsightSentryClient:
                 published_at=_published_seconds(row.published_at),
                 url=row.link,
                 related_symbols=row.related_symbols,
-                relevance=row.content[:240],
+                relevance=row.content[:400],
             )
             for row in selected
         ]
@@ -208,31 +212,27 @@ def _published_seconds(value: int) -> int:
     return value // 1_000 if value > 10_000_000_000 else value
 
 
-def _news_symbol_aliases(code: str) -> list[str]:
-    ticker = code.rsplit(":", 1)[-1].strip().upper()
-    aliases = [ticker]
-    base = ticker
-    for quote_currency in ("USDT", "USDC", "USD"):
-        if ticker.endswith(quote_currency) and len(ticker) > len(quote_currency):
-            base = ticker[: -len(quote_currency)]
-            aliases.extend(f"{base}{quote}" for quote in ("USD", "USDT", "USDC"))
-            break
-    if base in {"BTC", "XBT"}:
-        alternate = "XBT" if base == "BTC" else "BTC"
-        aliases.extend(f"{alternate}{quote}" for quote in ("USD", "USDT", "USDC"))
-    return list(dict.fromkeys(alias for alias in aliases if len(alias) >= 2))[:10]
-
-
-def _news_keywords(code: str) -> list[str]:
+def _news_asset_root(code: str) -> str:
     ticker = code.rsplit(":", 1)[-1].strip().upper()
     for quote_currency in ("USDT", "USDC", "USD"):
         if ticker.endswith(quote_currency) and len(ticker) > len(quote_currency):
             ticker = ticker[: -len(quote_currency)]
             break
-    return {
-        "BTC": ["Bitcoin", "BTC"],
-        "XBT": ["Bitcoin", "BTC"],
-        "ETH": ["Ethereum", "ETH"],
-        "SOL": ["Solana", "SOL"],
-        "XRP": ["XRP", "Ripple"],
-    }.get(ticker, [])
+    return "BTC" if ticker == "XBT" else ticker
+
+
+def _news_keywords(code: str, name: str | None = None) -> list[str]:
+    ticker = _news_asset_root(code)
+    known_name = {
+        "BTC": "Bitcoin",
+        "ETH": "Ethereum",
+        "SOL": "Solana",
+        "XRP": "Ripple",
+    }.get(ticker)
+    candidate_name = (known_name or name or "").strip()
+    # The API accepts at most ten OR terms. Keep them short and discard pair-like
+    # labels such as "Bitcoin / U.S. Dollar" when a clean asset name is unknown.
+    if any(separator in candidate_name for separator in ("/", ":")):
+        candidate_name = known_name or ""
+    terms = [ticker, candidate_name[:50]]
+    return list(dict.fromkeys(term for term in terms if len(term) >= 2))[:10]

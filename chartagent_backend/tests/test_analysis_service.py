@@ -6,8 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.analysis_service import AnalysisService, _normalize_decision_labels, _normalize_news_impact
-from app.errors import InvalidChartError, InvalidSymbolError
-from app.schemas import AgentOpinion, AnalysisPayload, AnalysisRequestContext, NewsImpact, NewsItem, SymbolInfo, TradePlan
+from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
+from app.schemas import AgentOpinion, AnalysisPayload, AnalysisRequestContext, ChartValidation, NewsImpact, NewsItem, SymbolInfo, TradePlan
 
 
 class FailingProvider:
@@ -35,8 +35,22 @@ class FixedMarketData:
     async def search_symbols(self, query: str) -> list[SymbolInfo]:
         return [self.symbol] if self.symbol is not None else []
 
-    async def fetch_news(self, code: str) -> list[NewsItem]:
+    async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
         return []
+
+
+class NewsFailingMarketData(FixedMarketData):
+    async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
+        raise DependencyError("InsightSentry")
+
+
+class TypeAwareProvider:
+    def __init__(self, validation: ChartValidation, payload: AnalysisPayload) -> None:
+        self.validation = validation
+        self.payload = payload
+
+    async def complete(self, *, prompt: str, image_path: Path, response_model: type[AnalysisPayload]) -> AnalysisPayload | ChartValidation:
+        return self.validation if response_model is ChartValidation else self.payload
 
 
 def test_decision_labels_are_one_word_in_response_language(valid_payload: AnalysisPayload) -> None:
@@ -94,6 +108,72 @@ def test_trade_plan_rejects_weak_reward_to_risk() -> None:
             trigger="저항 재시험에서 다시 밀리는지 확인합니다.",
             rationale="현재가 추격 대신 확인된 저항 재시험에서 손익비를 확보합니다.",
         )
+
+
+@pytest.mark.parametrize(
+    ("direction", "reference", "entry", "stop", "target"),
+    [
+        ("bearish", "63,000", "62,500", "64,000", "60,000"),
+        ("bullish", "63,000", "63,500", "62,000", "66,000"),
+        ("bearish", "63,000", "64,000", "63,500", "60,000"),
+        ("bullish", "63,000", "62,000", "62,500", "66,000"),
+    ],
+)
+def test_trade_plan_rejects_directionally_incoherent_prices(
+    direction: str,
+    reference: str,
+    entry: str,
+    stop: str,
+    target: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        TradePlan(
+            direction_code=direction,
+            reference_price=reference,
+            entry=entry,
+            stop=stop,
+            target=target,
+            risk_reward="1:2",
+            trigger="확인된 재시험에서 방향성 캔들이 나타나는지 확인합니다.",
+            rationale="현재가를 추격하지 않고 진입과 무효화 조건을 수치로 분리합니다.",
+        )
+
+
+def test_trade_plan_rejects_stated_ratio_when_numeric_ratio_is_too_weak() -> None:
+    with pytest.raises(ValidationError):
+        TradePlan(
+            direction_code="bearish",
+            reference_price="63,000",
+            entry="64,000",
+            stop="65,000",
+            target="62,500",
+            risk_reward="1:2",
+            trigger="확인된 재시험에서 방향성 캔들이 나타나는지 확인합니다.",
+            rationale="현재가를 추격하지 않고 진입과 무효화 조건을 수치로 분리합니다.",
+        )
+
+
+@pytest.mark.anyio
+async def test_news_dependency_failure_continues_with_chart_only_analysis(
+    tmp_path: Path,
+    valid_payload: AnalysisPayload,
+) -> None:
+    symbol = SymbolInfo(code="BITSTAMP:BTCUSD", name="Bitcoin", instrument_type="crypto")
+    provider = TypeAwareProvider(valid_payload.validation, valid_payload)
+    service = AnalysisService(
+        market_data=NewsFailingMarketData(symbol),
+        codex=provider,
+        fallback=provider,
+    )
+
+    result = await service.analyze(
+        context=AnalysisRequestContext(include_news=True, active_agent_ids=["trend", "pattern", "risk"]),
+        image_path=tmp_path / "chart.png",
+    )
+
+    assert result.news == []
+    assert result.included_news is False
+    assert result.result.news_impact.effect == "none"
 
 
 @pytest.mark.anyio

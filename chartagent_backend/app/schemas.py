@@ -220,6 +220,8 @@ class TradePlan(APIModel):
     def entry_must_not_copy_reference_price(self) -> TradePlan:
         reference_number = _first_number(self.reference_price)
         entry_number = _first_number(self.entry)
+        stop_number = _first_number(self.stop)
+        target_number = _first_number(self.target)
         same_numeric_level = (
             reference_number is not None
             and entry_number is not None
@@ -235,6 +237,28 @@ class TradePlan(APIModel):
         reward = Decimal(ratio_match.group(2))
         if risk <= 0 or reward / risk < Decimal("1.8"):
             raise ValueError("reward-to-risk must be at least 1.8")
+
+        if all(value is not None for value in (reference_number, entry_number, stop_number, target_number)):
+            reference = cast(Decimal, reference_number)
+            entry = cast(Decimal, entry_number)
+            stop = cast(Decimal, stop_number)
+            target = cast(Decimal, target_number)
+            if self.direction_code == "bearish":
+                if entry < reference:
+                    raise ValueError("bearish entry must be at or above the displayed current price")
+                if stop <= entry or target >= entry:
+                    raise ValueError("bearish stop must be above entry and target below entry")
+            elif self.direction_code == "bullish":
+                if entry > reference:
+                    raise ValueError("bullish entry must be at or below the displayed current price")
+                if stop >= entry or target <= entry:
+                    raise ValueError("bullish stop must be below entry and target above entry")
+
+            if self.direction_code in {"bearish", "bullish"}:
+                numeric_risk = abs(entry - stop)
+                numeric_reward = abs(target - entry)
+                if numeric_risk <= 0 or numeric_reward / numeric_risk < Decimal("1.8"):
+                    raise ValueError("numeric trade levels must provide at least 1.8 reward-to-risk")
         return self
 
 

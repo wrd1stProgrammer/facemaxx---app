@@ -71,22 +71,20 @@ def test_news_selection_accepts_millisecond_timestamps() -> None:
 
 
 @pytest.mark.anyio
-async def test_btc_news_search_uses_cross_exchange_symbol_aliases() -> None:
+async def test_btc_news_search_uses_asset_root_and_name() -> None:
     now = int(time.time())
 
     def respond(params: dict[str, str]) -> dict[str, object]:
-        if params.get("related_symbols") == "BITSTAMP:BTCUSD":
+        if "related_symbols" in params:
             return {"data": _news_rows(now=now, prefix="exact", recent=1, prior=0), "has_next": False}
+        assert params["keywords"] == "BTC,Bitcoin"
         return {"data": _news_rows(now=now, prefix="broad", recent=12, prior=12), "has_next": False}
 
     client = _FakeInsightSentryClient(respond)
-    news = await client.fetch_news("BITSTAMP:BTCUSD")
+    news = await client.fetch_news("BITSTAMP:BTCUSD", "Bitcoin")
 
     assert len(news) == 20, "exchange-qualified filtering must not collapse BTC coverage to one story"
-    assert "BITSTAMP:" not in client.calls[0]["related_symbols"]
-    assert {"BTCUSD", "BTCUSDT", "XBTUSD"}.issubset(
-        set(client.calls[0]["related_symbols"].split(","))
-    )
+    assert client.calls[0]["related_symbols"] == "BTC"
     assert client.calls[0]["limit"] == "500"
 
 
@@ -114,7 +112,7 @@ async def test_sparse_btc_symbol_results_fall_back_to_bitcoin_keywords() -> None
     def respond(params: dict[str, str]) -> dict[str, object]:
         if "related_symbols" in params:
             return {"data": _news_rows(now=now, prefix="symbol", recent=1, prior=0), "has_next": False}
-        assert params["keywords"] == "Bitcoin,BTC"
+        assert params["keywords"] == "BTC,Bitcoin"
         return {"data": _news_rows(now=now, prefix="keyword", recent=10, prior=10), "has_next": False}
 
     client = _FakeInsightSentryClient(respond)
@@ -124,3 +122,26 @@ async def test_sparse_btc_symbol_results_fall_back_to_bitcoin_keywords() -> None
     assert len(client.calls) == 2
     assert "related_symbols" in client.calls[0]
     assert "keywords" in client.calls[1]
+
+
+@pytest.mark.anyio
+async def test_news_excerpt_reads_up_to_four_hundred_characters() -> None:
+    now = int(time.time())
+    content = "x" * 500
+
+    def respond(params: dict[str, str]) -> dict[str, object]:
+        return {
+            "data": [
+                {
+                    "title": "long article",
+                    "published_at": now - 60,
+                    "content": content,
+                }
+            ],
+            "has_next": False,
+        }
+
+    client = _FakeInsightSentryClient(respond)
+    news = await client.fetch_news("NASDAQ:AAPL", "Apple Inc.")
+
+    assert news[0].relevance == content[:400]

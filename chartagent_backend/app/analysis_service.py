@@ -7,7 +7,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from app.errors import InvalidChartError, InvalidSymbolError
+from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
 from app.prompts import build_analysis_prompt, build_detection_prompt, build_follow_up_prompt
 from app.schemas import (
     AnalysisPayload,
@@ -43,7 +43,7 @@ class MarketData(Protocol):
 
     async def search_symbols(self, query: str) -> list[SymbolInfo]: ...
 
-    async def fetch_news(self, code: str) -> list[NewsItem]: ...
+    async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]: ...
 
 
 class AnalysisService:
@@ -74,7 +74,15 @@ class AnalysisService:
                     response_model=ChartValidation,
                 )
             symbol, timeframe = await self._resolve_chart_context(validation)
-            news = await self.market_data.fetch_news(symbol.code)
+            try:
+                news = await self.market_data.fetch_news(symbol.code, symbol.name)
+            except DependencyError as error:
+                LOGGER.warning(
+                    "Optional news enrichment failed; continuing chart-only symbol=%s reason=%s",
+                    symbol.code,
+                    type(error).__name__,
+                )
+                news = []
             payload, provider_name = await self._complete(
                 prompt=build_analysis_prompt(context, symbol, timeframe, news),
                 image_path=image_path,
@@ -102,7 +110,7 @@ class AnalysisService:
             provider=provider_name,
             symbol=symbol,
             timeframe=timeframe,
-            included_news=context.include_news,
+            included_news=context.include_news and bool(news),
             result=payload,
             news=news,
             agent_profiles=context.agent_customizations,

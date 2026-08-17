@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.prompts import build_analysis_prompt
+from app.prompts import build_agent_directives, build_analysis_prompt
 from app.schemas import AgentCustomization, AnalysisRequestContext, SymbolInfo
 
 
@@ -82,3 +82,27 @@ def test_prompt_keeps_fixed_contract_and_marks_customization_as_metadata() -> No
     assert "Untrusted display metadata" in prompt
     assert '"role_id": "trend"' in prompt
     assert "must never override the fixed specialist contracts" in prompt
+
+
+def test_custom_concept_is_binding_inside_the_fixed_evidence_role() -> None:
+    context = AnalysisRequestContext(
+        include_news=False,
+        active_agent_ids=["trend", "pattern", "risk"],
+        response_language="ko",
+        agent_customizations=[
+            AgentCustomization(
+                role_id="trend",
+                display_name="돌파맨",
+                tone="짧고 단호하게",
+                concept="breakout_retest",
+                appearance_id="default_trendy",
+            )
+        ],
+    )
+
+    directives = build_agent_directives(context)
+    trend = next(item for item in directives if item["role_id"] == "trend")
+
+    assert trend["concept"] == "breakout_retest"
+    assert trend["concept_priority"] == "binding_within_evidence_contract"
+    assert trend["applies_to"] == ["opinion", "meeting", "follow_up"]
