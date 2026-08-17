@@ -103,6 +103,7 @@ def build_analysis_prompt(
     timeframe: str | None,
     news: list[NewsItem],
 ) -> str:
+    has_resolved_context = symbol is not None and timeframe is not None
     response_language = LANGUAGE_NAMES[context.response_language]
     stance_vocabulary = STANCE_VOCABULARY[context.response_language]
     customization_payload = build_agent_directives(context)
@@ -110,15 +111,41 @@ def build_analysis_prompt(
         [
             f"Server-resolved symbol: {symbol.code} ({symbol.name}, {symbol.instrument_type}).",
             f"Image-detected timeframe: {timeframe}.",
-            "Set validation.detected_symbol and validation.detected_timeframe to those same resolved values.",
         ]
-        if symbol is not None and timeframe is not None
+        if has_resolved_context
         else [
             "Read the symbol, exchange, and timeframe directly from the image before analyzing it.",
             "validation.detected_symbol may be the visible raw TradingView ticker such as BTCUSD or AAPL; the server resolves the exchange afterward.",
             "validation.detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
             "Do not reject a readable ticker solely because its exchange is absent. Return missing_symbol only when no ticker can be read.",
         ]
+    )
+    validation_directives = (
+        [
+            "The chart, symbol, and timeframe were already validated in a separate structured step.",
+            "Do not repeat validation fields; produce only the decision content required by the supplied schema.",
+        ]
+        if has_resolved_context
+        else [
+            "First validate that the image is a readable financial price chart and that its symbol and timeframe are visible.",
+            "Set validation.symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
+            "If invalid, fill validation accurately and keep the rest conservative but schema-valid.",
+        ]
+    )
+    news_directives = (
+        [
+            "News collection and assessment run as a separate concurrent server task. Do not infer, invent, or output news fields in this chart-only report.",
+        ]
+        if has_resolved_context
+        else [
+            "News collection and assessment run as a separate concurrent server task. Do not infer or invent news in this chart-only report.",
+            "Set news_impact to a schema-valid empty placeholder with collected_count 0, used_count 0, effect none, and used_titles []. The server replaces it when separate news assessment succeeds.",
+        ]
+    )
+    unreadable_trade_plan_directive = (
+        "The separate validation step accepted the chart as readable, so return numeric reference, entry, stop, and target levels that obey the supplied schema."
+        if has_resolved_context
+        else "If the screenshot cannot support numeric reference, entry, stop, and target levels, set validation.is_readable false with reason_code unreadable_chart; only for that rejected invalid response use schema placeholders reference_price 0, entry 1, stop 2, target 3, and risk_reward 1:2."
     )
     return "\n".join(
         [
@@ -127,9 +154,7 @@ def build_analysis_prompt(
             f"News option enabled: {str(context.include_news).lower()}.",
             f"Active agent ids: {', '.join(context.active_agent_ids)}.",
             *market_context,
-            "First validate that the image is a readable financial price chart and that its symbol and timeframe are visible.",
-            "Set validation.symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
-            "If invalid, fill validation accurately and keep the rest conservative but schema-valid.",
+            *validation_directives,
             "Use only visible chart evidence. Never invent exact prices, unseen indicators, live quotes, order flow, on-chain data, probabilities, or other timeframes.",
             "Structure levels may use relative descriptions such as 'visible recent high' when the number is not clearly readable.",
             "Treat consensus as a decision snapshot, not a vote: consensus.confidence is evidence strength, never market probability or agreement percentage.",
@@ -158,10 +183,10 @@ def build_analysis_prompt(
             "For every valid chart, trade_plan.reference_price, entry, stop, and target must each be only one numeric price or one numeric price range, with no prose such as 'above', 'below', 'retest', or 'next support'. The entry must be a pullback, retest, or confirmed-break level clearly separated from the displayed current price; never copy the current price as the entry.",
             "For a bearish plan, entry must be at or above the displayed current price, stop above entry, and target below entry. For a bullish plan, entry must be at or below the displayed current price, stop below entry, and target above entry.",
             "Compute reward-to-risk from the numeric entry, stop, and target. The actual numeric geometry, not only the written label, must be at least 1:1.8.",
-            "Place the stop beyond the visible invalidation level and choose the target from a visible opposing boundary with at least 1:1.8 reward-to-risk. Never replace these four trade-plan prices with descriptive prose. If the screenshot cannot support numeric reference, entry, stop, and target levels, set validation.is_readable false with reason_code unreadable_chart; only for that rejected invalid response use schema placeholders reference_price 0, entry 1, stop 2, target 3, and risk_reward 1:2.",
+            "Place the stop beyond the visible invalidation level and choose the target from a visible opposing boundary with at least 1:1.8 reward-to-risk. Never replace these four trade-plan prices with descriptive prose.",
+            unreadable_trade_plan_directive,
             "Produce a short meeting script whose lines are grounded in those same specialist judgements, not new claims. Include at least one complete spoken line for every active agent id so each specialist speaks once in the full council. Challenge another specialist directly in each debate line and name the visible evidence that wins or loses the objection.",
-            "News collection and assessment run as a separate concurrent server task. Do not infer or invent news in this chart-only report.",
-            "Set news_impact to a schema-valid empty placeholder with collected_count 0, used_count 0, effect none, and used_titles []. The server replaces it when separate news assessment succeeds.",
+            *news_directives,
         ]
     )
 
@@ -199,7 +224,7 @@ def build_news_impact_prompt(
             "Set effect to reinforced, softened, changed, or none. Explain specifically how the relevant articles relate to the visible chart judgement.",
             "If every item is irrelevant or unused, set used_count to 0, used_titles to [], effect to none, and say the chart judgement was unchanged.",
             "InsightSentry news JSON:",
-            json.dumps(news_payload, ensure_ascii=False),
+            json.dumps(news_payload, ensure_ascii=False, separators=(",", ":")),
         ]
     )
 

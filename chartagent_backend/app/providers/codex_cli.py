@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 import logging
 import os
@@ -60,7 +61,7 @@ class CodexCLIProvider:
             work_dir = root / "work"
             work_dir.mkdir()
             schema_path.write_text(
-                json.dumps(_strict_schema(response_model), ensure_ascii=False),
+                _strict_schema_json(response_model),
                 encoding="utf-8",
             )
             command = self._command(schema_path, output_path, work_dir, image_path)
@@ -172,6 +173,15 @@ def _strict_schema(model: type[BaseModel]) -> dict[str, object]:
     schema = model.model_json_schema()
     _normalize_schema(schema)
     return schema
+
+
+@lru_cache(maxsize=None)
+def _strict_schema_json(model: type[BaseModel]) -> str:
+    return json.dumps(
+        _strict_schema(model),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def _normalize_schema(value: object) -> None:

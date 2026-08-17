@@ -16,6 +16,7 @@ from app.prompts import (
     build_news_impact_prompt,
 )
 from app.schemas import (
+    AnalysisContent,
     AnalysisPayload,
     AnalysisRequestContext,
     AnalysisResponse,
@@ -80,14 +81,17 @@ class AnalysisService:
                     response_model=ChartValidation,
                 )
             symbol, timeframe = await self._resolve_chart_context(validation)
-            payload, provider_name, news, news_impact = await self._analyze_chart_and_news(
+            content, provider_name, news, news_impact = await self._analyze_chart_and_news(
                 context=context,
                 image_path=image_path,
                 symbol=symbol,
                 timeframe=timeframe,
             )
-            if news_impact is not None:
-                payload = payload.model_copy(update={"news_impact": news_impact})
+            payload = _assemble_analysis_payload(
+                content,
+                validation,
+                news_impact or _pending_news_impact(),
+            )
             _raise_for_invalid_chart(payload.validation)
         else:
             analysis_prompt = build_analysis_prompt(context, None, None, [])
@@ -123,15 +127,15 @@ class AnalysisService:
         image_path: Path,
         symbol: SymbolInfo,
         timeframe: str,
-    ) -> tuple[AnalysisPayload, str, list[NewsItem], NewsImpact | None]:
-        chart_results: list[tuple[AnalysisPayload, str]] = []
+    ) -> tuple[AnalysisContent, str, list[NewsItem], NewsImpact | None]:
+        chart_results: list[tuple[AnalysisContent, str]] = []
         news_results: list[tuple[list[NewsItem], NewsImpact | None]] = []
 
         async def analyze_chart() -> None:
             result = await self._complete(
                 prompt=build_analysis_prompt(context, symbol, timeframe, []),
                 image_path=image_path,
-                response_model=AnalysisPayload,
+                response_model=AnalysisContent,
             )
             chart_results.append(result)
 
@@ -277,6 +281,32 @@ def _raise_for_invalid_chart(validation: ChartValidation) -> None:
         raise InvalidChartError("missing_symbol", "이미지에서 종목 심볼을 확인할 수 없습니다.")
     if not (validation.detected_timeframe or "").strip():
         raise InvalidChartError("missing_timeframe", "이미지에서 차트 시간대를 확인할 수 없습니다.")
+
+
+def _assemble_analysis_payload(
+    content: AnalysisContent,
+    validation: ChartValidation,
+    news_impact: NewsImpact,
+) -> AnalysisPayload:
+    content_values = {
+        field_name: getattr(content, field_name)
+        for field_name in AnalysisContent.model_fields
+    }
+    return AnalysisPayload.model_construct(
+        **content_values,
+        validation=validation,
+        news_impact=news_impact,
+    )
+
+
+def _pending_news_impact() -> NewsImpact:
+    return NewsImpact(
+        collected_count=0,
+        used_count=0,
+        effect="none",
+        summary="Server-side news assessment is pending.",
+        used_titles=[],
+    )
 
 
 def _needs_metadata_recovery(validation: ChartValidation) -> bool:

@@ -263,8 +263,7 @@ class TradePlan(APIModel):
         return self
 
 
-class AnalysisPayload(APIModel):
-    validation: ChartValidation
+class AnalysisContent(APIModel):
     consensus: Consensus
     scope: AnalysisScope
     agent_opinions: list[AgentOpinion] = Field(min_length=3, max_length=5)
@@ -272,9 +271,13 @@ class AnalysisPayload(APIModel):
     structure: list[StructureLevel] = Field(min_length=2, max_length=4)
     meeting_script: list[MeetingLine] = Field(min_length=3, max_length=8)
     data_quality: DataQuality
-    news_impact: NewsImpact
     trade_plan: TradePlan
     follow_up_suggestions: list[str] = Field(min_length=2, max_length=4)
+
+
+class AnalysisPayload(AnalysisContent):
+    validation: ChartValidation
+    news_impact: NewsImpact
 
 
 class AnalysisRequestContext(APIModel):

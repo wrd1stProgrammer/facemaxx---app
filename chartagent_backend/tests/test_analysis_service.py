@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.analysis_service import AnalysisService, _normalize_decision_labels, _normalize_news_impact
 from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
-from app.schemas import AgentOpinion, AnalysisPayload, AnalysisRequestContext, ChartValidation, NewsImpact, NewsItem, SymbolInfo, TradePlan
+from app.schemas import AgentOpinion, AnalysisContent, AnalysisPayload, AnalysisRequestContext, ChartValidation, NewsImpact, NewsItem, SymbolInfo, TradePlan
 
 
 class FailingProvider:
@@ -70,15 +70,15 @@ class SplitNewsProvider:
     def __init__(self, validation: ChartValidation, payload: AnalysisPayload) -> None:
         self.validation = validation
         self.payload = payload
-        self.response_models: list[type[AnalysisPayload] | type[ChartValidation] | type[NewsImpact]] = []
+        self.response_models: list[type[BaseModel]] = []
 
     async def complete(
         self,
         *,
         prompt: str,
         image_path: Path,
-        response_model: type[AnalysisPayload] | type[ChartValidation] | type[NewsImpact],
-    ) -> AnalysisPayload | ChartValidation | NewsImpact:
+        response_model: type[BaseModel],
+    ) -> BaseModel:
         self.response_models.append(response_model)
         if response_model is ChartValidation:
             return self.validation
@@ -90,6 +90,12 @@ class SplitNewsProvider:
                 summary="뉴스가 차트 판단을 보강했습니다.",
                 used_titles=["Bitcoin market update"],
             )
+        if response_model is AnalysisContent:
+            values = {
+                field_name: getattr(self.payload, field_name)
+                for field_name in AnalysisContent.model_fields
+            }
+            return AnalysisContent.model_construct(**values)
         return self.payload
 
 
@@ -263,8 +269,11 @@ async def test_news_is_assessed_in_a_separate_structured_completion(
         image_path=tmp_path / "chart.png",
     )
 
-    assert provider.response_models.count(AnalysisPayload) == 1
+    response_model_names = [model.__name__ for model in provider.response_models]
+    assert response_model_names.count("AnalysisContent") == 1
+    assert provider.response_models.count(AnalysisPayload) == 0
     assert provider.response_models.count(NewsImpact) == 1
+    assert result.result.validation == valid_payload.validation
     assert result.result.news_impact.effect == "reinforced"
     assert result.result.news_impact.used_titles == ["Bitcoin market update"]
 
