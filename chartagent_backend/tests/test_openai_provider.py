@@ -43,4 +43,5 @@ async def test_fallback_reserves_enough_output_for_a_full_five_agent_report(
     with pytest.raises(AnalysisUnavailableError):
         await provider.complete(prompt="analyze", image_path=image, response_model=AnalysisPayload)
 
-    assert captured["max_output_tokens"] >= 5_000
+    assert captured["max_output_tokens"] >= 6_500
+    assert captured["reasoning"] == {"effort": "minimal"}

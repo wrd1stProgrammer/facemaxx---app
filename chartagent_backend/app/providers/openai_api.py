@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from pathlib import Path
 from typing import TypeVar
 
@@ -13,6 +14,7 @@ from app.providers.codex_cli import _strict_schema
 
 
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
+LOGGER = logging.getLogger(__name__)
 
 
 class OpenAIAPIProvider:
@@ -53,11 +55,13 @@ class OpenAIAPIProvider:
         try:
             response = await client.responses.create(
                 model=self.settings.openai_model,
-                reasoning={"effort": "low"},
+                # Preserve the token budget for the schema-constrained report;
+                # the five specialist perspectives already provide deliberation.
+                reasoning={"effort": "minimal"},
                 # Five opinions, council dialogue, scenarios, structure, and a
                 # trade plan no longer fit reliably inside the original 2,800
                 # token cap. This is an output ceiling, not reserved usage.
-                max_output_tokens=5200,
+                max_output_tokens=7000,
                 input=[
                     {
                         "role": "user",
@@ -73,6 +77,24 @@ class OpenAIAPIProvider:
                     }
                 },
             )
-            return response_model.model_validate_json(response.output_text or "{}")
+            output_text = response.output_text or ""
+            if getattr(response, "status", None) == "incomplete" or not output_text:
+                incomplete = getattr(response, "incomplete_details", None)
+                LOGGER.warning(
+                    "OpenAI fallback incomplete response_model=%s status=%s reason=%s output_chars=%s",
+                    response_model.__name__,
+                    getattr(response, "status", "unknown"),
+                    getattr(incomplete, "reason", "unknown"),
+                    len(output_text),
+                )
+                raise AnalysisUnavailableError()
+            return response_model.model_validate_json(output_text)
+        except AnalysisUnavailableError:
+            raise
         except (OpenAIError, ValidationError, ValueError, json.JSONDecodeError) as error:
+            LOGGER.warning(
+                "OpenAI fallback failed response_model=%s reason=%s",
+                response_model.__name__,
+                type(error).__name__,
+            )
             raise AnalysisUnavailableError() from error

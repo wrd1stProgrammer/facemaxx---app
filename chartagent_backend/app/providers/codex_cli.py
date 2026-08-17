@@ -65,10 +65,15 @@ class CodexCLIProvider:
             )
             command = self._command(schema_path, output_path, work_dir, image_path)
             process = self._start_process(command, work_dir)
+            # A full report has a reliable OpenAI fallback. Do not spend the
+            # entire request budget waiting for the slower CLI path first.
+            timeout_seconds = self.settings.codex_timeout_seconds
+            if response_model.__name__ == "AnalysisPayload":
+                timeout_seconds = min(timeout_seconds, 28.0)
             try:
                 stdout, stderr = process.communicate(
                     input=_safe_prompt(prompt),
-                    timeout=self.settings.codex_timeout_seconds,
+                    timeout=timeout_seconds,
                 )
             except subprocess.TimeoutExpired as error:
                 _kill_process(process)

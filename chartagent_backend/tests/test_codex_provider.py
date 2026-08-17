@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.config import Settings
 from app.providers.codex_cli import CodexCLIProvider
+from app.schemas import AnalysisPayload
 
 
 class TinyResponse(BaseModel):
@@ -23,9 +24,11 @@ class FakeProcess:
     def __init__(self, output: str) -> None:
         self.output = output
         self.input = ""
+        self.timeout: float | None = None
 
     def communicate(self, input: str | None = None, timeout: float | None = None) -> tuple[str, str]:
         self.input = input or ""
+        self.timeout = timeout
         return self.output, ""
 
 
@@ -79,3 +82,19 @@ async def test_nonzero_process_exit_is_typed_failure(tmp_path: Path) -> None:
             assert error.reason == "process_exit"
         else:
             raise AssertionError("Codex process failure was not surfaced")
+
+
+@pytest.mark.anyio
+async def test_full_analysis_uses_a_shorter_codex_fallback_budget(tmp_path: Path) -> None:
+    fake = FakeProcess("{}")
+    provider = CodexCLIProvider(Settings(codex_binary="codex", codex_timeout_seconds=55))
+    with patch("app.providers.codex_cli.subprocess.Popen", return_value=fake):
+        with pytest.raises(provider.error_type):
+            await provider.complete(
+                prompt="Analyze.",
+                image_path=tmp_path / "chart.png",
+                response_model=AnalysisPayload,
+            )
+
+    assert fake.timeout is not None
+    assert fake.timeout <= 30
