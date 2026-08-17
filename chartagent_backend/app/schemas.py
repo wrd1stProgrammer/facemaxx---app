@@ -61,6 +61,7 @@ ResponseLanguage = Literal[
     "es-ES",
     "fr-CA",
 ]
+PRICE_LEVEL_PATTERN = r"^\s*\d[\d,]*(?:\.\d+)?(?:\s*(?:-|–|~)\s*\d[\d,]*(?:\.\d+)?)?\s*$"
 
 
 def normalize_response_language(identifier: str) -> ResponseLanguage:
@@ -208,10 +209,10 @@ class NewsImpact(APIModel):
 
 class TradePlan(APIModel):
     direction_code: Literal["bullish", "bearish", "observe", "neutral"]
-    reference_price: str = Field(min_length=1, max_length=40)
-    entry: str = Field(min_length=1, max_length=60)
-    stop: str = Field(min_length=1, max_length=60)
-    target: str = Field(min_length=1, max_length=60)
+    reference_price: str = Field(min_length=1, max_length=40, pattern=PRICE_LEVEL_PATTERN)
+    entry: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
+    stop: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
+    target: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
     risk_reward: str = Field(min_length=1, max_length=20)
     trigger: str = Field(min_length=10, max_length=180)
     rationale: str = Field(min_length=15, max_length=260)

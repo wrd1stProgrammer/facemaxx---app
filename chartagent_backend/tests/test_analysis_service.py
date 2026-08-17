@@ -136,6 +136,35 @@ def test_trade_plan_rejects_current_price_as_entry() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("field", "description"),
+    [
+        ("reference_price", "화면 오른쪽 현재가 표시"),
+        ("entry", "지지 재확인 뒤 의미 있는 매수 캔들"),
+        ("stop", "지지 이탈 시 즉시 청산"),
+        ("target", "다음 가시 저항"),
+    ],
+)
+def test_trade_plan_rejects_execution_levels_without_numeric_price(
+    field: str,
+    description: str,
+) -> None:
+    values = {
+        "direction_code": "observe",
+        "reference_price": "63,000",
+        "entry": "64,000",
+        "stop": "65,000",
+        "target": "62,000",
+        "risk_reward": "1:2",
+        "trigger": "확인된 재시험에서 방향성 캔들이 나타나는지 확인합니다.",
+        "rationale": "현재가를 추격하지 않고 진입과 무효화 조건을 수치로 분리합니다.",
+    }
+    values[field] = description
+
+    with pytest.raises(ValidationError):
+        TradePlan(**values)
+
+
 def test_trade_plan_rejects_weak_reward_to_risk() -> None:
     with pytest.raises(ValidationError):
         TradePlan(
