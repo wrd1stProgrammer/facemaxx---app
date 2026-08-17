@@ -5,10 +5,16 @@ from pathlib import Path
 import time
 from typing import Protocol, TypeVar
 
+import anyio
 from pydantic import BaseModel
 
 from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
-from app.prompts import build_analysis_prompt, build_detection_prompt, build_follow_up_prompt
+from app.prompts import (
+    build_analysis_prompt,
+    build_detection_prompt,
+    build_follow_up_prompt,
+    build_news_impact_prompt,
+)
 from app.schemas import (
     AnalysisPayload,
     AnalysisRequestContext,
@@ -74,20 +80,14 @@ class AnalysisService:
                     response_model=ChartValidation,
                 )
             symbol, timeframe = await self._resolve_chart_context(validation)
-            try:
-                news = await self.market_data.fetch_news(symbol.code, symbol.name)
-            except DependencyError as error:
-                LOGGER.warning(
-                    "Optional news enrichment failed; continuing chart-only symbol=%s reason=%s",
-                    symbol.code,
-                    type(error).__name__,
-                )
-                news = []
-            payload, provider_name = await self._complete(
-                prompt=build_analysis_prompt(context, symbol, timeframe, news),
+            payload, provider_name, news, news_impact = await self._analyze_chart_and_news(
+                context=context,
                 image_path=image_path,
-                response_model=AnalysisPayload,
+                symbol=symbol,
+                timeframe=timeframe,
             )
+            if news_impact is not None:
+                payload = payload.model_copy(update={"news_impact": news_impact})
             _raise_for_invalid_chart(payload.validation)
         else:
             analysis_prompt = build_analysis_prompt(context, None, None, [])
@@ -115,6 +115,77 @@ class AnalysisService:
             news=news,
             agent_profiles=context.agent_customizations,
         )
+
+    async def _analyze_chart_and_news(
+        self,
+        *,
+        context: AnalysisRequestContext,
+        image_path: Path,
+        symbol: SymbolInfo,
+        timeframe: str,
+    ) -> tuple[AnalysisPayload, str, list[NewsItem], NewsImpact | None]:
+        chart_results: list[tuple[AnalysisPayload, str]] = []
+        news_results: list[tuple[list[NewsItem], NewsImpact | None]] = []
+
+        async def analyze_chart() -> None:
+            result = await self._complete(
+                prompt=build_analysis_prompt(context, symbol, timeframe, []),
+                image_path=image_path,
+                response_model=AnalysisPayload,
+            )
+            chart_results.append(result)
+
+        async def analyze_news() -> None:
+            news_results.append(
+                await self._fetch_and_assess_news(
+                    context=context,
+                    image_path=image_path,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(analyze_chart)
+            task_group.start_soon(analyze_news)
+
+        payload, provider_name = chart_results[0]
+        news, news_impact = news_results[0]
+        return payload, provider_name, news, news_impact
+
+    async def _fetch_and_assess_news(
+        self,
+        *,
+        context: AnalysisRequestContext,
+        image_path: Path,
+        symbol: SymbolInfo,
+        timeframe: str,
+    ) -> tuple[list[NewsItem], NewsImpact | None]:
+        try:
+            news = await self.market_data.fetch_news(symbol.code, symbol.name)
+        except DependencyError as error:
+            LOGGER.warning(
+                "Optional news enrichment failed; continuing chart-only symbol=%s reason=%s",
+                symbol.code,
+                type(error).__name__,
+            )
+            return [], None
+        if not news:
+            return [], None
+        try:
+            impact, _ = await self._complete(
+                prompt=build_news_impact_prompt(context, symbol, timeframe, news),
+                image_path=image_path,
+                response_model=NewsImpact,
+            )
+        except Exception as error:  # noqa: BLE001 - optional enrichment must never fail the chart report
+            LOGGER.warning(
+                "Optional news assessment failed; continuing chart-only symbol=%s reason=%s",
+                symbol.code,
+                type(error).__name__,
+            )
+            return news, None
+        return news, impact
 
     async def _complete(
         self,

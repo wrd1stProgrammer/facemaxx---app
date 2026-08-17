@@ -105,18 +105,6 @@ def build_analysis_prompt(
 ) -> str:
     response_language = LANGUAGE_NAMES[context.response_language]
     stance_vocabulary = STANCE_VOCABULARY[context.response_language]
-    now = datetime.now(UTC).timestamp()
-    news_payload = [
-        {
-            "title": item.title,
-            "source": item.source,
-            "published_at": item.published_at,
-            "window": "0-24h" if now - item.published_at < 86_400 else "24-48h",
-            "related_symbols": item.related_symbols,
-            "content_excerpt": item.relevance,
-        }
-        for item in news
-    ]
     customization_payload = build_agent_directives(context)
     market_context = (
         [
@@ -172,13 +160,44 @@ def build_analysis_prompt(
             "Compute reward-to-risk from the numeric entry, stop, and target. The actual numeric geometry, not only the written label, must be at least 1:1.8.",
             "Place the stop beyond the visible invalidation level and choose the target from a visible opposing boundary with at least 1:1.8 reward-to-risk. If the screenshot cannot support exact numbers, use precise relative level descriptions instead of fabricated prices.",
             "Produce a short meeting script whose lines are grounded in those same specialist judgements, not new claims. Include at least one complete spoken line for every active agent id so each specialist speaks once in the full council. Challenge another specialist directly in each debate line and name the visible evidence that wins or loses the objection.",
-            "News is optional supporting context, never a substitute for chart evidence.",
-            "Evaluate every collected item: up to 10 items from the latest 24 hours and up to 10 items from the preceding 24–48 hour window. Do this quickly with the configured Codex Luna low provider; provider failure is handled by the server fallback.",
-            "Use all materially relevant items in news_impact.used_titles instead of arbitrarily capping citations at six, but do not claim an irrelevant headline affected the chart decision.",
-            f"Set news_impact.collected_count to {len(news_payload)}.",
-            "news_impact.used_titles must contain only exact titles copied from InsightSentry news JSON, and used_count must equal its length.",
-            f"Set news_impact.effect to reinforced, softened, changed, or none and explain in {response_language} exactly how those used articles affected the chart judgement.",
-            "If news is disabled, empty, irrelevant, or unused, set used_count to 0, used_titles to [], effect to none, and say that the chart judgement was unchanged.",
+            "News collection and assessment run as a separate concurrent server task. Do not infer or invent news in this chart-only report.",
+            "Set news_impact to a schema-valid empty placeholder with collected_count 0, used_count 0, effect none, and used_titles []. The server replaces it when separate news assessment succeeds.",
+        ]
+    )
+
+
+def build_news_impact_prompt(
+    context: AnalysisRequestContext,
+    symbol: SymbolInfo,
+    timeframe: str,
+    news: list[NewsItem],
+) -> str:
+    response_language = LANGUAGE_NAMES[context.response_language]
+    now = datetime.now(UTC).timestamp()
+    news_payload = [
+        {
+            "title": item.title,
+            "source": item.source,
+            "published_at": item.published_at,
+            "window": "0-24h" if now - item.published_at < 86_400 else "24-48h",
+            "related_symbols": item.related_symbols,
+            "content_excerpt": item.relevance,
+        }
+        for item in news
+    ]
+    return "\n".join(
+        [
+            "Assess only the optional news impact for the attached trading chart screenshot.",
+            f"Resolved symbol: {symbol.code} ({symbol.name}, {symbol.instrument_type}).",
+            f"Detected chart timeframe: {timeframe}.",
+            f"Write the user-facing summary in concise natural {response_language}.",
+            "Treat news as supporting context, never as a substitute for visible chart evidence.",
+            "Evaluate every collected item: up to 10 items from the latest 24 hours and up to 10 items from the preceding 24–48 hour window.",
+            "Use all materially relevant items in used_titles, but never claim an irrelevant headline affected the chart judgement.",
+            f"Set collected_count to {len(news_payload)}.",
+            "used_titles must contain only exact titles copied from the supplied news JSON, and used_count must equal its length.",
+            "Set effect to reinforced, softened, changed, or none. Explain specifically how the relevant articles relate to the visible chart judgement.",
+            "If every item is irrelevant or unused, set used_count to 0, used_titles to [], effect to none, and say the chart judgement was unchanged.",
             "InsightSentry news JSON:",
             json.dumps(news_payload, ensure_ascii=False),
         ]

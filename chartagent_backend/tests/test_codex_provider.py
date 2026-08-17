@@ -85,7 +85,7 @@ async def test_nonzero_process_exit_is_typed_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_full_analysis_uses_a_shorter_codex_fallback_budget(tmp_path: Path) -> None:
+async def test_full_analysis_uses_a_fifty_second_codex_budget(tmp_path: Path) -> None:
     fake = FakeProcess("{}")
     provider = CodexCLIProvider(Settings(codex_binary="codex", codex_timeout_seconds=55))
     with patch("app.providers.codex_cli.subprocess.Popen", return_value=fake):
@@ -97,4 +97,4 @@ async def test_full_analysis_uses_a_shorter_codex_fallback_budget(tmp_path: Path
             )
 
     assert fake.timeout is not None
-    assert fake.timeout <= 30
+    assert fake.timeout == 50

@@ -39,6 +39,19 @@ class FixedMarketData:
         return []
 
 
+class NewsMarketData(FixedMarketData):
+    async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
+        return [
+            NewsItem(
+                title="Bitcoin market update",
+                source="InsightSentry",
+                published_at=1_700_000_000,
+                related_symbols=[code],
+                relevance="Bitcoin market context",
+            )
+        ]
+
+
 class NewsFailingMarketData(FixedMarketData):
     async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
         raise DependencyError("InsightSentry")
@@ -51,6 +64,33 @@ class TypeAwareProvider:
 
     async def complete(self, *, prompt: str, image_path: Path, response_model: type[AnalysisPayload]) -> AnalysisPayload | ChartValidation:
         return self.validation if response_model is ChartValidation else self.payload
+
+
+class SplitNewsProvider:
+    def __init__(self, validation: ChartValidation, payload: AnalysisPayload) -> None:
+        self.validation = validation
+        self.payload = payload
+        self.response_models: list[type[AnalysisPayload] | type[ChartValidation] | type[NewsImpact]] = []
+
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        image_path: Path,
+        response_model: type[AnalysisPayload] | type[ChartValidation] | type[NewsImpact],
+    ) -> AnalysisPayload | ChartValidation | NewsImpact:
+        self.response_models.append(response_model)
+        if response_model is ChartValidation:
+            return self.validation
+        if response_model is NewsImpact:
+            return NewsImpact(
+                collected_count=1,
+                used_count=1,
+                effect="reinforced",
+                summary="뉴스가 차트 판단을 보강했습니다.",
+                used_titles=["Bitcoin market update"],
+            )
+        return self.payload
 
 
 def test_decision_labels_are_one_word_in_response_language(valid_payload: AnalysisPayload) -> None:
@@ -174,6 +214,30 @@ async def test_news_dependency_failure_continues_with_chart_only_analysis(
     assert result.news == []
     assert result.included_news is False
     assert result.result.news_impact.effect == "none"
+
+
+@pytest.mark.anyio
+async def test_news_is_assessed_in_a_separate_structured_completion(
+    tmp_path: Path,
+    valid_payload: AnalysisPayload,
+) -> None:
+    symbol = SymbolInfo(code="BITSTAMP:BTCUSD", name="Bitcoin", instrument_type="crypto")
+    provider = SplitNewsProvider(valid_payload.validation, valid_payload)
+    service = AnalysisService(
+        market_data=NewsMarketData(symbol),
+        codex=provider,
+        fallback=provider,
+    )
+
+    result = await service.analyze(
+        context=AnalysisRequestContext(include_news=True, active_agent_ids=["trend", "pattern", "risk"]),
+        image_path=tmp_path / "chart.png",
+    )
+
+    assert provider.response_models.count(AnalysisPayload) == 1
+    assert provider.response_models.count(NewsImpact) == 1
+    assert result.result.news_impact.effect == "reinforced"
+    assert result.result.news_impact.used_titles == ["Bitcoin market update"]
 
 
 @pytest.mark.anyio

@@ -65,11 +65,9 @@ class CodexCLIProvider:
             )
             command = self._command(schema_path, output_path, work_dir, image_path)
             process = self._start_process(command, work_dir)
-            # A full report has a reliable OpenAI fallback. Do not spend the
-            # entire request budget waiting for the slower CLI path first.
-            timeout_seconds = self.settings.codex_timeout_seconds
-            if response_model.__name__ == "AnalysisPayload":
-                timeout_seconds = min(timeout_seconds, 28.0)
+            # Keep enough time for Luna low to finish a full structured report,
+            # while preserving room for the OpenAI fallback at the request boundary.
+            timeout_seconds = min(self.settings.codex_timeout_seconds, 50.0)
             try:
                 stdout, stderr = process.communicate(
                     input=_safe_prompt(prompt),
