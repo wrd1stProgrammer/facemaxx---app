@@ -43,10 +43,20 @@ class CodexCLIProvider:
         image_path: Path | None,
         response_model: type[ResponseModel],
     ) -> ResponseModel:
-        return await anyio.to_thread.run_sync(
-            lambda: self._complete_sync(prompt, image_path, response_model),
-            limiter=self._limiter,
-        )
+        try:
+            self._limiter.acquire_nowait()
+        except anyio.WouldBlock as error:
+            # Do not make overflow requests wait behind long-running CLI work.
+            # AnalysisService treats this typed failure like every other Codex
+            # failure and immediately runs the OpenAI API fallback.
+            raise CodexCLIError("capacity_exhausted") from error
+
+        try:
+            return await anyio.to_thread.run_sync(
+                lambda: self._complete_sync(prompt, image_path, response_model)
+            )
+        finally:
+            self._limiter.release()
 
     def _complete_sync(
         self,
@@ -68,7 +78,7 @@ class CodexCLIProvider:
             process = self._start_process(command, work_dir)
             # Keep enough time for Luna low to finish a full structured report,
             # while preserving room for the OpenAI fallback at the request boundary.
-            timeout_seconds = min(self.settings.codex_timeout_seconds, 50.0)
+            timeout_seconds = min(self.settings.codex_timeout_seconds, 60.0)
             try:
                 stdout, stderr = process.communicate(
                     input=_safe_prompt(prompt),

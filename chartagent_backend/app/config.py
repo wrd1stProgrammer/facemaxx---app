@@ -49,11 +49,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("CHARTAGENT_CODEX_BINARY", "CODEX_BINARY"),
     )
     codex_timeout_seconds: float = Field(
-        default=55.0,
+        default=60.0,
         validation_alias=AliasChoices("CHARTAGENT_CODEX_TIMEOUT_SECONDS", "CODEX_TIMEOUT_SECONDS"),
     )
     codex_max_concurrency: int = Field(
-        default=2,
+        default=5,
         validation_alias=AliasChoices("CHARTAGENT_CODEX_MAX_CONCURRENCY", "CODEX_MAX_CONCURRENCY"),
     )
     codex_model: Literal["gpt-5.6-luna"] = "gpt-5.6-luna"

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import threading
 from unittest.mock import patch
 
+import anyio
 import pytest
 from pydantic import BaseModel, ConfigDict
 
@@ -30,6 +32,18 @@ class FakeProcess:
         self.input = input or ""
         self.timeout = timeout
         return self.output, ""
+
+
+class BlockingProcess(FakeProcess):
+    def __init__(self, output: str, started: threading.Event, release: threading.Event) -> None:
+        super().__init__(output)
+        self.started = started
+        self.release = release
+
+    def communicate(self, input: str | None = None, timeout: float | None = None) -> tuple[str, str]:
+        self.started.set()
+        self.release.wait(timeout=2)
+        return super().communicate(input=input, timeout=timeout)
 
 
 @pytest.mark.anyio
@@ -85,9 +99,9 @@ async def test_nonzero_process_exit_is_typed_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_full_analysis_uses_a_fifty_second_codex_budget(tmp_path: Path) -> None:
+async def test_full_analysis_caps_codex_budget_at_sixty_seconds(tmp_path: Path) -> None:
     fake = FakeProcess("{}")
-    provider = CodexCLIProvider(Settings(codex_binary="codex", codex_timeout_seconds=55))
+    provider = CodexCLIProvider(Settings(codex_binary="codex", codex_timeout_seconds=75))
     with patch("app.providers.codex_cli.subprocess.Popen", return_value=fake):
         with pytest.raises(provider.error_type):
             await provider.complete(
@@ -97,4 +111,50 @@ async def test_full_analysis_uses_a_fifty_second_codex_budget(tmp_path: Path) ->
             )
 
     assert fake.timeout is not None
-    assert fake.timeout == 50
+    assert fake.timeout == 60
+
+
+def test_codex_default_capacity_supports_five_parallel_requests() -> None:
+    assert Settings().codex_timeout_seconds == 60
+    assert Settings().codex_max_concurrency == 5
+
+
+@pytest.mark.anyio
+async def test_saturated_codex_capacity_fails_fast_for_openai_fallback(tmp_path: Path) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    fake = BlockingProcess("{}", started, release)
+    payload = TinyResponse(ok=True)
+
+    def fake_popen(command: list[str], **kwargs: str) -> BlockingProcess:
+        destination = Path(command[command.index("-o") + 1])
+        destination.write_text(payload.model_dump_json(), encoding="utf-8")
+        return fake
+
+    provider = CodexCLIProvider(
+        Settings(codex_binary="codex", codex_timeout_seconds=5, codex_max_concurrency=1)
+    )
+
+    async def occupy_slot() -> None:
+        await provider.complete(
+            prompt="First request.",
+            image_path=tmp_path / "chart.png",
+            response_model=TinyResponse,
+        )
+
+    with patch("app.providers.codex_cli.subprocess.Popen", side_effect=fake_popen):
+        try:
+            async with anyio.create_task_group() as task_group:
+                task_group.start_soon(occupy_slot)
+                await anyio.to_thread.run_sync(started.wait)
+                with anyio.fail_after(0.25):
+                    with pytest.raises(provider.error_type) as captured:
+                        await provider.complete(
+                            prompt="Overflow request.",
+                            image_path=tmp_path / "chart.png",
+                            response_model=TinyResponse,
+                        )
+                assert captured.value.reason == "capacity_exhausted"
+                release.set()
+        finally:
+            release.set()
