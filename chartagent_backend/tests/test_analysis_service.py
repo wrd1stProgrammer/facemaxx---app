@@ -125,7 +125,38 @@ def test_decision_labels_are_localized_for_japanese(valid_payload: AnalysisPaylo
     normalized = _normalize_decision_labels(valid_payload, "ja")
 
     assert normalized.consensus.title == "様子見"
-    assert all(item.stance in {"買い", "売り", "様子見", "中立"} for item in normalized.agent_opinions)
+    assert all(item.stance in {"買い", "売り", "様子見"} for item in normalized.agent_opinions)
+
+
+def test_decision_labels_force_one_real_dissent(valid_payload: AnalysisPayload) -> None:
+    consensus = valid_payload.consensus.model_copy(
+        update={"stance_code": "observe", "title": "관망"}
+    )
+    base = AgentOpinion(
+        agent_id="trend",
+        stance_code="observe",
+        stance="관망",
+        confidence=60,
+        thesis="추가 확인 전까지 방향 결정을 보류합니다.",
+        evidence=["확인선 대기", "거래량 확인"],
+    )
+    opinions = [
+        base.model_copy(update={"agent_id": "trend", "stance_code": "observe", "stance": "관망"}),
+        base.model_copy(update={"agent_id": "pattern", "stance_code": "observe", "stance": "관망"}),
+        base.model_copy(update={"agent_id": "devil", "stance_code": "observe", "stance": "관망"}),
+    ]
+    payload = valid_payload.model_copy(
+        update={"consensus": consensus, "agent_opinions": opinions}
+    )
+
+    normalized = _normalize_decision_labels(payload, "ko")
+
+    assert [item.stance_code for item in normalized.agent_opinions] == [
+        "observe",
+        "observe",
+        "bearish",
+    ]
+    assert normalized.agent_opinions[-1].stance == "매도"
 
 
 def test_trade_plan_rejects_current_price_as_entry() -> None:
@@ -410,8 +441,9 @@ def test_news_impact_keeps_only_titles_returned_by_insightsentry(valid_payload: 
         )
     ]
 
-    normalized = _normalize_news_impact(payload, news, include_news=True)
+    normalized = _normalize_news_impact(payload, news, include_news=True, language="ko")
 
     assert normalized.news_impact.collected_count == 1
     assert normalized.news_impact.used_count == 1
     assert normalized.news_impact.used_titles == ["실제 기사"]
+    assert normalized.data_quality.news == "included"

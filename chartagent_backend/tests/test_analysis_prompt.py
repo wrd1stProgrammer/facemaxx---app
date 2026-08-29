@@ -41,7 +41,7 @@ def test_analysis_prompt_supports_regional_and_script_locales() -> None:
     )
 
     assert "Traditional Chinese" in prompt
-    assert "買入, 賣出, 觀望, 中立" in prompt
+    assert "買入, 賣出, 觀望" in prompt
 
 
 def test_analysis_prompt_forbids_english_prose_in_localized_fields() -> None:
@@ -57,7 +57,7 @@ def test_analysis_prompt_forbids_english_prose_in_localized_fields() -> None:
         [],
     )
 
-    assert "never leave English prose in user-facing fields" in prompt
+    assert "never mix another language into user-facing prose" in prompt
 
 
 def test_follow_up_prompt_accepts_saved_history(valid_payload) -> None:

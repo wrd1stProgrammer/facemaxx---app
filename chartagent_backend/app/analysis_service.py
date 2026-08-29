@@ -108,7 +108,12 @@ class AnalysisService:
                 )
                 provider_name = "openai_fallback"
             symbol, timeframe = await self._resolve_chart_context(payload.validation)
-        payload = _normalize_news_impact(payload, news, context.include_news)
+        payload = _normalize_news_impact(
+            payload,
+            news,
+            context.include_news,
+            context.response_language,
+        )
         payload = _normalize_decision_labels(payload, context.response_language)
         return AnalysisResponse.create(
             provider=provider_name,
@@ -320,16 +325,106 @@ def _normalize_news_impact(
     payload: AnalysisPayload,
     news: list[NewsItem],
     include_news: bool,
+    language: ResponseLanguage,
 ) -> AnalysisPayload:
+    summaries = {
+        "en-US": {
+            "disabled": "News was not enabled, so only chart evidence was used.",
+            "empty": "No relevant news was found, so only chart evidence was used.",
+            "unused": "Collected news did not provide direct evidence that changed the chart decision.",
+        },
+        "en": {
+            "disabled": "News was not enabled, so only chart evidence was used.",
+            "empty": "No relevant news was found, so only chart evidence was used.",
+            "unused": "Collected news did not provide direct evidence that changed the chart decision.",
+        },
+        "ko": {
+            "disabled": "뉴스 옵션을 사용하지 않아 차트 이미지 근거만 반영했습니다.",
+            "empty": "관련 뉴스가 없어 차트 이미지 근거만 반영했습니다.",
+            "unused": "수집한 뉴스는 차트 판단을 바꿀 직접 근거로 사용하지 않았습니다.",
+        },
+        "ja": {
+            "disabled": "ニュースを使用せず、チャートの根拠のみを反映しました。",
+            "empty": "関連ニュースが見つからず、チャートの根拠のみを反映しました。",
+            "unused": "収集したニュースはチャート判断を変える直接的な根拠にはなりませんでした。",
+        },
+        "de": {
+            "disabled": "Nachrichten waren deaktiviert; berücksichtigt wurden nur Chart-Signale.",
+            "empty": "Es wurden keine relevanten Nachrichten gefunden; berücksichtigt wurden nur Chart-Signale.",
+            "unused": "Die gesammelten Nachrichten änderten die Chart-Entscheidung nicht direkt.",
+        },
+        "fr-FR": {
+            "disabled": "Les actualités étaient désactivées ; seuls les éléments du graphique ont été utilisés.",
+            "empty": "Aucune actualité pertinente n’a été trouvée ; seuls les éléments du graphique ont été utilisés.",
+            "unused": "Les actualités collectées n’ont pas directement modifié la décision du graphique.",
+        },
+        "es-MX": {
+            "disabled": "Las noticias estaban desactivadas; solo se usó la evidencia del gráfico.",
+            "empty": "No se encontraron noticias relevantes; solo se usó la evidencia del gráfico.",
+            "unused": "Las noticias recopiladas no cambiaron directamente la decisión del gráfico.",
+        },
+        "pt-BR": {
+            "disabled": "As notícias estavam desativadas; apenas as evidências do gráfico foram usadas.",
+            "empty": "Nenhuma notícia relevante foi encontrada; apenas as evidências do gráfico foram usadas.",
+            "unused": "As notícias coletadas não alteraram diretamente a decisão do gráfico.",
+        },
+        "zh-Hant": {
+            "disabled": "未啟用新聞，因此僅採用圖表證據。",
+            "empty": "未找到相關新聞，因此僅採用圖表證據。",
+            "unused": "收集的新聞未提供足以直接改變圖表判斷的證據。",
+        },
+        "id": {
+            "disabled": "Berita tidak diaktifkan; hanya bukti grafik yang digunakan.",
+            "empty": "Tidak ada berita relevan; hanya bukti grafik yang digunakan.",
+            "unused": "Berita yang dikumpulkan tidak secara langsung mengubah keputusan grafik.",
+        },
+        "th": {
+            "disabled": "ไม่ได้เปิดใช้ข่าว จึงใช้เฉพาะหลักฐานจากกราฟ",
+            "empty": "ไม่พบข่าวที่เกี่ยวข้อง จึงใช้เฉพาะหลักฐานจากกราฟ",
+            "unused": "ข่าวที่รวบรวมไม่ได้เปลี่ยนข้อสรุปจากกราฟโดยตรง",
+        },
+        "zh-Hans": {
+            "disabled": "未启用新闻，因此仅采用图表证据。",
+            "empty": "未找到相关新闻，因此仅采用图表证据。",
+            "unused": "收集的新闻未提供足以直接改变图表判断的证据。",
+        },
+        "vi": {
+            "disabled": "Tin tức chưa được bật; chỉ sử dụng bằng chứng từ biểu đồ.",
+            "empty": "Không tìm thấy tin tức liên quan; chỉ sử dụng bằng chứng từ biểu đồ.",
+            "unused": "Tin tức đã thu thập không trực tiếp làm thay đổi quyết định từ biểu đồ.",
+        },
+        "it": {
+            "disabled": "Le notizie erano disattivate; sono state usate solo le evidenze del grafico.",
+            "empty": "Non sono state trovate notizie pertinenti; sono state usate solo le evidenze del grafico.",
+            "unused": "Le notizie raccolte non hanno modificato direttamente la decisione sul grafico.",
+        },
+        "tr": {
+            "disabled": "Haberler etkin değildi; yalnızca grafik kanıtları kullanıldı.",
+            "empty": "İlgili haber bulunamadı; yalnızca grafik kanıtları kullanıldı.",
+            "unused": "Toplanan haberler grafik kararını doğrudan değiştirmedi.",
+        },
+        "es-ES": {
+            "disabled": "Las noticias estaban desactivadas; solo se usó la evidencia del gráfico.",
+            "empty": "No se encontraron noticias relevantes; solo se usó la evidencia del gráfico.",
+            "unused": "Las noticias recopiladas no cambiaron directamente la decisión del gráfico.",
+        },
+        "fr-CA": {
+            "disabled": "Les nouvelles étaient désactivées; seuls les éléments du graphique ont été utilisés.",
+            "empty": "Aucune nouvelle pertinente n’a été trouvée; seuls les éléments du graphique ont été utilisés.",
+            "unused": "Les nouvelles recueillies n’ont pas directement modifié la décision du graphique.",
+        },
+    }[language]
+
     if not include_news:
         impact = NewsImpact(
             collected_count=0,
             used_count=0,
             effect="none",
-            summary="뉴스 옵션을 사용하지 않아 차트 이미지 근거만 반영했습니다.",
+            summary=summaries["disabled"],
             used_titles=[],
         )
-        return payload.model_copy(update={"news_impact": impact})
+        quality = payload.data_quality.model_copy(update={"news": "unused"})
+        return payload.model_copy(update={"news_impact": impact, "data_quality": quality})
 
     available_titles = {item.title for item in news}
     used_titles = list(dict.fromkeys(title for title in payload.news_impact.used_titles if title in available_titles))
@@ -338,14 +433,12 @@ def _normalize_news_impact(
             collected_count=len(news),
             used_count=0,
             effect="none",
-            summary=(
-                "관련 뉴스가 없어 차트 이미지 근거만 반영했습니다."
-                if not news
-                else "수집한 뉴스는 차트 판단을 바꿀 직접 근거로 사용하지 않았습니다."
-            ),
+            summary=summaries["empty" if not news else "unused"],
             used_titles=[],
         )
-        return payload.model_copy(update={"news_impact": impact})
+        status = "empty" if not news else "unused"
+        quality = payload.data_quality.model_copy(update={"news": status})
+        return payload.model_copy(update={"news_impact": impact, "data_quality": quality})
 
     impact = payload.news_impact.model_copy(
         update={
@@ -354,7 +447,8 @@ def _normalize_news_impact(
             "used_titles": used_titles,
         }
     )
-    return payload.model_copy(update={"news_impact": impact})
+    quality = payload.data_quality.model_copy(update={"news": "included"})
+    return payload.model_copy(update={"news_impact": impact, "data_quality": quality})
 
 
 def _normalize_decision_labels(
@@ -362,29 +456,73 @@ def _normalize_decision_labels(
     language: ResponseLanguage,
 ) -> AnalysisPayload:
     labels = {
-        "en-US": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT", "neutral": "NEUTRAL"},
-        "en": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT", "neutral": "NEUTRAL"},
-        "ko": {"bullish": "매수", "bearish": "매도", "observe": "관망", "neutral": "중립"},
-        "ja": {"bullish": "買い", "bearish": "売り", "observe": "様子見", "neutral": "中立"},
-        "de": {"bullish": "KAUFEN", "bearish": "VERKAUFEN", "observe": "ABWARTEN", "neutral": "NEUTRAL"},
-        "fr-FR": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE", "neutral": "NEUTRE"},
-        "es-MX": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR", "neutral": "NEUTRAL"},
-        "pt-BR": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "AGUARDAR", "neutral": "NEUTRO"},
-        "zh-Hant": {"bullish": "買入", "bearish": "賣出", "observe": "觀望", "neutral": "中立"},
-        "id": {"bullish": "BELI", "bearish": "JUAL", "observe": "TUNGGU", "neutral": "NETRAL"},
-        "th": {"bullish": "ซื้อ", "bearish": "ขาย", "observe": "รอดู", "neutral": "เป็นกลาง"},
-        "zh-Hans": {"bullish": "买入", "bearish": "卖出", "observe": "观望", "neutral": "中立"},
-        "vi": {"bullish": "MUA", "bearish": "BÁN", "observe": "CHỜ", "neutral": "TRUNG LẬP"},
-        "it": {"bullish": "ACQUISTA", "bearish": "VENDI", "observe": "ATTENDI", "neutral": "NEUTRALE"},
-        "tr": {"bullish": "AL", "bearish": "SAT", "observe": "BEKLE", "neutral": "NÖTR"},
-        "es-ES": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR", "neutral": "NEUTRAL"},
-        "fr-CA": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE", "neutral": "NEUTRE"},
+        "en-US": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT"},
+        "en": {"bullish": "BUY", "bearish": "SELL", "observe": "WAIT"},
+        "ko": {"bullish": "매수", "bearish": "매도", "observe": "관망"},
+        "ja": {"bullish": "買い", "bearish": "売り", "observe": "様子見"},
+        "de": {"bullish": "KAUFEN", "bearish": "VERKAUFEN", "observe": "ABWARTEN"},
+        "fr-FR": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE"},
+        "es-MX": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR"},
+        "pt-BR": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "AGUARDAR"},
+        "zh-Hant": {"bullish": "買入", "bearish": "賣出", "observe": "觀望"},
+        "id": {"bullish": "BELI", "bearish": "JUAL", "observe": "TUNGGU"},
+        "th": {"bullish": "ซื้อ", "bearish": "ขาย", "observe": "รอดู"},
+        "zh-Hans": {"bullish": "买入", "bearish": "卖出", "observe": "观望"},
+        "vi": {"bullish": "MUA", "bearish": "BÁN", "observe": "CHỜ"},
+        "it": {"bullish": "ACQUISTA", "bearish": "VENDI", "observe": "ATTENDI"},
+        "tr": {"bullish": "AL", "bearish": "SAT", "observe": "BEKLE"},
+        "es-ES": {"bullish": "COMPRAR", "bearish": "VENDER", "observe": "ESPERAR"},
+        "fr-CA": {"bullish": "ACHAT", "bearish": "VENTE", "observe": "ATTENDRE"},
     }[language]
-    consensus = payload.consensus.model_copy(update={"title": labels[payload.consensus.stance_code]})
+    dissent_thesis = {
+        "en-US": "I withhold the consensus call until a confirmed retest; the visible opposing scenario remains valid.",
+        "en": "I withhold the consensus call until a confirmed retest; the visible opposing scenario remains valid.",
+        "ko": "확인된 재시험 전까지 합의 판단을 보류하며, 화면에 보이는 반대 시나리오는 아직 유효합니다.",
+        "ja": "再テストが確認されるまで合意判断を保留し、画面上の反対シナリオはまだ有効と見ます。",
+        "de": "Bis zu einem bestätigten Retest halte ich mich zurück; das sichtbare Gegenszenario bleibt gültig.",
+        "fr-FR": "Je suspends le consensus jusqu’à un retest confirmé; le scénario opposé visible reste valable.",
+        "es-MX": "Pospongo el consenso hasta confirmar un retesteo; el escenario opuesto visible sigue vigente.",
+        "pt-BR": "Adio o consenso até um reteste confirmado; o cenário oposto visível continua válido.",
+        "zh-Hant": "在確認重新測試前，我保留共識判斷；圖中可見的反向情境仍然有效。",
+        "id": "Saya menahan keputusan konsensus sampai retest terkonfirmasi; skenario lawan yang terlihat masih valid.",
+        "th": "ฉันขอรอการทดสอบซ้ำที่ยืนยันแล้วก่อน และมองว่าสถานการณ์ฝั่งตรงข้ามยังมีผลอยู่",
+        "zh-Hans": "在确认重新测试前，我保留共识判断；图中可见的反向情景仍然有效。",
+        "vi": "Tôi tạm hoãn kết luận đồng thuận cho đến khi có kiểm tra lại; kịch bản đối lập vẫn còn hiệu lực.",
+        "it": "Sospendo il consenso fino a un retest confermato; lo scenario opposto visibile resta valido.",
+        "tr": "Onaylı bir yeniden test gelene kadar uzlaşıyı bekletiyorum; görünen karşı senaryo hâlâ geçerli.",
+        "es-ES": "Pospongo el consenso hasta confirmar un retesteo; el escenario opuesto visible sigue vigente.",
+        "fr-CA": "Je suspends le consensus jusqu’à un nouveau test confirmé; le scénario opposé visible demeure valable.",
+    }[language]
+
+    def normalized_code(value: str) -> str:
+        return value if value in {"bullish", "bearish"} else "observe"
+
+    consensus_code = normalized_code(payload.consensus.stance_code)
+    consensus = payload.consensus.model_copy(
+        update={"stance_code": consensus_code, "title": labels[consensus_code]}
+    )
     opinions = [
-        opinion.model_copy(update={"stance": labels[opinion.stance_code]})
+        opinion.model_copy(
+            update={
+                "stance_code": normalized_code(opinion.stance_code),
+                "stance": labels[normalized_code(opinion.stance_code)],
+            }
+        )
         for opinion in payload.agent_opinions
     ]
+    if len(opinions) > 1 and all(opinion.stance_code == consensus_code for opinion in opinions):
+        dissent_index = next(
+            (index for index, opinion in enumerate(opinions) if opinion.agent_id == "devil"),
+            len(opinions) - 1,
+        )
+        dissent_code = "observe" if consensus_code in {"bullish", "bearish"} else "bearish"
+        opinions[dissent_index] = opinions[dissent_index].model_copy(
+            update={
+                "stance_code": dissent_code,
+                "stance": labels[dissent_code],
+                "thesis": dissent_thesis,
+            }
+        )
     return payload.model_copy(update={"consensus": consensus, "agent_opinions": opinions})
 
 
