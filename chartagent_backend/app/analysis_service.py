@@ -217,10 +217,11 @@ class AnalysisService:
             )
             return result, "codex_cli"
         except Exception as error:  # noqa: BLE001 - provider boundary must always fall back
+            failure_reason = getattr(error, "reason", type(error).__name__)
             LOGGER.warning(
                 "Codex completion failed; using OpenAI fallback response_model=%s reason=%s elapsed_seconds=%.2f",
                 response_model.__name__,
-                type(error).__name__,
+                failure_reason,
                 time.monotonic() - started_at,
             )
             fallback_started_at = time.monotonic()

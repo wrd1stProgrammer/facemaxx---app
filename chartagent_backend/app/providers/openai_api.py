@@ -53,42 +53,53 @@ class OpenAIAPIProvider:
             max_retries=0,
         )
         try:
-            response = await client.responses.create(
-                model=self.settings.openai_model,
-                # Preserve the token budget for the schema-constrained report;
-                # the five specialist perspectives already provide deliberation.
-                reasoning={"effort": "minimal"},
-                # Five opinions, council dialogue, scenarios, structure, and a
-                # trade plan no longer fit reliably inside the original 2,800
-                # token cap. This is an output ceiling, not reserved usage.
-                max_output_tokens=7000,
-                input=[
-                    {
-                        "role": "user",
-                        "content": content,
-                    }
-                ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": response_model.__name__,
-                        "schema": _strict_schema(response_model),
-                        "strict": True,
-                    }
-                },
-            )
-            output_text = response.output_text or ""
-            if getattr(response, "status", None) == "incomplete" or not output_text:
-                incomplete = getattr(response, "incomplete_details", None)
-                LOGGER.warning(
-                    "OpenAI fallback incomplete response_model=%s status=%s reason=%s output_chars=%s",
-                    response_model.__name__,
-                    getattr(response, "status", "unknown"),
-                    getattr(incomplete, "reason", "unknown"),
-                    len(output_text),
+            for attempt in range(2):
+                response = await client.responses.create(
+                    model=self.settings.openai_model,
+                    # Preserve the token budget for the schema-constrained report;
+                    # the five specialist perspectives already provide deliberation.
+                    reasoning={"effort": "minimal"},
+                    # Five opinions, council dialogue, scenarios, structure, and a
+                    # trade plan no longer fit reliably inside the original 2,800
+                    # token cap. This is an output ceiling, not reserved usage.
+                    max_output_tokens=7000,
+                    input=[{"role": "user", "content": content}],
+                    text={
+                        "format": {
+                            "type": "json_schema",
+                            "name": response_model.__name__,
+                            "schema": _strict_schema(response_model),
+                            "strict": True,
+                        }
+                    },
                 )
-                raise AnalysisUnavailableError()
-            return response_model.model_validate_json(output_text)
+                output_text = response.output_text or ""
+                if getattr(response, "status", None) == "incomplete" or not output_text:
+                    incomplete = getattr(response, "incomplete_details", None)
+                    LOGGER.warning(
+                        "OpenAI fallback incomplete response_model=%s status=%s reason=%s output_chars=%s",
+                        response_model.__name__,
+                        getattr(response, "status", "unknown"),
+                        getattr(incomplete, "reason", "unknown"),
+                        len(output_text),
+                    )
+                    raise AnalysisUnavailableError()
+                try:
+                    return response_model.model_validate_json(output_text)
+                except ValidationError as error:
+                    if attempt > 0:
+                        raise
+                    feedback = _validation_feedback(error)
+                    LOGGER.warning(
+                        "OpenAI fallback validation failed; retrying response_model=%s errors=%s",
+                        response_model.__name__,
+                        feedback,
+                    )
+                    content[0] = {
+                        "type": "input_text",
+                        "text": f"{prompt}\n\nThe previous response failed validation. Recalculate the full response and correct these issues: {feedback}",
+                    }
+            raise AnalysisUnavailableError()
         except AnalysisUnavailableError:
             raise
         except (OpenAIError, ValidationError, ValueError, json.JSONDecodeError) as error:
@@ -98,3 +109,11 @@ class OpenAIAPIProvider:
                 type(error).__name__,
             )
             raise AnalysisUnavailableError() from error
+
+
+def _validation_feedback(error: ValidationError) -> str:
+    issues: list[str] = []
+    for issue in error.errors(include_url=False, include_input=False)[:6]:
+        location = ".".join(str(part) for part in issue["loc"]) or "response"
+        issues.append(f"{location}: {issue['msg']}")
+    return "; ".join(issues)

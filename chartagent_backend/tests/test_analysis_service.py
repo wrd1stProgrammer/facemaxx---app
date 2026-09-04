@@ -7,12 +7,18 @@ from pydantic import BaseModel, ValidationError
 
 from app.analysis_service import AnalysisService, _normalize_decision_labels, _normalize_news_impact
 from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
+from app.providers.codex_cli import CodexCLIError
 from app.schemas import AgentOpinion, AnalysisContent, AnalysisPayload, AnalysisRequestContext, ChartValidation, NewsImpact, NewsItem, SymbolInfo, TradePlan
 
 
 class FailingProvider:
     async def complete(self, *, prompt: str, image_path: Path, response_model: type[AnalysisPayload]) -> AnalysisPayload:
         raise RuntimeError("codex unavailable")
+
+
+class ExpiredAuthenticationProvider:
+    async def complete(self, *, prompt: str, image_path: Path, response_model: type[AnalysisPayload]) -> AnalysisPayload:
+        raise CodexCLIError("not_authenticated")
 
 
 class FixedProvider:
@@ -315,6 +321,27 @@ async def test_openai_is_always_used_after_codex_failure(tmp_path: Path, valid_p
     service = AnalysisService(
         market_data=FixedMarketData(SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock")),
         codex=FailingProvider(),
+        fallback=fallback,
+    )
+
+    result = await service.analyze(
+        context=AnalysisRequestContext(include_news=False, active_agent_ids=["trend", "pattern", "risk"]),
+        image_path=tmp_path / "chart.png",
+    )
+
+    assert result.provider == "openai_fallback"
+    assert fallback.calls == 1
+
+
+@pytest.mark.anyio
+async def test_expired_codex_authentication_immediately_uses_openai_fallback(
+    tmp_path: Path,
+    valid_payload: AnalysisPayload,
+) -> None:
+    fallback = FixedProvider(valid_payload)
+    service = AnalysisService(
+        market_data=FixedMarketData(SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock")),
+        codex=ExpiredAuthenticationProvider(),
         fallback=fallback,
     )
 
