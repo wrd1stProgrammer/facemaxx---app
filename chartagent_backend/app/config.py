@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True, populate_by_name=True)
 
     app_env: str = Field(default="local", validation_alias=AliasChoices("CHARTAGENT_APP_ENV", "APP_ENV"))
+    alert_smtp_user: str | None = Field(default=None, validation_alias="CHARTAGENT_ALERT_SMTP_USER")
+    alert_smtp_password: SecretStr | None = Field(default=None, validation_alias="CHARTAGENT_ALERT_SMTP_PASSWORD")
+    alert_email_to: str = Field(default="kicoa24@gmail.com", validation_alias="CHARTAGENT_ALERT_EMAIL_TO")
+    alert_cooldown_seconds: int = Field(default=3600, ge=60, validation_alias="CHARTAGENT_ALERT_COOLDOWN_SECONDS")
     posthog_project_token: str | None = Field(default=None, validation_alias="CHARTAGENT_POSTHOG_PROJECT_TOKEN")
     posthog_host: str = Field(default="https://us.i.posthog.com", validation_alias="CHARTAGENT_POSTHOG_HOST")
     openai_api_key: str | None = Field(

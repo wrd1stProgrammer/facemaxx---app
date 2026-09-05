@@ -15,6 +15,7 @@ import anyio
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+from app.codex_alerts import codex_failure_alerts
 
 
 LOGGER = logging.getLogger(__name__)
@@ -54,12 +55,17 @@ class CodexCLIProvider:
             # Do not make overflow requests wait behind long-running CLI work.
             # AnalysisService treats this typed failure like every other Codex
             # failure and immediately runs the OpenAI API fallback.
-            raise CodexCLIError("capacity_exhausted") from error
+            failure = CodexCLIError("capacity_exhausted")
+            codex_failure_alerts.notify(self.settings, failure)
+            raise failure from error
 
         try:
             return await anyio.to_thread.run_sync(
                 lambda: self._complete_sync(prompt, image_path, response_model)
             )
+        except Exception as error:
+            codex_failure_alerts.notify(self.settings, error)
+            raise
         finally:
             self._limiter.release()
 
@@ -175,7 +181,10 @@ def _safe_prompt(prompt: str) -> str:
 
 def _classify_error(stderr: str) -> str:
     value = stderr.lower()
-    if "not authenticated" in value or "login" in value or "unauthorized" in value:
+    if any(marker in value for marker in (
+        "not authenticated", "login", "unauthorized", "refresh_token_reused",
+        "refresh_token_expired", "token has expired", "invalid_grant", "401",
+    )):
         return "not_authenticated"
     if "rate limit" in value or "rate_limit" in value:
         return "rate_limited"

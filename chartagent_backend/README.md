@@ -1,5 +1,39 @@
 # ChartAgent backend
 
+## Codex 장애 이메일 알림
+
+분석·뉴스 평가·후속 질문·작도의 Codex 호출에서 인증 오류, 타임아웃,
+실행 실패, 응답 검증 실패 또는 동시 실행 한도 초과가 감지되면 Gmail SMTP로
+운영자에게 알립니다. 기존 API 폴백 동작은 유지되며 메일 발송을 기다리지 않습니다.
+이 알림은 폴백 성공 여부를 확인하는 알림이 아닙니다.
+요청이 없을 때 로그인 만료를 능동 점검하지는 않습니다.
+
+운영 서버 `/opt/chartagent/.env`에 다음 값을 추가하세요. 비밀번호는 일반 Gmail
+비밀번호가 아니라 발송 계정에서 발급한 앱 비밀번호입니다. Git에 커밋하지 마세요.
+
+```env
+CHARTAGENT_ALERT_SMTP_USER=kicoa24@gmail.com
+CHARTAGENT_ALERT_SMTP_PASSWORD=YOUR_GOOGLE_APP_PASSWORD
+CHARTAGENT_ALERT_EMAIL_TO=kicoa24@gmail.com
+CHARTAGENT_ALERT_COOLDOWN_SECONDS=3600
+```
+
+발송 계정이나 비밀번호가 비어 있으면 기능은 비활성화됩니다. 모든 Codex 제공자가
+프로세스 단위 제한을 공유하여 한 시간에 최대 한 번 발송을 시도합니다. SMTP 실패에도
+같은 제한이 적용되며 프로세스 재시작 시 제한은 초기화됩니다. 서버가 여러 worker로
+실행되면 worker별로 적용됩니다. 원본 오류·차트·프롬프트·토큰은 보내지 않습니다.
+
+이 코드를 배포한 뒤 환경변수를 반영하고 테스트 메일을 보냅니다:
+
+```bash
+cd /opt/facemaxx
+docker compose up -d --no-deps --force-recreate chartagent-api
+docker compose exec -T chartagent-api python -m app.codex_alerts
+```
+
+테스트 명령이 성공하면 Gmail이 메일을 접수한 것입니다. 최종 수신은 받은편지함이나
+스팸함에서 확인하세요. 실제 앱 분석을 실패시키거나 Codex를 로그아웃할 필요는 없습니다.
+
 FaceMaxx와 같은 EC2에서 실행하되, 애플리케이션 코드·컨테이너·포트·환경 변수는 분리한 FastAPI 서비스입니다.
 
 ## 요청 흐름
