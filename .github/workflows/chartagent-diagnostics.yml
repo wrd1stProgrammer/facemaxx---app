@@ -19,7 +19,7 @@ jobs:
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash -se' <<'REMOTE'
             cd /opt/facemaxx
-            docker compose exec -T chartagent-api codex --version
+            docker compose exec -T chartagent-api codex --version </dev/null
             docker compose logs --since=30m chartagent-api 2>&1 \
               | grep -E 'Codex CLI failed|OpenAI fallback (failed|incomplete|validation failed)' \
               | tail -30 || true
