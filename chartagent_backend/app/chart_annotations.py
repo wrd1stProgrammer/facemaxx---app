@@ -98,9 +98,9 @@ class ChartAnnotationDocument(ChartAnnotationPlan):
 router = APIRouter()
 _settings = get_settings()
 _admission = anyio.CapacityLimiter(_settings.chart_annotation_max_concurrency)
-_codex = CodexCLIProvider(_settings, reasoning_effort="medium", model=_settings.chart_annotation_model,
+_codex = CodexCLIProvider(_settings, reasoning_effort="low", model=_settings.chart_annotation_model,
                           timeout_seconds=85, max_concurrency=_settings.chart_annotation_max_concurrency)
-_fallback = OpenAIAPIProvider(_settings, reasoning_effort="medium", model=_settings.chart_annotation_model,
+_fallback = OpenAIAPIProvider(_settings, reasoning_effort="low", model=_settings.chart_annotation_model,
                             timeout_seconds=100, max_attempts=1)
 _LOCALES = {"ko", "en-US", "ja", "de", "fr-FR", "fr-CA", "es-ES", "es-MX", "pt-BR", "zh-Hant", "zh-Hans", "id", "th", "vi", "it", "tr"}
 

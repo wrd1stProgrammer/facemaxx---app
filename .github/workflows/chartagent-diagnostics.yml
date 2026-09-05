@@ -27,11 +27,13 @@ jobs:
           import anyio
           from pydantic import BaseModel
           from app.chart_annotations import _codex, _fallback
+          from app.config import get_settings
           class Probe(BaseModel):
               ok: bool
           async def inspect():
+              print("annotation_primary", get_settings().chart_annotation_provider, flush=True)
               for name, provider in [("annotation_codex", _codex), ("annotation_fallback", _fallback)]:
-                  print(name, "model", provider.model, flush=True)
+                  print(name, "model", provider.model, "reasoning", provider.reasoning_effort, flush=True)
                   try:
                       result = await provider.complete(prompt='Return {"ok":true}. Do not use tools.', image_path=None, response_model=Probe)
                       print(name, "ok", result.ok, flush=True)

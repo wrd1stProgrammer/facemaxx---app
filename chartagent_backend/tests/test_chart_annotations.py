@@ -64,6 +64,10 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
     from app import chart_annotations as annotations, main
     from app.providers.codex_cli import CodexCLIError
 
+    assert annotations.get_settings().chart_annotation_provider == "codex_cli"
+    assert annotations._codex.model == annotations._fallback.model == "gpt-5.6-luna"
+    assert annotations._codex.reasoning_effort == annotations._fallback.reasoning_effort == "low"
+
     context = annotations.AnnotationReportContext(consensus=valid_payload.consensus,
         scenarios=[], structure=[], trend_evidence=["두 저점이 높아집니다."])
     calls = []
