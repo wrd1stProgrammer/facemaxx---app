@@ -17,21 +17,6 @@ jobs:
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash -se' <<'REMOTE'
             cd /opt/facemaxx
-            news_probe_job_ids=$(docker compose logs --since=90m chartagent-api 2>&1 | sed -nE 's@.*GET /v1/analysis-jobs/([[:xdigit:]-]+).*@\1@p' | awk '!seen[$0]++' | tail -8)
-            docker compose exec -T -e NEWS_PROBE_JOB_IDS="$news_probe_job_ids" chartagent-api python - <<'JOBS'
-          import os, json, urllib.request
-          for job_id in os.environ.get('NEWS_PROBE_JOB_IDS', '').split():
-              try:
-                  with urllib.request.urlopen('http://127.0.0.1:8010/v1/analysis-jobs/' + job_id, timeout=5) as response:
-                      job = json.load(response)
-                  result = job.get('result') or {}
-                  print('news_job_probe', json.dumps({'job':job_id, 'status':job.get('status'), 'symbol':result.get('symbol'), 'included_news':result.get('included_news'), 'news_count':len(result.get('news') or []), 'validation':(result.get('result') or {}).get('validation'), 'news_impact':(result.get('result') or {}).get('news_impact'), 'data_quality':(result.get('result') or {}).get('data_quality'), 'error':job.get('error')}), flush=True)
-              except Exception as error:
-                  print('news_job_probe', json.dumps({'job':job_id, 'error':type(error).__name__}), flush=True)
-          JOBS
-            docker compose logs --since=90m --timestamps chartagent-api 2>&1 \
-              | grep -E 'InsightSentry|Optional news|SOXL|response_model=NewsImpact|HTTP Request: GET https://insightsentry' \
-              | tail -100 || true
             docker compose exec -T chartagent-api python - <<'PYCODE'
           import anyio, json, time
           from datetime import datetime, UTC, timedelta
@@ -42,9 +27,12 @@ jobs:
               connection = settings.insightsentry_connection
               print('news_probe_config', json.dumps({'configured': connection is not None, 'host': connection.base_url if connection else None}), flush=True)
               client = InsightSentryClient(settings)
-              for query in ['SOXL', 'SOXLUSDT.P']:
-                  value = await client._get('/v3/symbols/search', params={'query':query,'page':'1'})
-                  print('symbol_probe', json.dumps({'query':query,'keys':list(value),'count':len(value.get('symbols',[])),'symbols':value.get('symbols',[])[:30]}), flush=True)
+              for code, name in [('BVL:SOXLUS','SOXLUS'),('BINANCE:SOXLUSDT.P','SOXLUSDT.P')]:
+                  started = time.monotonic()
+                  news = await client.fetch_news(code, name)
+                  print('news_collection_verified', json.dumps({'code':code,'news_root':_news_asset_root(code),'count':len(news),'elapsed':round(time.monotonic()-started,2),'titles':[item.title for item in news]}), flush=True)
+                  assert _news_asset_root(code) == 'SOXL'
+                  assert news, 'Expected the SOXL story observed before deployment'
           anyio.run(inspect)
           PYCODE
           REMOTE
