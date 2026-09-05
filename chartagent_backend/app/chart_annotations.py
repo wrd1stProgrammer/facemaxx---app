@@ -33,6 +33,7 @@ class ChartAnnotation(APIModel):
     tone: Literal["mint", "coral", "amber", "blue"]
     points: list[ImagePoint] = Field(min_length=2, max_length=6)
     label_anchor: ImagePoint
+    extend_to_x: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def check_geometry(self) -> Self:
@@ -40,6 +41,15 @@ class ChartAnnotation(APIModel):
             raise ValueError("Zones and arrows require exactly two points")
         if len({(point.x, point.y) for point in self.points}) < 2:
             raise ValueError("Annotation must have a visible extent")
+        if self.extend_to_x is not None:
+            if self.kind != "line" or len(self.points) != 2:
+                raise ValueError("Only a straight trendline may be extended")
+            start, end = self.points
+            if end.x - start.x < 0.04 or self.extend_to_x <= end.x:
+                raise ValueError("Trendline extension must follow two separated pivots from left to right")
+            projected_y = end.y + (end.y - start.y) / (end.x - start.x) * (self.extend_to_x - end.x)
+            if not 0 <= projected_y <= 1:
+                raise ValueError("Trendline extension must remain inside the image")
         if self.kind == "channel":
             if len(self.points) != 3:
                 raise ValueError("A channel requires two baseline points and one opposite-boundary point")
@@ -169,7 +179,18 @@ Explicitly inspect for RISING and FALLING TRENDLINES before choosing rectangles:
 more separated higher lows or lower highs on the same side of price, respecting intervening swings.
 When supported, include a trendline relevant to the next decision instead of another generic zone.
 Use exactly two endpoints for a straight trendline; no zigzag through alternating highs and lows.
-Anchor both endpoints to observed swings. Do not silently extend a historical line into the future.
+Anchor both endpoints to observed swings. You MAY extend a supported trendline to the CURRENT
+visible candles to test whether its projected boundary acts as support or resistance now.
+Keep points as the TWO original real swing anchors; set optional extend_to_x to the current
+candle's normalized x coordinate. The renderer derives y from the exact same slope and draws
+only the extension as a DASHED continuation. Never move a pivot or invent a third contact to fit price.
+Use extend_to_x only for kind=line with exactly two left-to-right pivots at least 0.04 apart in x.
+It must be greater than the second pivot's x, at or before the latest visible candle, and the
+projected endpoint must remain inside the price pane. Other marks use extend_to_x=null.
+Do not leave a useful trendline cut short at an old pivot when its extension helps interpret
+current candles. Explain whether price is holding, rejecting, crossing or retesting that extended
+boundary. A projected intersection is a condition to check, not proof of an actual touch.
+An extended old resistance line may become support only after a visible breakout and retest.
 If price already crossed the line, call it a broken/previous trendline; never describe it as intact.
 Prioritize an active decision boundary over an obsolete historical structure. A historical line or
 channel still helps when explaining the transition to the current setup. Avoid duplicating its edge.
@@ -194,7 +215,7 @@ Pre-existing drawings may suggest where to inspect, but the candle contacts must
 Keep marks inside the price plot, away from price-axis labels, headers, watermarks and volume bars.
 Tone: mint=support, coral=resistance, amber=warning/retest, blue=neutral structure.
 The label_anchor is the desired CENTER of a caption in a nearby EMPTY region.
-Captions are small inline text, about 24% of image width and 7% of image height on a phone.
+Captions are small inline text, about 20% of image width and 5% of image height on a phone.
 Check that the WHOLE caption rectangle fits in empty space, not only its center.
 Spread labels apart, away from candles, annotation paths, headers and the newest price action.
 Use empty space to the left of recent candles when available. Leaders connect captions to evidence.

@@ -119,3 +119,20 @@ def test_v2_rejects_invalid_context_and_can_be_disabled_without_disabling_v1(mon
     assert response.json()["code"] == "annotations_disabled"
     assert client.get("/health").json()["codex_model"] == "gpt-5.6-luna"
     assert "/v1/analysis-jobs" in client.get("/openapi.json").json()["paths"]
+
+
+def test_trendline_extension_preserves_real_pivots() -> None:
+    mark = ChartAnnotation(id="a1", kind="line", title="상승 추세선", detail="두 저점을 연결합니다.",
+                           outlook="연장선 위에서 지지하면 반등이 유지됩니다.", tone="mint",
+                           points=[ImagePoint(x=0.2, y=0.7), ImagePoint(x=0.5, y=0.5)],
+                           label_anchor=ImagePoint(x=0.3, y=0.8), extend_to_x=0.8)
+    assert mark.points[-1] == ImagePoint(x=0.5, y=0.5)
+    assert mark.extend_to_x == 0.8
+
+
+def test_trendline_rejects_extension_outside_the_image() -> None:
+    with pytest.raises(ValidationError):
+        ChartAnnotation(id="a1", kind="line", title="상승 추세선", detail="두 저점을 연결합니다.",
+                        outlook="연장선 위에서 지지하면 반등이 유지됩니다.", tone="mint",
+                        points=[ImagePoint(x=0.2, y=0.7), ImagePoint(x=0.5, y=0.2)],
+                        label_anchor=ImagePoint(x=0.3, y=0.8), extend_to_x=0.9)
