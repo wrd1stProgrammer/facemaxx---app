@@ -130,6 +130,7 @@ async def test_fallback_repairs_only_trade_plan_without_rewriting_analysis(
             else:
                 assert kwargs["text"]["format"]["name"] == "TradePlan"
                 assert kwargs["max_output_tokens"] < 7000
+                assert kwargs["reasoning"] == {"effort": "low"}
                 prompt = kwargs["input"][0]["content"][0]["text"]
                 assert "Keep this original analysis." in prompt
                 assert invalid_entry in prompt and invalid_target in prompt

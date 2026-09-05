@@ -259,7 +259,11 @@ class TradePlan(APIModel):
                 numeric_risk = abs(entry - stop)
                 numeric_reward = abs(target - entry)
                 if numeric_risk <= 0 or numeric_reward / numeric_risk < Decimal("1.8"):
-                    raise ValueError("numeric trade levels must provide at least 1.8 reward-to-risk")
+                    raise ValueError(
+                        "numeric trade levels must provide at least 1.8 reward-to-risk; "
+                        f"entry={entry}, stop={stop}, target={target}, risk={numeric_risk}, "
+                        f"reward={numeric_reward}, required_reward>={numeric_risk * Decimal('1.8')}"
+                    )
         return self
 
 

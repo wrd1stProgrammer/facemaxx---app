@@ -67,11 +67,11 @@ class OpenAIAPIProvider:
                     model=self.model,
                     # Preserve the token budget for the schema-constrained report;
                     # the five specialist perspectives already provide deliberation.
-                    reasoning={"effort": self.reasoning_effort},
+                    reasoning={"effort": "low" if repair_payload is not None and self.reasoning_effort == "minimal" else self.reasoning_effort},
                     # Five opinions, council dialogue, scenarios, structure, and a
                     # trade plan no longer fit reliably inside the original 2,800
                     # token cap. This is an output ceiling, not reserved usage.
-                    max_output_tokens=1800 if repair_payload is not None else 7000,
+                    max_output_tokens=3000 if repair_payload is not None else 7000,
                     input=[{"role": "user", "content": content}],
                     text={
                         "format": {
@@ -145,9 +145,10 @@ class OpenAIAPIProvider:
             raise
         except (OpenAIError, ValidationError, ValueError, json.JSONDecodeError) as error:
             LOGGER.warning(
-                "OpenAI fallback failed response_model=%s reason=%s",
+                "OpenAI fallback failed response_model=%s reason=%s validation=%s",
                 response_model.__name__,
                 type(error).__name__,
+                _validation_feedback(error) if isinstance(error, ValidationError) else "none",
             )
             raise AnalysisUnavailableError() from error
 
