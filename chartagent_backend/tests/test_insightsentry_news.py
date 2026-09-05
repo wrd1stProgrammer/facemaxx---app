@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 import pytest
 
-from app.insightsentry import InsightSentryClient, _NewsRow, _select_recent_news
+from app.insightsentry import InsightSentryClient, _NewsRow, _news_asset_root, _select_recent_news
 
 
 class _FakeInsightSentryClient(InsightSentryClient):
@@ -145,3 +145,59 @@ async def test_news_excerpt_reads_up_to_four_hundred_characters() -> None:
     news = await client.fetch_news("NASDAQ:AAPL", "Apple Inc.")
 
     assert news[0].relevance == content[:400]
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("BINANCE:SOXLUSDT.P", "SOXL"),
+        ("BINANCE:BTCUSDT.P", "BTC"),
+        ("BITMEX:XBTUSD.P", "BTC"),
+        ("BINANCE:ETHUSDC.P", "ETH"),
+        ("AMEX:SOXL", "SOXL"),
+        ("BVL:SOXLUS", "SOXL"),
+        ("NASDAQ:SOXLUS", "SOXLUS"),
+        ("NYSE:BRK.B", "BRK.B"),
+        ("NYSE:XYZ.P", "XYZ.P"),
+    ],
+)
+def test_news_asset_root_normalizes_perpetuals_without_removing_share_classes(
+    code: str, expected: str,
+) -> None:
+    assert _news_asset_root(code) == expected
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("code", "name", "keywords"),
+    [
+        ("BINANCE:SOXLUSDT.P", "SOXL / TetherUS PERPETUAL CONTRACT", "SOXL"),
+        ("BVL:SOXLUS", "SOXLUS", "SOXL,SOXLUS"),
+    ],
+)
+async def test_soxl_variants_find_untagged_news_through_underlying_keyword(
+    code: str, name: str, keywords: str,
+) -> None:
+    now = int(time.time())
+
+    def respond(params: dict[str, str]) -> dict[str, object]:
+        if "related_symbols" in params:
+            assert params["related_symbols"] == "SOXL"
+            return {"data": [], "has_next": False}
+        assert params["keywords"] == keywords
+        return {
+            "data": [{
+                "title": "Exchange Traded Funds Top 10 Volume Leaders",
+                "content": "SOXL is among the most actively traded ETFs.",
+                "published_at": now - 3_600,
+                "related_symbols": [],
+            }],
+            "has_next": False,
+        }
+
+    client = _FakeInsightSentryClient(respond)
+    news = await client.fetch_news(code, name)
+
+    assert len(news) == 1
+    assert news[0].title == "Exchange Traded Funds Top 10 Volume Leaders"
+    assert len(client.calls) == 2

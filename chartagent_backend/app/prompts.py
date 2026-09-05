@@ -89,6 +89,7 @@ def build_detection_prompt(response_language: ResponseLanguage = "en-US") -> str
             "Inspect exactly one user-provided trading chart screenshot.",
             "Only validate the screenshot and identify the market symbol and chart timeframe visibly present in the image.",
             "Read the visible ticker exactly as shown. A TradingView ticker such as BTCUSD, BTCUSDT, AAPL, or TSLA is valid even when the exchange label is absent; the server resolves the exchange afterward.",
+            "Cross-check the ticker button with the full chart legend. A clipped ticker fragment is not a complete symbol. Preserve the full visible quote-currency and perpetual suffix (for example SOXLUSDT.P), and include the exchange prefix when it is visible. Never infer a different exchange from a clipped fragment.",
             "detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
             "Set symbol_matches true when a symbol is detected and false when it is absent; there is no user-entered symbol to compare.",
             "Do not reject a readable ticker solely because its exchange is absent. Use missing_symbol only when no ticker can be read, and missing_timeframe only when no timeframe can be read.",
@@ -116,6 +117,7 @@ def build_analysis_prompt(
         else [
             "Read the symbol, exchange, and timeframe directly from the image before analyzing it.",
             "validation.detected_symbol may be the visible raw TradingView ticker such as BTCUSD or AAPL; the server resolves the exchange afterward.",
+            "Cross-check the ticker button with the full chart legend. A clipped ticker fragment is not a complete symbol. Preserve the full visible quote-currency and perpetual suffix (for example SOXLUSDT.P), and include the exchange prefix when it is visible. Never infer a different exchange from a clipped fragment.",
             "validation.detected_timeframe must be one of 1M, 5M, 15M, 30M, 1H, 2H, 4H, 6H, 12H, 1D, or 1W.",
             "Do not reject a readable ticker solely because its exchange is absent. Return missing_symbol only when no ticker can be read.",
         ]

@@ -213,7 +213,13 @@ def _published_seconds(value: int) -> int:
 
 
 def _news_asset_root(code: str) -> str:
-    ticker = code.rsplit(":", 1)[-1].strip().upper()
+    normalized = code.strip().upper()
+    # InsightSentry lists the same Direxion ETF as SOXLUS on BVL.
+    if normalized == "BVL:SOXLUS":
+        return "SOXL"
+    ticker = normalized.rsplit(":", 1)[-1].strip()
+    if ticker.endswith(("USDT.P", "USDC.P", "USD.P")):
+        ticker = ticker.removesuffix(".P")
     for quote_currency in ("USDT", "USDC", "USD"):
         if ticker.endswith(quote_currency) and len(ticker) > len(quote_currency):
             ticker = ticker[: -len(quote_currency)]
