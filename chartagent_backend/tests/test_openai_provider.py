@@ -106,9 +106,11 @@ async def test_fallback_retries_once_when_trade_plan_entry_geometry_fails_valida
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("invalid_entry,invalid_target", [("62,000", "60,000"), ("64,000", "62,500")])
+@pytest.mark.parametrize("invalid_entry,invalid_target,invalid_ratio", [
+    ("62,000", "60,000", "1:2"), ("64,000", "62,500", "1:2"), ("64,000", "62,000", "2R"),
+])
 async def test_fallback_repairs_only_trade_plan_without_rewriting_analysis(
-    monkeypatch, invalid_entry, invalid_target,
+    monkeypatch, invalid_entry, invalid_target, invalid_ratio,
 ):
     class Report(TradePlanEnvelope):
         summary: str
@@ -116,10 +118,10 @@ async def test_fallback_repairs_only_trade_plan_without_rewriting_analysis(
     original_plan = {
         "direction_code": "bearish", "reference_price": "63,000",
         "entry": invalid_entry, "stop": "65,000", "target": invalid_target,
-        "risk_reward": "1:2", "trigger": "Reject the resistance retest before entering.",
+        "risk_reward": invalid_ratio, "trigger": "Reject the resistance retest before entering.",
         "rationale": "Visible resistance and support define this conditional short setup.",
     }
-    repaired = original_plan | {"entry": "64,000", "target": "62,000"}
+    repaired = original_plan | {"entry": "64,000", "target": "62,000", "risk_reward": "1:2"}
     requests = []
 
     class FakeResponses:
@@ -131,6 +133,9 @@ async def test_fallback_repairs_only_trade_plan_without_rewriting_analysis(
                 assert kwargs["text"]["format"]["name"] == "TradePlan"
                 assert kwargs["max_output_tokens"] < 7000
                 assert kwargs["reasoning"] == {"effort": "low"}
+                assert kwargs["text"]["format"]["schema"]["properties"]["risk_reward"]["pattern"]
+                assert kwargs["text"]["format"]["schema"]["properties"]["direction_code"]["enum"] == ["bearish"]
+                assert kwargs["text"]["format"]["schema"]["properties"]["reference_price"]["enum"] == ["63,000"]
                 prompt = kwargs["input"][0]["content"][0]["text"]
                 assert "Keep this original analysis." in prompt
                 assert invalid_entry in prompt and invalid_target in prompt

@@ -63,6 +63,10 @@ class OpenAIAPIProvider:
         request_model: type[BaseModel] = response_model
         try:
             for attempt in range(self.max_attempts):
+                schema = _strict_schema(request_model)
+                if repair_payload is not None:
+                    for field in ("direction_code", "reference_price"):
+                        schema["properties"][field]["enum"] = [repair_payload["trade_plan"][field]]
                 response = await client.responses.create(
                     model=self.model,
                     # Preserve the token budget for the schema-constrained report;
@@ -77,7 +81,7 @@ class OpenAIAPIProvider:
                         "format": {
                             "type": "json_schema",
                             "name": request_model.__name__,
-                            "schema": _strict_schema(request_model),
+                            "schema": schema,
                             "strict": True,
                         }
                     },
@@ -113,7 +117,8 @@ class OpenAIAPIProvider:
                     )
                     trade_field = response_model.model_fields.get("trade_plan")
                     if (trade_field is not None and trade_field.annotation is TradePlan
-                            and all(issue["loc"] == ("trade_plan",) and issue["type"] == "value_error"
+                            and all((issue["loc"] == ("trade_plan",) and issue["type"] == "value_error")
+                                    or (issue["loc"] == ("trade_plan", "risk_reward") and issue["type"] == "string_pattern_mismatch")
                                     for issue in error.errors())):
                         repair_payload = json.loads(output_text)
                         request_model = TradePlan
@@ -130,6 +135,8 @@ class OpenAIAPIProvider:
                                 "For bullish: stop < entry < reference and target > entry; "
                                 "(target-entry)/(entry-stop) >= 1.8. Recalculate these inequalities using actual "
                                 "numbers before returning; writing 1:2 alone does not make the geometry valid. "
+                                "risk_reward must be a numeric risk:reward string using ASCII colon, e.g. 1:2.0; "
+                                "never return 2R, a bare decimal, percentage, or a translated separator. "
                                 "Select levels from visible support/resistance, never invent a target or move "
                                 "the stop inside invalidation just to pass. Keep trigger/rationale aligned with corrected levels. "
                                 f"Validation errors: {feedback}\nPrevious report JSON:\n{output_text}"

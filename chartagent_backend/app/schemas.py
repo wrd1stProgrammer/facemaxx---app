@@ -213,7 +213,7 @@ class TradePlan(APIModel):
     entry: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
     stop: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
     target: str = Field(min_length=1, max_length=60, pattern=PRICE_LEVEL_PATTERN)
-    risk_reward: str = Field(min_length=1, max_length=20)
+    risk_reward: str = Field(min_length=1, max_length=20, pattern=r"\d+(?:\.\d+)?\s*:\s*\d+(?:\.\d+)?")
     trigger: str = Field(min_length=10, max_length=180)
     rationale: str = Field(min_length=15, max_length=260)
 
