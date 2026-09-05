@@ -56,8 +56,8 @@ def test_report_link_rejects_a_scenario_not_in_the_report() -> None:
         plan.validate_scenario_links(scenario_count=2)
 
 
-@pytest.mark.parametrize("use_fallback", [False, True])
-def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_payload, use_fallback):
+@pytest.mark.parametrize("provider_name,use_fallback", [("codex_cli", False), ("codex_cli", True), ("openai_api", False)])
+def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_payload, provider_name, use_fallback):
     from io import BytesIO
     from fastapi.testclient import TestClient
     from PIL import Image
@@ -80,6 +80,8 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
                 raise CodexCLIError("process_exit")
             return response_model(summary="추세선 유지 여부를 확인합니다.", annotations=[])
 
+    settings = annotations.get_settings().model_copy(update={"chart_annotation_provider": provider_name})
+    monkeypatch.setattr(annotations, "get_settings", lambda: settings)
     legacy_codex = main.service.codex
     monkeypatch.setattr(annotations, "_codex", Provider("codex"))
     monkeypatch.setattr(annotations, "_fallback", Provider("fallback"))
@@ -91,7 +93,8 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
     assert response.status_code == 200, response.text
     assert response.json()["image_width"] == 640
     assert response.json()["locale"] == "ko"
-    assert calls == (["codex", "fallback"] if use_fallback else ["codex"])
+    expected = ["fallback"] if provider_name == "openai_api" else (["codex", "fallback"] if use_fallback else ["codex"])
+    assert calls == expected
     assert main.service.codex is legacy_codex
     assert legacy_codex.model == "gpt-5.6-luna"
     assert legacy_codex.reasoning_effort == "low"

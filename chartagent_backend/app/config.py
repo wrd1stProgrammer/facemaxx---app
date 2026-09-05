@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     codex_model: Literal["gpt-5.6-luna"] = "gpt-5.6-luna"
     codex_reasoning_effort: Literal["low"] = "low"
     chart_annotation_model: Literal["gpt-6-astra", "gpt-5.6-luna"] = Field(default="gpt-6-astra", validation_alias="CHARTAGENT_ANNOTATION_MODEL")
+    chart_annotation_provider: Literal["codex_cli", "openai_api"] = Field(default="openai_api", validation_alias="CHARTAGENT_ANNOTATION_PROVIDER")
     chart_annotation_max_concurrency: int = Field(default=2, ge=1, le=8, validation_alias="CHARTAGENT_ANNOTATION_MAX_CONCURRENCY")
     chart_annotations_enabled: bool = Field(default=True, validation_alias="CHARTAGENT_ANNOTATIONS_ENABLED")
     openai_model: str = Field(
