@@ -23,4 +23,23 @@ jobs:
             docker compose logs --since=30m chartagent-api 2>&1 \
               | grep -E 'Codex CLI failed|OpenAI fallback (failed|incomplete|validation failed)' \
               | tail -30 || true
+            docker compose exec -T chartagent-api python - <<'PYCODE'
+          import anyio
+          from pydantic import BaseModel
+          from app.chart_annotations import _codex, _fallback
+          class Probe(BaseModel):
+              ok: bool
+          async def inspect():
+              for name, provider in [("annotation_codex", _codex), ("annotation_fallback", _fallback)]:
+                  print(name, "model", provider.model, flush=True)
+                  try:
+                      result = await provider.complete(prompt='Return {"ok":true}. Do not use tools.', image_path=None, response_model=Probe)
+                      print(name, "ok", result.ok, flush=True)
+                  except Exception as error:
+                      cause = error.__cause__
+                      print(name, "failure", type(error).__name__, getattr(error, "reason", None),
+                            "cause", type(cause).__name__, "status", getattr(cause, "status_code", None),
+                            "code", getattr(cause, "code", None), flush=True)
+          anyio.run(inspect)
+          PYCODE
           REMOTE
