@@ -11,6 +11,7 @@ from fastapi.responses import ORJSONResponse
 from app.analysis_service import AnalysisService
 from app.analysis_jobs import AnalysisJobManager
 from app.config import get_settings
+from app.chart_annotations import router as chart_annotations_router
 from app.errors import ChartAgentError
 from app.image_validation import validate_image_bytes
 from app.insightsentry import InsightSentryClient
@@ -46,6 +47,7 @@ app = FastAPI(
     version="1.0.0",
     default_response_class=ORJSONResponse,
 )
+app.include_router(chart_annotations_router)
 
 
 @app.exception_handler(ChartAgentError)

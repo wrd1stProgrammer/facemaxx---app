@@ -9,7 +9,7 @@ from pathlib import Path
 import signal
 import subprocess
 import tempfile
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 import anyio
 from pydantic import BaseModel, ValidationError
@@ -32,9 +32,14 @@ class CodexCLIError(Exception):
 class CodexCLIProvider:
     error_type = CodexCLIError
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, model: str | None = None,
+                 reasoning_effort: Literal["low", "medium"] | None = None,
+                 timeout_seconds: float | None = None, max_concurrency: int | None = None) -> None:
         self.settings = settings
-        self._limiter = anyio.CapacityLimiter(settings.codex_max_concurrency)
+        self.model = model or settings.codex_model
+        self.reasoning_effort = reasoning_effort or settings.codex_reasoning_effort
+        self.timeout_seconds = timeout_seconds if timeout_seconds is not None else min(settings.codex_timeout_seconds, 60.0)
+        self._limiter = anyio.CapacityLimiter(max_concurrency or settings.codex_max_concurrency)
 
     async def complete(
         self,
@@ -78,7 +83,7 @@ class CodexCLIProvider:
             process = self._start_process(command, work_dir)
             # Keep enough time for Luna low to finish a full structured report,
             # while preserving room for the OpenAI fallback at the request boundary.
-            timeout_seconds = min(self.settings.codex_timeout_seconds, 60.0)
+            timeout_seconds = self.timeout_seconds
             try:
                 stdout, stderr = process.communicate(
                     input=_safe_prompt(prompt),
@@ -112,9 +117,9 @@ class CodexCLIProvider:
             "--color",
             "never",
             "--model",
-            self.settings.codex_model,
+            self.model,
             "-c",
-            f'model_reasoning_effort="{self.settings.codex_reasoning_effort}"',
+            f'model_reasoning_effort="{self.reasoning_effort}"',
             "--output-schema",
             str(schema),
             "-o",

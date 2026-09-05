@@ -4,7 +4,7 @@ import base64
 import json
 import logging
 from pathlib import Path
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -18,8 +18,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OpenAIAPIProvider:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, model: str | None = None,
+                 reasoning_effort: Literal["minimal", "low", "medium"] = "minimal",
+                 timeout_seconds: float = 55.0, max_attempts: int = 2) -> None:
         self.settings = settings
+        self.model = model or settings.openai_model
+        self.reasoning_effort = reasoning_effort
+        self.timeout_seconds = timeout_seconds
+        self.max_attempts = max_attempts
 
     async def complete(
         self,
@@ -49,16 +55,16 @@ class OpenAIAPIProvider:
         # instead of closing the request with an HTML gateway response.
         client = AsyncOpenAI(
             api_key=self.settings.openai_api_key,
-            timeout=55.0,
+            timeout=self.timeout_seconds,
             max_retries=0,
         )
         try:
-            for attempt in range(2):
+            for attempt in range(self.max_attempts):
                 response = await client.responses.create(
-                    model=self.settings.openai_model,
+                    model=self.model,
                     # Preserve the token budget for the schema-constrained report;
                     # the five specialist perspectives already provide deliberation.
-                    reasoning={"effort": "minimal"},
+                    reasoning={"effort": self.reasoning_effort},
                     # Five opinions, council dialogue, scenarios, structure, and a
                     # trade plan no longer fit reliably inside the original 2,800
                     # token cap. This is an output ceiling, not reserved usage.
@@ -87,7 +93,7 @@ class OpenAIAPIProvider:
                 try:
                     return response_model.model_validate_json(output_text)
                 except ValidationError as error:
-                    if attempt > 0:
+                    if attempt + 1 >= self.max_attempts:
                         raise
                     feedback = _validation_feedback(error)
                     LOGGER.warning(
