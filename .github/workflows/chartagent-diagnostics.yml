@@ -1,13 +1,11 @@
 name: ChartAgent Runtime Diagnostics
-
 on:
   workflow_dispatch:
-
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Read ChartAgent provider status
+      - name: Inspect SOXL news without changing runtime
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -19,29 +17,33 @@ jobs:
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash -se' <<'REMOTE'
             cd /opt/facemaxx
-            docker compose exec -T chartagent-api codex --version </dev/null
-            docker compose logs --since=30m chartagent-api 2>&1 \
-              | grep -E 'Codex CLI failed|OpenAI fallback (failed|incomplete|validation failed)' \
-              | tail -30 || true
+            docker compose logs --since=90m --timestamps chartagent-api 2>&1 \
+              | grep -E 'InsightSentry|Optional news|SOXL|response_model=NewsImpact|HTTP Request: GET https://insightsentry' \
+              | tail -100 || true
             docker compose exec -T chartagent-api python - <<'PYCODE'
-          import anyio
-          from pydantic import BaseModel
-          from app.chart_annotations import _codex, _fallback
+          import anyio, json, time
+          from datetime import datetime, UTC, timedelta
           from app.config import get_settings
-          class Probe(BaseModel):
-              ok: bool
+          from app.insightsentry import InsightSentryClient, _news_asset_root, _NewsPayload, _select_recent_news
           async def inspect():
-              print("annotation_primary", get_settings().chart_annotation_provider, flush=True)
-              for name, provider in [("annotation_codex", _codex), ("annotation_fallback", _fallback)]:
-                  print(name, "model", provider.model, "reasoning", provider.reasoning_effort, flush=True)
+              settings = get_settings()
+              connection = settings.insightsentry_connection
+              print('news_probe_config', json.dumps({'configured': connection is not None, 'host': connection.base_url if connection else None}), flush=True)
+              client = InsightSentryClient(settings)
+              now = int(time.time())
+              start = (datetime.fromtimestamp(now, UTC) - timedelta(hours=48)).strftime('%Y-%m-%d')
+              print('current_root', _news_asset_root('BINANCE:SOXLUSDT.P'), flush=True)
+              for filters in [{'related_symbols':'SOXLUSDT.P'}, {'related_symbols':'SOXL'}, {'keywords':'SOXL'}]:
+                  params = {'limit':'500','page':'1','from':start,**filters}
+                  started = time.monotonic()
                   try:
-                      result = await provider.complete(prompt='Return {"ok":true}. Do not use tools.', image_path=None, response_model=Probe)
-                      print(name, "ok", result.ok, flush=True)
+                      value = await client._get('/v3/newsfeed', params=params)
+                      parsed = _NewsPayload.model_validate(value)
+                      recent = _select_recent_news(parsed.data, now_timestamp=now)
+                      print('news_probe', json.dumps({'filters':filters,'status':200,'keys':list(value),'rows':len(parsed.data),'selected_48h':len(recent),'has_next':parsed.has_next,'elapsed':round(time.monotonic()-started,2),'sample':[{'title':r.title,'published_at':r.published_at,'symbols':r.related_symbols} for r in recent[:2]]}), flush=True)
                   except Exception as error:
-                      cause = error.__cause__
-                      print(name, "failure", type(error).__name__, getattr(error, "reason", None),
-                            "cause", type(cause).__name__, "status", getattr(cause, "status_code", None),
-                            "code", getattr(cause, "code", None), flush=True)
+                      response = getattr(error, 'response', None)
+                      print('news_probe', json.dumps({'filters':filters,'error':type(error).__name__,'status':response.status_code if response is not None else None,'elapsed':round(time.monotonic()-started,2)}), flush=True)
           anyio.run(inspect)
           PYCODE
           REMOTE
