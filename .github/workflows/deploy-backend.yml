@@ -95,6 +95,26 @@ jobs:
         run: |
           ssh -i ~/.ssh/ec2_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "printf '%s' '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ steps.dockerhub.outputs.username }}' --password-stdin"
 
+      - name: Configure ChartAgent product analytics
+        env:
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.CHARTAGENT_POSTHOG_PROJECT_TOKEN }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          if [ -z "$POSTHOG_PROJECT_TOKEN" ]; then exit 0; fi
+          umask 077
+          printf 'CHARTAGENT_POSTHOG_PROJECT_TOKEN=%s\nCHARTAGENT_POSTHOG_HOST=https://us.i.posthog.com\n' "$POSTHOG_PROJECT_TOKEN" > /tmp/chartagent-posthog.env
+          scp -i ~/.ssh/ec2_key /tmp/chartagent-posthog.env "$EC2_USER@$EC2_HOST:/tmp/chartagent-posthog.env"
+          rm /tmp/chartagent-posthog.env
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'sudo python3 -' <<'PY'
+          from pathlib import Path
+          source = Path('/tmp/chartagent-posthog.env')
+          target = Path('/opt/chartagent/.env')
+          lines = [line for line in target.read_text().splitlines() if not line.startswith(('CHARTAGENT_POSTHOG_PROJECT_TOKEN=', 'CHARTAGENT_POSTHOG_HOST='))]
+          target.write_text('\n'.join(lines) + '\n' + source.read_text())
+          source.unlink()
+          PY
+
       - name: Pull and restart container
         run: |
           FACEMAXX_IMAGE="${{ steps.dockerhub.outputs.facemaxx_image }}:${{ github.sha }}"

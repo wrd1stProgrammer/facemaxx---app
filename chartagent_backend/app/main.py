@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +11,7 @@ from fastapi.responses import ORJSONResponse
 
 from app.analysis_service import AnalysisService
 from app.analysis_jobs import AnalysisJobManager
+from app.product_analytics import AnalyticsContext, analytics, current_context
 from app.config import get_settings
 from app.chart_annotations import router as chart_annotations_router
 from app.errors import ChartAgentError
@@ -42,12 +44,28 @@ service = AnalysisService(
 )
 analysis_jobs = AnalysisJobManager()
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    await analytics.close()
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="ChartAgent API",
     version="1.0.0",
     default_response_class=ORJSONResponse,
 )
 app.include_router(chart_annotations_router)
+
+
+@app.middleware("http")
+async def product_analytics_context(request: Request, call_next):
+    token = current_context.set(AnalyticsContext.from_headers(request.headers))
+    try:
+        return await call_next(request)
+    finally:
+        current_context.reset(token)
 
 
 @app.exception_handler(ChartAgentError)
@@ -138,7 +156,9 @@ async def create_analysis_job(
 
 
 @app.get("/v1/analysis-jobs/{job_id}", response_model=AnalysisJobSnapshot)
-async def get_analysis_job(job_id: str) -> AnalysisJobSnapshot:
+async def get_analysis_job(job_id: str, request: Request) -> AnalysisJobSnapshot:
+    if request.headers.get("x-chartagent-analytics") == "0":
+        analysis_jobs.disable_analytics(job_id, request.headers.get("x-chartagent-attempt-id", ""))
     return analysis_jobs.get(job_id)
 
 

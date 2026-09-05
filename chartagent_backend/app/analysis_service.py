@@ -8,6 +8,7 @@ from typing import Protocol, TypeVar
 import anyio
 from pydantic import BaseModel
 
+from app.product_analytics import analytics, error_code
 from app.errors import ChartAgentError, DependencyError, InvalidChartError, InvalidSymbolError
 from app.prompts import (
     build_analysis_prompt,
@@ -180,30 +181,35 @@ class AnalysisService:
         symbol: SymbolInfo,
         timeframe: str,
     ) -> tuple[list[NewsItem], NewsImpact | None]:
+        started = time.monotonic()
         try:
             news = await self.market_data.fetch_news(symbol.code, symbol.name)
         except DependencyError as error:
-            LOGGER.warning(
-                "Optional news enrichment failed; continuing chart-only symbol=%s reason=%s",
-                symbol.code,
-                type(error).__name__,
-            )
+            analytics.capture("news_fetch_finished", status="failed", error_code=error_code(error),
+                              duration_ms=int((time.monotonic() - started) * 1000), article_count=0)
+            analytics.capture("news_assessment_finished", status="skipped", error_stage="news_fetch", used_count=0)
+            LOGGER.warning("Optional news enrichment failed; continuing chart-only symbol=%s reason=%s", symbol.code, type(error).__name__)
             return [], None
+        analytics.capture("news_fetch_finished", status="success" if news else "empty", article_count=len(news),
+                          duration_ms=int((time.monotonic() - started) * 1000))
         if not news:
+            analytics.capture("news_assessment_finished", status="skipped", error_stage="no_articles", used_count=0)
             return [], None
+        assessment_started = time.monotonic()
         try:
-            impact, _ = await self._complete(
+            impact, provider = await self._complete(
                 prompt=build_news_impact_prompt(context, symbol, timeframe, news),
                 image_path=image_path,
                 response_model=NewsImpact,
             )
-        except Exception as error:  # noqa: BLE001 - optional enrichment must never fail the chart report
-            LOGGER.warning(
-                "Optional news assessment failed; continuing chart-only symbol=%s reason=%s",
-                symbol.code,
-                type(error).__name__,
-            )
+        except Exception as error:
+            analytics.capture("news_assessment_finished", status="failed", article_count=len(news), used_count=0,
+                              error_code=error_code(error), duration_ms=int((time.monotonic() - assessment_started) * 1000))
+            LOGGER.warning("Optional news assessment failed; continuing chart-only symbol=%s reason=%s", symbol.code, type(error).__name__)
             return news, None
+        analytics.capture("news_assessment_finished", status="used" if impact.used_count else "unused",
+                          article_count=len(news), used_count=impact.used_count, provider=provider,
+                          duration_ms=int((time.monotonic() - assessment_started) * 1000))
         return news, impact
 
     async def _complete(

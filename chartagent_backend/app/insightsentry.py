@@ -8,6 +8,7 @@ from urllib.parse import quote
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.product_analytics import analytics, error_code
 from app.config import Settings
 from app.errors import DependencyError
 from app.schemas import NewsItem, SymbolInfo
@@ -108,9 +109,11 @@ class InsightSentryClient:
         except (httpx.HTTPError, ValidationError) as error:
             raise DependencyError("InsightSentry 뉴스") from error
 
+        keyword_status = "not_needed"
         primary_count = len(rows)
         keywords = _news_keywords(code, name)
         if len(_select_recent_news(rows, now_timestamp=now)) < 20 and keywords:
+            keyword_status = "success"
             try:
                 rows.extend(
                     await self._fetch_news_pages(
@@ -118,10 +121,12 @@ class InsightSentryClient:
                         now_timestamp=now,
                     )
                 )
-            except (httpx.HTTPError, ValidationError):
+            except (httpx.HTTPError, ValidationError) as error:
+                keyword_status = error_code(error)
                 LOGGER.warning("InsightSentry keyword news fallback failed code=%s", code)
 
         selected = _select_recent_news(rows, now_timestamp=now)
+        analytics.capture("news_collection_details", normalized_symbol=asset_root, keyword_status=keyword_status, article_count=len(selected))
         LOGGER.info(
             "InsightSentry news collection code=%s primary_rows=%d merged_rows=%d selected=%d",
             code,

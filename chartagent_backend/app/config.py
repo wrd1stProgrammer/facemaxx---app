@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True, populate_by_name=True)
 
     app_env: str = Field(default="local", validation_alias=AliasChoices("CHARTAGENT_APP_ENV", "APP_ENV"))
+    posthog_project_token: str | None = Field(default=None, validation_alias="CHARTAGENT_POSTHOG_PROJECT_TOKEN")
+    posthog_host: str = Field(default="https://us.i.posthog.com", validation_alias="CHARTAGENT_POSTHOG_HOST")
     openai_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("CHARTAGENT_OPENAI_API_KEY", "OPENAI_API_KEY"),
