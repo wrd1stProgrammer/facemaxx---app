@@ -25,7 +25,7 @@ jobs:
                   with urllib.request.urlopen('http://127.0.0.1:8010/v1/analysis-jobs/' + job_id, timeout=5) as response:
                       job = json.load(response)
                   result = job.get('result') or {}
-                  print('news_job_probe', json.dumps({'job':job_id, 'status':job.get('status'), 'symbol':result.get('symbol'), 'included_news':result.get('included_news'), 'news_count':len(result.get('news') or []), 'news_impact':result.get('news_impact'), 'data_quality':result.get('data_quality'), 'error':job.get('error')}), flush=True)
+                  print('news_job_probe', json.dumps({'job':job_id, 'status':job.get('status'), 'symbol':result.get('symbol'), 'included_news':result.get('included_news'), 'news_count':len(result.get('news') or []), 'validation':(result.get('result') or {}).get('validation'), 'news_impact':(result.get('result') or {}).get('news_impact'), 'data_quality':(result.get('result') or {}).get('data_quality'), 'error':job.get('error')}), flush=True)
               except Exception as error:
                   print('news_job_probe', json.dumps({'job':job_id, 'error':type(error).__name__}), flush=True)
           JOBS
@@ -42,20 +42,9 @@ jobs:
               connection = settings.insightsentry_connection
               print('news_probe_config', json.dumps({'configured': connection is not None, 'host': connection.base_url if connection else None}), flush=True)
               client = InsightSentryClient(settings)
-              now = int(time.time())
-              start = (datetime.fromtimestamp(now, UTC) - timedelta(hours=48)).strftime('%Y-%m-%d')
-              print('current_root', _news_asset_root('BINANCE:SOXLUSDT.P'), flush=True)
-              for filters in [{'related_symbols':'SOXLUSDT.P'}, {'related_symbols':'SOXL'}, {'keywords':'SOXL'}]:
-                  params = {'limit':'500','page':'1','from':start,**filters}
-                  started = time.monotonic()
-                  try:
-                      value = await client._get('/v3/newsfeed', params=params)
-                      parsed = _NewsPayload.model_validate(value)
-                      recent = _select_recent_news(parsed.data, now_timestamp=now)
-                      print('news_probe', json.dumps({'filters':filters,'status':200,'keys':list(value),'rows':len(parsed.data),'selected_48h':len(recent),'has_next':parsed.has_next,'elapsed':round(time.monotonic()-started,2),'sample':[{'title':r.title,'published_at':r.published_at,'symbols':r.related_symbols} for r in recent[:2]]}), flush=True)
-                  except Exception as error:
-                      response = getattr(error, 'response', None)
-                      print('news_probe', json.dumps({'filters':filters,'error':type(error).__name__,'status':response.status_code if response is not None else None,'elapsed':round(time.monotonic()-started,2)}), flush=True)
+              for query in ['SOXL', 'SOXLUSDT.P']:
+                  value = await client._get('/v3/symbols/search', params={'query':query,'page':'1'})
+                  print('symbol_probe', json.dumps({'query':query,'keys':list(value),'count':len(value.get('symbols',[])),'symbols':value.get('symbols',[])[:30]}), flush=True)
           anyio.run(inspect)
           PYCODE
           REMOTE
