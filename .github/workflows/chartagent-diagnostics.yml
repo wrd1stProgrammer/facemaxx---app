@@ -1,0 +1,26 @@
+name: ChartAgent Runtime Diagnostics
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read ChartAgent provider status
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash -se' <<'REMOTE'
+            cd /opt/facemaxx
+            docker compose exec -T chartagent-api codex --version
+            docker compose logs --since=30m chartagent-api 2>&1 \
+              | grep -E 'Codex CLI failed|OpenAI fallback (failed|incomplete|validation failed)' \
+              | tail -30 || true
+          REMOTE
