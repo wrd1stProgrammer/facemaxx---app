@@ -8,7 +8,7 @@ from typing import Protocol, TypeVar
 import anyio
 from pydantic import BaseModel
 
-from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
+from app.errors import ChartAgentError, DependencyError, InvalidChartError, InvalidSymbolError
 from app.prompts import (
     build_analysis_prompt,
     build_detection_prompt,
@@ -135,14 +135,21 @@ class AnalysisService:
     ) -> tuple[AnalysisContent, str, list[NewsItem], NewsImpact | None]:
         chart_results: list[tuple[AnalysisContent, str]] = []
         news_results: list[tuple[list[NewsItem], NewsImpact | None]] = []
+        chart_error: ChartAgentError | None = None
 
         async def analyze_chart() -> None:
-            result = await self._complete(
-                prompt=build_analysis_prompt(context, symbol, timeframe, []),
-                image_path=image_path,
-                response_model=AnalysisContent,
-            )
-            chart_results.append(result)
+            nonlocal chart_error
+            try:
+                result = await self._complete(
+                    prompt=build_analysis_prompt(context, symbol, timeframe, []),
+                    image_path=image_path,
+                    response_model=AnalysisContent,
+                )
+            except ChartAgentError as error:
+                chart_error = error
+                task_group.cancel_scope.cancel()
+            else:
+                chart_results.append(result)
 
         async def analyze_news() -> None:
             news_results.append(
@@ -157,6 +164,9 @@ class AnalysisService:
         async with anyio.create_task_group() as task_group:
             task_group.start_soon(analyze_chart)
             task_group.start_soon(analyze_news)
+
+        if chart_error is not None:
+            raise chart_error
 
         payload, provider_name = chart_results[0]
         news, news_impact = news_results[0]

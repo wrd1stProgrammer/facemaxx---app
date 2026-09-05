@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import anyio
 import pytest
 from pydantic import BaseModel, ValidationError
 
 from app.analysis_service import AnalysisService, _normalize_decision_labels, _normalize_news_impact
-from app.errors import DependencyError, InvalidChartError, InvalidSymbolError
+from app.errors import AnalysisUnavailableError, DependencyError, InvalidChartError, InvalidSymbolError
 from app.providers.codex_cli import CodexCLIError
 from app.schemas import AgentOpinion, AnalysisContent, AnalysisPayload, AnalysisRequestContext, ChartValidation, NewsImpact, NewsItem, SymbolInfo, TradePlan
 
@@ -286,6 +287,72 @@ async def test_news_dependency_failure_continues_with_chart_only_analysis(
     assert result.news == []
     assert result.included_news is False
     assert result.result.news_impact.effect == "none"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("error_type", "expected_error_type"),
+    [(AnalysisUnavailableError, AnalysisUnavailableError), (RuntimeError, ExceptionGroup)],
+)
+async def test_chart_failure_preserves_error_type_and_awaits_news_cancellation(
+    tmp_path: Path,
+    valid_payload: AnalysisPayload,
+    error_type: type[Exception],
+    expected_error_type: type[Exception],
+) -> None:
+    # Given: chart completion fails while concurrent news retrieval is pending.
+    news_started = anyio.Event()
+    news_finished = anyio.Event()
+    failure = error_type()
+
+    class PendingNewsMarketData(FixedMarketData):
+        async def fetch_news(self, code: str, name: str | None = None) -> list[NewsItem]:
+            news_started.set()
+            try:
+                await anyio.sleep_forever()
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await anyio.lowlevel.checkpoint()
+                    news_finished.set()
+
+    class ChartFailingProvider(SplitNewsProvider):
+        async def complete(
+            self,
+            *,
+            prompt: str,
+            image_path: Path,
+            response_model: type[BaseModel],
+        ) -> BaseModel:
+            if response_model is AnalysisContent:
+                await news_started.wait()
+                raise failure
+            return await super().complete(
+                prompt=prompt, image_path=image_path, response_model=response_model,
+            )
+
+    provider = ChartFailingProvider(valid_payload.validation, valid_payload)
+    service = AnalysisService(
+        market_data=PendingNewsMarketData(
+            SymbolInfo(code="NASDAQ:AAPL", name="Apple Inc.", instrument_type="stock"),
+        ),
+        codex=provider,
+        fallback=provider,
+    )
+
+    # When: news-enabled analysis encounters the chart failure.
+    with anyio.fail_after(1):
+        with pytest.raises(expected_error_type) as raised:
+            await service.analyze(
+                context=AnalysisRequestContext(include_news=True, active_agent_ids=["trend", "pattern", "risk"]),
+                image_path=tmp_path / "chart.png",
+            )
+
+    # Then: typed failures stay typed, unexpected failures propagate, and news is cleaned up.
+    if isinstance(raised.value, BaseExceptionGroup):
+        assert raised.value.exceptions == (failure,)
+    else:
+        assert raised.value is failure
+    assert news_finished.is_set()
 
 
 @pytest.mark.anyio

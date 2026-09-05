@@ -72,7 +72,7 @@ async def test_fallback_retries_once_when_trade_plan_entry_geometry_fails_valida
     valid_plan = invalid_plan | {"entry": "64,000", "stop": "65,000", "target": "62,000"}
     outputs = [
         json.dumps({"trade_plan": invalid_plan}),
-        TradePlanEnvelope(trade_plan=TradePlan(**valid_plan)).model_dump_json(),
+        TradePlan(**valid_plan).model_dump_json(),
     ]
 
     class FakeOpenAIError(Exception):
@@ -103,3 +103,49 @@ async def test_fallback_retries_once_when_trade_plan_entry_geometry_fails_valida
     assert result.trade_plan.entry == "64,000"
     assert len(prompts) == 2
     assert "bearish entry must be at or above the displayed current price" in prompts[1]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("invalid_entry,invalid_target", [("62,000", "60,000"), ("64,000", "62,500")])
+async def test_fallback_repairs_only_trade_plan_without_rewriting_analysis(
+    monkeypatch, invalid_entry, invalid_target,
+):
+    class Report(TradePlanEnvelope):
+        summary: str
+
+    original_plan = {
+        "direction_code": "bearish", "reference_price": "63,000",
+        "entry": invalid_entry, "stop": "65,000", "target": invalid_target,
+        "risk_reward": "1:2", "trigger": "Reject the resistance retest before entering.",
+        "rationale": "Visible resistance and support define this conditional short setup.",
+    }
+    repaired = original_plan | {"entry": "64,000", "target": "62,000"}
+    requests = []
+
+    class FakeResponses:
+        async def create(self, **kwargs):
+            requests.append(kwargs)
+            if len(requests) == 1:
+                output = {"summary": "Keep this original analysis.", "trade_plan": original_plan}
+            else:
+                assert kwargs["text"]["format"]["name"] == "TradePlan"
+                assert kwargs["max_output_tokens"] < 7000
+                prompt = kwargs["input"][0]["content"][0]["text"]
+                assert "Keep this original analysis." in prompt
+                assert invalid_entry in prompt and invalid_target in prompt
+                output = repaired
+            return SimpleNamespace(status="completed", output_text=json.dumps(output))
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.responses = FakeResponses()
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(AsyncOpenAI=FakeClient, OpenAIError=RuntimeError))
+    result = await OpenAIAPIProvider(Settings(openai_api_key="test-key")).complete(
+        prompt="Analyze only visible chart levels.", image_path=None, response_model=Report,
+    )
+    assert result.summary == "Keep this original analysis."
+    assert result.trade_plan.direction_code == "bearish"
+    assert result.trade_plan.reference_price == "63,000"
+    assert result.trade_plan.entry == "64,000"
+    assert len(requests) == 2
