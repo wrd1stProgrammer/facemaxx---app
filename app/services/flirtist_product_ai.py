@@ -471,6 +471,8 @@ def _response_text_format(model: type[ProductModel]) -> dict[str, JsonValue]:
 
 def _openai_latency_options(model: str) -> dict[str, JsonValue]:
     normalized = model.lower()
+    if normalized.startswith("gpt-6"):
+        return {"reasoning": {"effort": "low"}}
     if normalized.startswith("gpt-5") or normalized.startswith(("o3", "o4")):
         return {"reasoning": {"effort": "minimal"}}
     return {}

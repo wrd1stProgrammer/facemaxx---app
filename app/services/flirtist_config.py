@@ -9,7 +9,7 @@ from app.core.config import Settings, get_settings
 
 
 FlirtistProvider = Literal["mock", "openai", "anthropic", "gemini", "codex_cli"]
-DEFAULT_FLIRTIST_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_FLIRTIST_OPENAI_MODEL = "gpt-6-luna"
 DEFAULT_FLIRTIST_CODEX_MODEL = "gpt-5.6-luna"
 DEFAULT_FLIRTIST_CODEX_REASONING_EFFORT = "low"
 

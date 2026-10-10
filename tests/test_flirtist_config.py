@@ -116,7 +116,7 @@ class FlirtistConfigTest(unittest.TestCase):
         # Then
         self.assertEqual(config.requested_provider, "openai")
         self.assertEqual(config.effective_provider, "openai")
-        self.assertEqual(config.openai_model, "gpt-4.1-mini")
+        self.assertEqual(config.openai_model, "gpt-6-luna")
 
     def test_provider_env_config_can_still_force_gemini(self) -> None:
         # Given
