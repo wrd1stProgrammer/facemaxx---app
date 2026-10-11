@@ -422,7 +422,7 @@ async def test_expired_codex_authentication_immediately_uses_openai_fallback(
 
 
 @pytest.mark.anyio
-async def test_openai_recovers_metadata_omitted_by_codex(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
+async def test_openai_bypasses_codex_entirely(tmp_path: Path, valid_payload: AnalysisPayload) -> None:
     missing_metadata = valid_payload.model_copy(
         update={
             "validation": valid_payload.validation.model_copy(
@@ -448,7 +448,7 @@ async def test_openai_recovers_metadata_omitted_by_codex(tmp_path: Path, valid_p
     )
 
     assert result.provider == "openai_fallback"
-    assert codex.calls == 1
+    assert codex.calls == 0
     assert fallback.calls == 1
 
 

@@ -1,5 +1,9 @@
 # ChartAgent backend
 
+## OpenAI-only 운영 (2026-10-12)
+
+분석, 이미지 판독, 뉴스 해석, 후속 질문, 작도는 모두 OpenAI Responses API의 `gpt-6-luna` / `low`를 직접 호출합니다. Codex CLI 및 로그인 상태는 사용하지 않습니다. 운영 compose는 기존 환경 파일보다 우선하는 모델 설정을 주입합니다. 기존 iOS 호환을 위해 응답의 `provider` 값은 `openai_fallback`을 유지하지만 실제로는 API가 유일한 실행 경로입니다. 아래 Codex 우선/폴백 설명은 이전 구조에 해당합니다.
+
 ## Codex 장애 이메일 알림
 
 분석·뉴스 평가·후속 질문·작도의 Codex 호출에서 인증 오류, 타임아웃,

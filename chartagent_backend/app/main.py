@@ -17,7 +17,6 @@ from app.chart_annotations import router as chart_annotations_router
 from app.errors import ChartAgentError
 from app.image_validation import validate_image_bytes
 from app.insightsentry import InsightSentryClient
-from app.providers.codex_cli import CodexCLIProvider
 from app.providers.openai_api import OpenAIAPIProvider
 from app.schemas import (
     AgentCustomization,
@@ -39,7 +38,6 @@ settings = get_settings()
 market_data = InsightSentryClient(settings)
 service = AnalysisService(
     market_data=market_data,
-    codex=CodexCLIProvider(settings),
     fallback=OpenAIAPIProvider(settings),
 )
 analysis_jobs = AnalysisJobManager()
@@ -93,8 +91,10 @@ async def health() -> dict[str, str | bool]:
     return {
         "status": "ok",
         "service": "chartagent",
-        "codex_model": settings.codex_model,
-        "codex_reasoning_effort": settings.codex_reasoning_effort,
+        "provider": "openai_api",
+        "model": settings.openai_model,
+        "annotation_model": settings.chart_annotation_model,
+        "reasoning_effort": "low",
         "openai_fallback_configured": bool(settings.openai_api_key),
         "insightsentry_configured": settings.insightsentry_connection is not None,
     }

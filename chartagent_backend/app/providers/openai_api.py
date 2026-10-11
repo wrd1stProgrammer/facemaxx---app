@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
 from app.errors import AnalysisUnavailableError
-from app.providers.codex_cli import _strict_schema
+from app.providers.structured_schema import _strict_schema
 from app.schemas import TradePlan
 
 
@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 
 class OpenAIAPIProvider:
     def __init__(self, settings: Settings, *, model: str | None = None,
-                 reasoning_effort: Literal["minimal", "low", "medium"] = "minimal",
+                 reasoning_effort: Literal["minimal", "low", "medium"] = "low",
                  timeout_seconds: float = 55.0, max_attempts: int = 2) -> None:
         self.settings = settings
         self.model = model or settings.openai_model
@@ -51,9 +51,6 @@ class OpenAIAPIProvider:
                     "detail": "high",
                 }
             )
-        # Codex is attempted first. Keep the fallback inside a bounded wall-clock
-        # window so the reverse proxy can always return a structured API error
-        # instead of closing the request with an HTML gateway response.
         client = AsyncOpenAI(
             api_key=self.settings.openai_api_key,
             timeout=self.timeout_seconds,

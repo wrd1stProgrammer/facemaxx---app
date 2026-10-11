@@ -31,10 +31,12 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/chartagent/.env
+    environment:
+      CHARTAGENT_OPENAI_MODEL: gpt-6-luna
+      CHARTAGENT_ANNOTATION_MODEL: gpt-6-luna
+      CHARTAGENT_ANNOTATION_PROVIDER: openai_api
     ports:
       - "127.0.0.1:8010:8010"
-    volumes:
-      - codex-home:/home/app/.codex
     healthcheck:
       test:
         [

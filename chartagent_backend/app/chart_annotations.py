@@ -13,7 +13,6 @@ from pydantic import Field, ValidationError, model_validator
 from app.config import get_settings
 from app.errors import AnalysisUnavailableError, ChartAgentError, InvalidChartError
 from app.image_validation import validate_image_bytes
-from app.providers.codex_cli import CodexCLIError, CodexCLIProvider
 from app.providers.openai_api import OpenAIAPIProvider
 from app.schemas import APIModel, Consensus, Scenario, StructureLevel
 
@@ -98,8 +97,6 @@ class ChartAnnotationDocument(ChartAnnotationPlan):
 router = APIRouter()
 _settings = get_settings()
 _admission = anyio.CapacityLimiter(_settings.chart_annotation_max_concurrency)
-_codex = CodexCLIProvider(_settings, reasoning_effort="low", model=_settings.chart_annotation_model,
-                          timeout_seconds=85, max_concurrency=_settings.chart_annotation_max_concurrency)
 _fallback = OpenAIAPIProvider(_settings, reasoning_effort="low", model=_settings.chart_annotation_model,
                             timeout_seconds=100, max_attempts=1)
 _LOCALES = {"ko", "en-US", "ja", "de", "fr-FR", "fr-CA", "es-ES", "es-MX", "pt-BR", "zh-Hant", "zh-Hans", "id", "th", "vi", "it", "tr"}
@@ -145,15 +142,9 @@ async def _annotate(image: UploadFile, locale: str, report_context: str) -> Char
         image_path = Path(directory) / "chart.png"
         normalized.save(image_path)
         prompt = annotation_prompt(width, height, locale, "", context)
-        provider = _fallback if settings.chart_annotation_provider == "openai_api" else _codex
-        try:
-            plan = await provider.complete(
-                prompt=prompt, image_path=image_path, response_model=ChartAnnotationPlan,
-            )
-        except CodexCLIError:
-            plan = await _fallback.complete(
-                prompt=prompt, image_path=image_path, response_model=ChartAnnotationPlan,
-            )
+        plan = await _fallback.complete(
+            prompt=prompt, image_path=image_path, response_model=ChartAnnotationPlan,
+        )
     plan.validate_scenario_links(scenario_count=len(context.scenarios))
     return ChartAnnotationDocument(
         locale=locale,

@@ -59,11 +59,10 @@ class AnalysisService:
         self,
         *,
         market_data: MarketData,
-        codex: StructuredProvider,
+        codex: StructuredProvider | None = None,
         fallback: StructuredProvider,
     ) -> None:
         self.market_data = market_data
-        self.codex = codex
         self.fallback = fallback
 
     async def analyze(self, *, context: AnalysisRequestContext, image_path: Path) -> AnalysisResponse:
@@ -75,12 +74,6 @@ class AnalysisService:
                 image_path=image_path,
                 response_model=ChartValidation,
             )
-            if detection_provider == "codex_cli" and _needs_metadata_recovery(validation):
-                validation = await self.fallback.complete(
-                    prompt=detection_prompt,
-                    image_path=image_path,
-                    response_model=ChartValidation,
-                )
             symbol, timeframe = await self._resolve_chart_context(validation)
             content, provider_name, news, news_impact = await self._analyze_chart_and_news(
                 context=context,
@@ -101,13 +94,6 @@ class AnalysisService:
                 image_path=image_path,
                 response_model=AnalysisPayload,
             )
-            if provider_name == "codex_cli" and _needs_metadata_recovery(payload.validation):
-                payload = await self.fallback.complete(
-                    prompt=analysis_prompt,
-                    image_path=image_path,
-                    response_model=AnalysisPayload,
-                )
-                provider_name = "openai_fallback"
             symbol, timeframe = await self._resolve_chart_context(payload.validation)
         payload = _normalize_news_impact(
             payload,
@@ -220,38 +206,13 @@ class AnalysisService:
         response_model: type[ResponseModel],
     ) -> tuple[ResponseModel, str]:
         started_at = time.monotonic()
-        try:
-            result = await self.codex.complete(
-                prompt=prompt,
-                image_path=image_path,
-                response_model=response_model,
-            )
-            LOGGER.info(
-                "Codex completion succeeded response_model=%s elapsed_seconds=%.2f",
-                response_model.__name__,
-                time.monotonic() - started_at,
-            )
-            return result, "codex_cli"
-        except Exception as error:  # noqa: BLE001 - provider boundary must always fall back
-            failure_reason = getattr(error, "reason", type(error).__name__)
-            LOGGER.warning(
-                "Codex completion failed; using OpenAI fallback response_model=%s reason=%s elapsed_seconds=%.2f",
-                response_model.__name__,
-                failure_reason,
-                time.monotonic() - started_at,
-            )
-            fallback_started_at = time.monotonic()
-            result = await self.fallback.complete(
-                prompt=prompt,
-                image_path=image_path,
-                response_model=response_model,
-            )
-            LOGGER.info(
-                "OpenAI fallback succeeded response_model=%s elapsed_seconds=%.2f",
-                response_model.__name__,
-                time.monotonic() - fallback_started_at,
-            )
-            return result, "openai_fallback"
+        result = await self.fallback.complete(
+            prompt=prompt, image_path=image_path, response_model=response_model,
+        )
+        LOGGER.info("OpenAI completion succeeded response_model=%s elapsed_seconds=%.2f",
+                    response_model.__name__, time.monotonic() - started_at)
+        # Keep the wire value accepted by already released iOS clients.
+        return result, "openai_fallback"
 
     async def _resolve_chart_context(self, validation: ChartValidation) -> tuple[SymbolInfo, str]:
         _raise_for_invalid_chart(validation)

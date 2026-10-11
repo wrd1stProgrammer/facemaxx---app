@@ -62,11 +62,10 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
     from fastapi.testclient import TestClient
     from PIL import Image
     from app import chart_annotations as annotations, main
-    from app.providers.codex_cli import CodexCLIError
 
-    assert annotations.get_settings().chart_annotation_provider == "codex_cli"
-    assert annotations._codex.model == annotations._fallback.model == "gpt-5.6-luna"
-    assert annotations._codex.reasoning_effort == annotations._fallback.reasoning_effort == "low"
+    assert annotations._fallback.model == "gpt-6-luna"
+    assert annotations._fallback.reasoning_effort == "low"
+    assert not hasattr(annotations, "_codex")
 
     context = annotations.AnnotationReportContext(consensus=valid_payload.consensus,
         scenarios=[], structure=[], trend_evidence=["두 저점이 높아집니다."])
@@ -80,14 +79,10 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
             calls.append(self.name)
             assert "두 저점이 높아집니다." in prompt
             assert image_path.exists()
-            if self.name == "codex" and use_fallback:
-                raise CodexCLIError("process_exit")
             return response_model(summary="추세선 유지 여부를 확인합니다.", annotations=[])
 
     settings = annotations.get_settings().model_copy(update={"chart_annotation_provider": provider_name})
     monkeypatch.setattr(annotations, "get_settings", lambda: settings)
-    legacy_codex = main.service.codex
-    monkeypatch.setattr(annotations, "_codex", Provider("codex"))
     monkeypatch.setattr(annotations, "_fallback", Provider("fallback"))
     image = BytesIO()
     Image.new("RGB", (640, 480)).save(image, format="PNG")
@@ -97,11 +92,10 @@ def test_v2_uses_report_context_and_dedicated_providers(monkeypatch, valid_paylo
     assert response.status_code == 200, response.text
     assert response.json()["image_width"] == 640
     assert response.json()["locale"] == "ko"
-    expected = ["fallback"] if provider_name == "openai_api" else (["codex", "fallback"] if use_fallback else ["codex"])
-    assert calls == expected
-    assert main.service.codex is legacy_codex
-    assert legacy_codex.model == "gpt-5.6-luna"
-    assert legacy_codex.reasoning_effort == "low"
+    assert calls == ["fallback"]
+    assert not hasattr(main.service, "codex")
+    assert main.service.fallback.model == "gpt-6-luna"
+    assert main.service.fallback.reasoning_effort == "low"
     assert annotations._admission.borrowed_tokens == 0
     assert client.post("/v1/chart-annotations").status_code == 404
 
@@ -121,7 +115,7 @@ def test_v2_rejects_invalid_context_and_can_be_disabled_without_disabling_v1(mon
     response = client.post("/v2/chart-annotations", data={"report_context": "{}"}, files=files)
     assert response.status_code == 503
     assert response.json()["code"] == "annotations_disabled"
-    assert client.get("/health").json()["codex_model"] == "gpt-5.6-luna"
+    assert client.get("/health").json()["model"] == "gpt-6-luna"
     assert "/v1/analysis-jobs" in client.get("/openapi.json").json()["paths"]
 
 
