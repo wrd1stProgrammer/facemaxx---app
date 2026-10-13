@@ -14,6 +14,7 @@ from app.analysis_jobs import AnalysisJobManager
 from app.product_analytics import AnalyticsContext, analytics, current_context
 from app.config import get_settings
 from app.chart_annotations import router as chart_annotations_router
+from app.market_candles import router as market_candles_router
 from app.errors import ChartAgentError
 from app.image_validation import validate_image_bytes
 from app.insightsentry import InsightSentryClient
@@ -55,6 +56,7 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
 )
 app.include_router(chart_annotations_router)
+app.include_router(market_candles_router)
 
 
 @app.middleware("http")
