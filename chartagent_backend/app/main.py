@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.chart_annotations import router as chart_annotations_router
 from app.market_candles import router as market_candles_router
 from app.android_legal import router as android_legal_router
+from app.content_reports import router as content_reports_router
 from app.errors import ChartAgentError
 from app.image_validation import validate_image_bytes
 from app.insightsentry import InsightSentryClient
@@ -59,6 +60,7 @@ app = FastAPI(
 app.include_router(chart_annotations_router)
 app.include_router(market_candles_router)
 app.include_router(android_legal_router)
+app.include_router(content_reports_router)
 
 
 @app.middleware("http")
