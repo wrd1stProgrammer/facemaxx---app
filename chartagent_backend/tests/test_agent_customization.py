@@ -1,10 +1,51 @@
 from __future__ import annotations
 
+import json
+import unicodedata
+
 import pytest
 from pydantic import ValidationError
 
 from app.prompts import build_agent_directives, build_analysis_prompt
 from app.schemas import AgentCustomization, AnalysisRequestContext, SymbolInfo
+
+
+@pytest.mark.parametrize("normalization", ["NFC", "NFD"])
+def test_vietnamese_defaults_survive_wire_validation(normalization: str) -> None:
+    profile = AgentCustomization(
+        role_id="trend",
+        display_name=unicodedata.normalize(normalization, "hợp thời trang"),
+        tone=unicodedata.normalize(normalization, "Ngắn gọn và quyết đoán"),
+        concept="trend_following",
+        appearance_id="default_trendy",
+    )
+    assert profile.display_name == "Trendy"
+    assert profile.tone == "간결하고 단호하게"
+
+
+def test_long_default_name_is_not_accepted_for_another_role() -> None:
+    with pytest.raises(ValidationError):
+        AgentCustomization(
+            role_id="risk", display_name="hợp thời trang", tone="간결하게",
+            concept="risk_invalidation", appearance_id="default_gadi",
+        )
+
+
+def test_vietnamese_profiles_pass_analysis_request_parsing() -> None:
+    from app.main import _analysis_context
+
+    context = _analysis_context(
+        include_news=False,
+        active_agent_ids="trend,pattern,risk",
+        locale="vi",
+        agent_profiles=json.dumps([{
+            "role_id": "trend", "display_name": "hợp thời trang",
+            "tone": "Ngắn gọn và quyết đoán", "concept": "trend_following",
+            "appearance_id": "default_trendy",
+        }], ensure_ascii=False),
+    )
+    assert context.response_language == "vi"
+    assert context.agent_customizations[0].display_name == "Trendy"
 
 
 def test_agent_customization_accepts_bounded_metadata() -> None:

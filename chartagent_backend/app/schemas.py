@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Literal, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationInfo, field_validator, model_validator
 
 
 AgentRoleID = Literal["trend", "pattern", "momentum", "risk", "devil"]
@@ -110,6 +110,18 @@ class AgentCustomization(APIModel):
     tone: str = Field(min_length=1, max_length=20)
     concept: AgentConcept
     appearance_id: AgentAppearanceID
+
+    @field_validator("display_name", "tone", mode="before")
+    @classmethod
+    def normalize_localized_defaults(cls, value: object, info: ValidationInfo) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = unicodedata.normalize("NFC", value)
+        if info.field_name == "display_name" and info.data.get("role_id") == "trend" and normalized == "hợp thời trang":
+            return "Trendy"
+        if info.field_name == "tone" and normalized == "Ngắn gọn và quyết đoán":
+            return "간결하고 단호하게"
+        return normalized
 
     @field_validator("display_name", "tone")
     @classmethod
