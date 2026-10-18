@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -53,6 +54,7 @@ async def test_analysis_job_endpoint_is_polled_until_the_result_is_ready(
         result=valid_payload,
         news=[],
     )
+    expected = expected.model_copy(update={"created_at": datetime(2026, 10, 17, 23, 34, 29, 35123, tzinfo=UTC)})
 
     async def fixed_analysis(**_: object) -> AnalysisResponse:
         return expected
@@ -76,3 +78,5 @@ async def test_analysis_job_endpoint_is_polled_until_the_result_is_ready(
 
     assert response.status_code == 200
     assert response.json()["result"]["id"] == expected.id
+    assert response.json()["result"]["created_at"] == "2026-10-17T23:34:29Z"
+    assert expected.created_at.microsecond == 35123

@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Literal, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationInfo, field_serializer, field_validator, model_validator
 
 
 AgentRoleID = Literal["trend", "pattern", "momentum", "risk", "devil"]
@@ -322,6 +322,10 @@ class AnalysisResponse(APIModel):
     result: AnalysisPayload
     news: list[NewsItem]
     agent_profiles: list[AgentCustomization] = Field(default_factory=list, max_length=5)
+
+    @field_serializer("created_at", when_used="json")
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
     @classmethod
     def create(
