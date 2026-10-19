@@ -146,6 +146,24 @@ class InsightSentryClient:
             for row in selected
         ]
 
+    async def fetch_latest_news(self, code: str, name: str | None = None) -> list[_NewsRow]:
+        now = int(time.time())
+        params = {
+            "limit": "40", "page": "1",
+            "from": (datetime.fromtimestamp(now, UTC) - timedelta(hours=48)).strftime("%Y-%m-%d"),
+        }
+        try:
+            payload = await self._get("/v3/newsfeed", params={**params, "related_symbols": _news_asset_root(code)})
+            rows = _NewsPayload.model_validate(payload).data
+            if not _select_recent_news(rows, now_timestamp=now):
+                terms = _news_keywords(code, name)
+                if terms:
+                    payload = await self._get("/v3/newsfeed", params={**params, "keywords": ",".join(terms)})
+                    rows = _NewsPayload.model_validate(payload).data
+            return _select_recent_news(rows, now_timestamp=now)[:8]
+        except (httpx.HTTPError, ValidationError) as error:
+            raise DependencyError("InsightSentry 뉴스") from error
+
     async def _fetch_news_pages(
         self,
         *,
