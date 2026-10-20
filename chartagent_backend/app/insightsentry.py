@@ -146,6 +146,23 @@ class InsightSentryClient:
             for row in selected
         ]
 
+    async def fetch_news_page(self, code: str, page: int) -> tuple[list[_NewsRow], bool]:
+        try:
+            payload = await self._get("/v3/newsfeed", params={
+                "limit": "10", "page": str(page), "related_symbols": _news_asset_root(code),
+            })
+            parsed = _NewsPayload.model_validate(payload)
+            seen = set()
+            rows = []
+            for row in parsed.data:
+                key = (row.title.strip().casefold(), _published_seconds(row.published_at))
+                if row.title.strip() and key not in seen:
+                    seen.add(key)
+                    rows.append(row)
+            return rows[:10], parsed.has_next
+        except (httpx.HTTPError, ValidationError) as error:
+            raise DependencyError("InsightSentry 뉴스") from error
+
     async def fetch_latest_news(self, code: str, name: str | None = None) -> list[_NewsRow]:
         now = int(time.time())
         params = {

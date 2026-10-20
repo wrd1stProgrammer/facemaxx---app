@@ -92,3 +92,34 @@ async def test_chat_requires_analyzed_snapshot_and_expiry(tmp_path):
     with pytest.raises(ChartAgentError) as error:
         service.snapshot(feed.id)
     assert error.value.status_code == 410
+
+
+@pytest.mark.asyncio
+async def test_pages_and_article_analysis_are_isolated(tmp_path):
+    class PagedMarket(Market):
+        async def fetch_news_page(self, code, page):
+            return [
+                SimpleNamespace(title=f"Article {page}-{index}", source="Example",
+                                published_at=1792400000 - page * 100 - index,
+                                link=f"https://example.com/{page}/{index}", content="Evidence")
+                for index in range(10)
+            ], page == 1
+
+    provider = Provider()
+    service = NewsWorkspace(PagedMarket(), provider, tmp_path / "cache.db")
+    first = await service.feed("NASDAQ:AAPL", page=1)
+    second = await service.feed("NASDAQ:AAPL", page=2)
+    assert len(first.articles) == len(second.articles) == 10
+    assert first.next_page == 2 and second.next_page is None
+    assert not {a.id for a in first.articles} & {a.id for a in second.articles}
+    request = NewsRequest(feed_id=first.id, article_id=first.articles[0].id, language="ko")
+    assert len(service.scoped_feed(request).articles) == 1
+    provider.source = first.articles[1].id
+    with pytest.raises(ChartAgentError):
+        await service.analyze(request)
+    provider.source = first.articles[0].id
+    await service.analyze(request)
+    with pytest.raises(ChartAgentError) as error:
+        await service.chat(ChatRequest(feed_id=first.id, article_id=first.articles[1].id,
+                                       agent_id="risk", question="Why?"))
+    assert error.value.status_code == 409
