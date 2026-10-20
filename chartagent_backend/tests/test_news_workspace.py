@@ -13,7 +13,7 @@ class Market:
         self.calls = 0
 
     async def resolve_symbol(self, symbol):
-        return SimpleNamespace(code=symbol, name="Apple")
+        return SimpleNamespace(code=symbol, name="Apple", instrument_type="stock")
 
     async def fetch_latest_news(self, code, name):
         self.calls += 1
@@ -97,7 +97,7 @@ async def test_chat_requires_analyzed_snapshot_and_expiry(tmp_path):
 @pytest.mark.asyncio
 async def test_pages_and_article_analysis_are_isolated(tmp_path):
     class PagedMarket(Market):
-        async def fetch_news_page(self, code, page):
+        async def fetch_news_page(self, code, page, name="", instrument_type=""):
             return [
                 SimpleNamespace(title=f"Article {page}-{index}", source="Example",
                                 published_at=1792400000 - page * 100 - index,

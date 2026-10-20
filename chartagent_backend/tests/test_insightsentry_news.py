@@ -20,6 +20,24 @@ class _FakeInsightSentryClient(InsightSentryClient):
         return self.responder(request_params)
 
 
+@pytest.mark.anyio
+async def test_crypto_feed_searches_body_and_tags_without_ticker_collisions() -> None:
+    client = _FakeInsightSentryClient(lambda params: {
+        "data": [{"title": title, "published_at": 2000000000} for title in [
+            "Bitcoin ETFs attract inflows", "BTC falls below support",
+            "Goobit (BTCX) raises funds", "Bluesky Digital Assets (BTC) terminates deal",
+        ]] + [
+            {"title": "ETF inflows accelerate", "content": "Spot Bitcoin funds attracted capital.", "published_at": 2000000000},
+            {"title": "Market update", "related_symbols": ["COINBASE:BTCUSD"], "published_at": 2000000000},
+        ],
+        "has_next": True,
+    })
+    rows, more = await client.fetch_news_page("BITGET:BTCUSDT", 1, "BTCUSDT SPOT", "SPOT")
+    assert client.calls == [{"limit": "10", "page": "1", "keywords": "BTC,Bitcoin"}]
+    assert [row.title for row in rows] == ["Bitcoin ETFs attract inflows", "BTC falls below support", "ETF inflows accelerate", "Market update"]
+    assert more
+
+
 def _news_rows(*, now: int, prefix: str, recent: int, prior: int) -> list[dict[str, object]]:
     return [
         {

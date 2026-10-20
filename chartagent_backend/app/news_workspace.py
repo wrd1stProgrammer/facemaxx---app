@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.errors import ChartAgentError
-from app.insightsentry import InsightSentryClient, _published_seconds
+from app.insightsentry import InsightSentryClient, _NewsRow, _published_seconds
 from app.providers.openai_api import OpenAIAPIProvider
 from app.schemas import normalize_response_language
 
@@ -148,7 +148,7 @@ class NewsWorkspace:
         return await asyncio.shield(self.pending[key])
 
     async def feed(self, symbol: str, page: int | None = None):
-        key = f"latest:v2:{symbol.upper()}:{page or 'legacy'}"
+        key = f"latest:v3:{symbol.upper()}:{page or 'legacy'}"
         if cached := self.get(key):
             return NewsFeed.model_validate(cached)
 
@@ -160,8 +160,34 @@ class NewsWorkspace:
             if page is None:
                 rows = await self.market.fetch_latest_news(info.code, info.name)
             else:
-                rows, has_next = await self.market.fetch_news_page(info.code, page)
-                next_page = page + 1 if has_next else None
+                cursor_key = f"news-cursor:v1:{info.code}:"
+                cursor = self.get(cursor_key + str(page)) if page > 1 else None
+                if page > 1 and cursor is None:
+                    raise ChartAgentError("news_expired", "목록을 새로고침해 주세요.", 410)
+                rows = [_NewsRow.model_validate(row) for row in (cursor or {}).get("remaining", [])]
+                source_page = (cursor or {}).get("source_page", 1)
+                has_next = (cursor or {}).get("has_next", True)
+                seen = set((cursor or {}).get("seen", [])) | {row.title.strip().casefold() for row in rows}
+                for _ in range(4):
+                    if len(rows) >= 10 or not has_next:
+                        break
+                    batch, has_next = await self.market.fetch_news_page(
+                        info.code, source_page, info.name, info.instrument_type)
+                    source_page += 1
+                    for row in batch:
+                        identity = row.title.strip().casefold()
+                        if identity not in seen:
+                            seen.add(identity)
+                            rows.append(row)
+                remaining = rows[10:]
+                rows = rows[:10]
+                if remaining or has_next:
+                    next_page = page + 1
+                    self.put(cursor_key + str(next_page), {
+                        "source_page": source_page, "has_next": has_next,
+                        "remaining": [row.model_dump() for row in remaining],
+                        "seen": sorted(seen),
+                    })
             articles = []
             for row in rows:
                 identity = hashlib.sha256((row.title + str(row.published_at)).encode()).hexdigest()[:24]
