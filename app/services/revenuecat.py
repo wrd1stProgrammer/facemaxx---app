@@ -21,8 +21,10 @@ class RevenueCatService:
     def __init__(self) -> None:
         self.purchase_repository = PurchaseRepository()
 
-    async def sync_subscriber(self, app_user_id: str) -> ProScanStatusResponse:
-        subscriber_payload = await self._fetch_subscriber(app_user_id)
+    async def sync_subscriber(
+        self, app_user_id: str, *, revenuecat_app_user_id: str | None = None
+    ) -> ProScanStatusResponse:
+        subscriber_payload = await self._fetch_subscriber(revenuecat_app_user_id or app_user_id)
         subscriber = subscriber_payload.get("subscriber") or {}
 
         original_app_user_id = subscriber.get("original_app_user_id")

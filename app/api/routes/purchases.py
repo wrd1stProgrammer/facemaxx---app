@@ -38,7 +38,12 @@ async def sync_pro_scan_status(
         f"user_id={identity.user_id or 'none'}",
         f"install_id={identity.client_install_id or 'none'}",
     )
-    return await RevenueCatService().sync_subscriber(app_user_id)
+    # Swift UUID.uuidString uses uppercase for guest RevenueCat identities.
+    # Keep the database's normalized UUID while querying the purchase identity.
+    revenuecat_app_user_id = app_user_id.upper() if identity.user_id is None else app_user_id
+    return await RevenueCatService().sync_subscriber(
+        app_user_id, revenuecat_app_user_id=revenuecat_app_user_id
+    )
 
 
 @router.post("/pro-scans/reviewer-grant", response_model=ReviewerProScanGrantResponse)
