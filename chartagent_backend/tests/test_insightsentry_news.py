@@ -21,6 +21,19 @@ class _FakeInsightSentryClient(InsightSentryClient):
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("code,kind", [("AMEX:SOXL", "stock"), ("BINANCE:SOXLUSDT", "spot"), ("BINANCE:SOXLUSDT.P", "swap"), ("BVL:SOXLUS", "stock")])
+async def test_news_page_uses_same_underlying_ticker_for_every_venue(code, kind):
+    client = _FakeInsightSentryClient(lambda _: {"data": [
+        {"title": "SOXL fund update", "published_at": 2000000000},
+        {"title": "Unrelated SOXLX offering", "published_at": 2000000000},
+        {"title": "ETF volume", "content": "SOXL saw activity.", "published_at": 2000000000},
+    ], "has_next": False})
+    rows, _ = await client.fetch_news_page(code, 2, "Arbitrary exchange product name", kind)
+    assert client.calls == [{"limit": "10", "page": "2", "keywords": "SOXL"}]
+    assert [row.title for row in rows] == ["SOXL fund update", "ETF volume"]
+
+
+@pytest.mark.anyio
 async def test_crypto_feed_searches_body_and_tags_without_ticker_collisions() -> None:
     client = _FakeInsightSentryClient(lambda params: {
         "data": [{"title": title, "published_at": 2000000000} for title in [

@@ -149,11 +149,8 @@ class InsightSentryClient:
 
     async def fetch_news_page(self, code: str, page: int, name: str = "", instrument_type: str = "") -> tuple[list[_NewsRow], bool]:
         root = _news_asset_root(code)
-        crypto = instrument_type.lower() in {"spot", "crypto", "cryptocurrency", "swap"} or (
-            root != code.rsplit(":", 1)[-1] and root in {"BTC", "ETH", "SOL", "XRP"}
-        )
-        terms = _news_keywords(code, name) if crypto else []
-        filters = {"keywords": ",".join(terms)} if terms else {"related_symbols": root}
+        terms = _news_keywords(root) or [root]
+        filters = {"keywords": ",".join(terms)}
         try:
             payload = await self._get("/v3/newsfeed", params={
                 "limit": "10", "page": str(page), **filters,
@@ -163,12 +160,14 @@ class InsightSentryClient:
             rows = []
             for row in parsed.data:
                 key = (row.title.strip().casefold(), _published_seconds(row.published_at))
-                if crypto:
+                if terms:
                     # Provider keyword matching is partial: BTC also matches BTCX.
                     text = f"{row.title}\n{row.content}"
                     text_match = any(re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text, re.I) for term in terms)
                     pair_match = any(
-                        _news_asset_root(symbol) == root and symbol.rsplit(":", 1)[-1] != root
+                        _news_asset_root(symbol) == root and (
+                            root != "BTC" or symbol.rsplit(":", 1)[-1] != root
+                        )
                         for symbol in row.related_symbols
                     )
                     if root == "BTC" and "bluesky" in text.lower() and "bitcoin" not in text.lower():

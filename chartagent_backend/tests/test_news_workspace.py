@@ -39,7 +39,29 @@ class Provider:
                           upside_condition="Growth persists", downside_condition="Growth reverses", uncertainty="Incomplete")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
+async def test_feed_shares_underlying_ticker_across_exchanges_and_pairs(tmp_path):
+    class CanonicalMarket(Market):
+        async def resolve_symbol(self, symbol):
+            raise AssertionError("News must not depend on exchange lookup")
+
+        async def fetch_news_page(self, code, page, name="", instrument_type=""):
+            self.calls += 1
+            assert code == "SOXL"
+            return [SimpleNamespace(title="SOXL news", source="Example",
+                                    published_at=1792400000, link="https://example.com/soxl",
+                                    content="SOXL fund news")], False
+
+    market = CanonicalMarket()
+    service = NewsWorkspace(market, Provider(), tmp_path / "cache.db")
+    feeds = [await service.feed(symbol, page=1) for symbol in
+             ("AMEX:SOXL", "BINANCE:SOXLUSDT", "BVL:SOXLUS", "SOXL")]
+    assert market.calls == 1
+    assert len({feed.id for feed in feeds}) == 1
+    assert all(feed.symbol == "SOXL" for feed in feeds)
+
+
+@pytest.mark.anyio
 async def test_feed_coalesces_and_survives_new_service(tmp_path):
     market = Market()
     service = NewsWorkspace(market, Provider(), tmp_path / "cache.db")
@@ -51,7 +73,18 @@ async def test_feed_coalesces_and_survives_new_service(tmp_path):
     assert restarted.snapshot(one.id) == one
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
+async def test_legacy_exchange_cursor_remains_usable(tmp_path):
+    service = NewsWorkspace(Market(), Provider(), tmp_path / "cache.db")
+    service.put("news-cursor:v1:NASDAQ:AAPL:2", {
+        "remaining": [], "source_page": 2, "has_next": False, "seen": [],
+    })
+    feed = await service.feed("NASDAQ:AAPL", page=2)
+    assert feed.symbol == "AAPL"
+    assert feed.next_page is None
+
+
+@pytest.mark.anyio
 async def test_analysis_rejects_unknown_sources_without_caching(tmp_path):
     provider = Provider()
     service = NewsWorkspace(Market(), provider, tmp_path / "cache.db")
@@ -66,7 +99,7 @@ async def test_analysis_rejects_unknown_sources_without_caching(tmp_path):
     assert provider.calls == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_translation_caches_per_language_and_requires_real_article(tmp_path):
     provider = Provider()
     service = NewsWorkspace(Market(), provider, tmp_path / "cache.db")
@@ -81,7 +114,7 @@ async def test_translation_caches_per_language_and_requires_real_article(tmp_pat
         await service.translate(request.model_copy(update={"article_id": "fake"}))
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_chat_requires_analyzed_snapshot_and_expiry(tmp_path):
     service = NewsWorkspace(Market(), Provider(), tmp_path / "cache.db")
     feed = await service.feed("NASDAQ:AAPL")
@@ -94,7 +127,7 @@ async def test_chat_requires_analyzed_snapshot_and_expiry(tmp_path):
     assert error.value.status_code == 410
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_pages_and_article_analysis_are_isolated(tmp_path):
     class PagedMarket(Market):
         async def fetch_news_page(self, code, page, name="", instrument_type=""):

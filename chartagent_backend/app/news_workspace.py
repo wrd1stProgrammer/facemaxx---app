@@ -17,9 +17,9 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.errors import ChartAgentError
-from app.insightsentry import InsightSentryClient, _NewsRow, _published_seconds
+from app.insightsentry import InsightSentryClient, _NewsRow, _published_seconds, _news_asset_root
 from app.providers.openai_api import OpenAIAPIProvider
-from app.schemas import normalize_response_language
+from app.schemas import normalize_response_language, SymbolInfo
 
 router = APIRouter(prefix="/v1/news", tags=["news"])
 
@@ -148,20 +148,21 @@ class NewsWorkspace:
         return await asyncio.shield(self.pending[key])
 
     async def feed(self, symbol: str, page: int | None = None):
-        key = f"latest:v3:{symbol.upper()}:{page or 'legacy'}"
+        root = _news_asset_root(symbol)
+        key = f"latest:v4:{root}:{page or 'legacy'}"
         if cached := self.get(key):
             return NewsFeed.model_validate(cached)
 
         async def collect():
-            info = await self.market.resolve_symbol(symbol)
-            if info is None:
-                raise ChartAgentError("invalid_symbol", "종목을 확인할 수 없습니다.", 422)
+            info = SymbolInfo(code=root, name=root, instrument_type="")
             next_page = None
             if page is None:
                 rows = await self.market.fetch_latest_news(info.code, info.name)
             else:
-                cursor_key = f"news-cursor:v1:{info.code}:"
+                cursor_key = f"news-cursor:v2:{info.code}:"
                 cursor = self.get(cursor_key + str(page)) if page > 1 else None
+                if page > 1 and cursor is None:
+                    cursor = self.get(f"news-cursor:v1:{symbol.upper()}:{page}")
                 if page > 1 and cursor is None:
                     raise ChartAgentError("news_expired", "목록을 새로고침해 주세요.", 410)
                 rows = [_NewsRow.model_validate(row) for row in (cursor or {}).get("remaining", [])]
@@ -317,7 +318,7 @@ workspace = NewsWorkspace(InsightSentryClient(get_settings()), OpenAIAPIProvider
 
 
 @router.get("", response_model=NewsFeed)
-async def latest_news(symbol: str = Query(min_length=3, max_length=100, pattern=r"^[^\s/:]+:[^\s/]+$"),
+async def latest_news(symbol: str = Query(min_length=1, max_length=100, pattern=r"^(?:[^\s/:]+:)?[^\s/:]+$"),
                       page: int | None = Query(default=None, ge=1, le=1000)):
     return await workspace.feed(symbol, page)
 
