@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes.flirtist import router
-from app.services.flirtist_simulation import ExtractRequest, extract
+from app.services.flirtist_simulation import ExtractRequest, SimulationRequest, extract, reply
 
 
 class SimulationRouteTests(unittest.TestCase):
@@ -42,6 +42,24 @@ class SimulationRouteTests(unittest.TestCase):
     def test_invalid_image_rejected(self):
         result = self.client.post("/api/flirtist/simulation/extract", json={"imageBase64": "not-a-jpeg"})
         self.assertEqual(result.status_code, 422)
+
+    @patch("app.services.flirtist_simulation.OpenAI")
+    def test_reply_maps_counterpart_to_assistant_and_preserves_history(self, provider):
+        client = provider.return_value.__enter__.return_value
+        client.responses.create.return_value.output_text = "응 내 손 아직 아파ㅠㅠ"
+        request = SimulationRequest(
+            transcript=[{"role": "me", "text": "오른손은 괜찮대?"},
+                        {"role": "them", "text": "왼손이 문제야"}],
+            history=[{"role": "me", "text": "음 어떡하지"},
+                     {"role": "them", "text": "조금 더 쉬어봐야겠어"}],
+            context="Counterpart name: 유진", message="병원가자", language="ko",
+        )
+        self.assertEqual(reply(request), {"text": "응 내 손 아직 아파ㅠㅠ"})
+        args = client.responses.create.call_args.kwargs
+        turns = [turn for turn in args["input"] if turn["role"] != "developer"]
+        self.assertEqual([turn["role"] for turn in turns], ["user", "assistant", "user", "assistant", "user"])
+        self.assertEqual([turn["content"] for turn in turns], ["오른손은 괜찮대?", "왼손이 문제야", "음 어떡하지", "조금 더 쉬어봐야겠어", "병원가자"])
+        self.assertIn("ownership", args["instructions"])
 
     @patch("app.services.flirtist_simulation.OpenAI")
     def test_image_extraction_requests_json_in_input(self, provider):
