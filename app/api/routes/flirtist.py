@@ -30,6 +30,24 @@ from app.services.flirtist_service import FlirtistService
 
 router = APIRouter(prefix="/api/flirtist", tags=["flirtist"])
 
+from app.services.flirtist_simulation import ExtractRequest, ExtractResponse, SimulationRequest, extract, reply
+
+
+@router.post("/simulation/extract", response_model=ExtractResponse)
+async def simulation_extract(request: ExtractRequest):
+    try:
+        return await run_in_threadpool(extract, request)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not read conversation. Please retry.") from exc
+
+
+@router.post("/simulation/reply")
+async def simulation_reply(request: SimulationRequest):
+    try:
+        return await run_in_threadpool(reply, request)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not generate rehearsal reply. Please retry.") from exc
+
 
 @router.post("/analyze-chat", response_model=FlirtistResponse)
 async def analyze_chat(request: FlirtistChatRequest) -> FlirtistResponse:
