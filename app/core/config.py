@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     gemini_retry_base_delay_seconds: float = 0.8
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-6-luna"
+    openai_image_model: str = "gpt-image-2.5-sunburst"
 
     revenuecat_secret_api_key: Optional[str] = None
     revenuecat_webhook_bearer_token: Optional[str] = None

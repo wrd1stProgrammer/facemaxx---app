@@ -92,6 +92,15 @@ class AnalysisRunner:
             else []
         )
 
+        # Reserve atomically before any paid provider work, including concurrent requests.
+        if pro_scan_required:
+            pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
+            if not pro_scan_reservation.allowed:
+                raise HTTPException(status_code=402, detail="A scan credit is required")
+            if pro_scan_reservation.consumed_free_trial and request.mode_id not in FREE_TRIAL_MODE_IDS:
+                self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
+                raise HTTPException(status_code=402, detail="The free trial is only available for proportions analysis")
+
         try:
             print(
                 "Facemaxx analysis provider:",
@@ -147,12 +156,14 @@ class AnalysisRunner:
             )
             result = sanitize_analysis_result(result)
         except asyncio.TimeoutError as exc:
+            self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
             print("Facemaxx analysis provider timed out.")
             raise HTTPException(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="Analysis provider timed out before a scan credit was used.",
+                detail="Analysis provider timed out. The reserved scan credit has been returned.",
             ) from exc
         except Exception as exc:
+            self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
             print("Facemaxx analysis provider failed:", repr(exc))
             traceback.print_exc()
             raise HTTPException(
@@ -160,8 +171,9 @@ class AnalysisRunner:
                 detail=f"Analysis provider failed: {exc}",
             ) from exc
 
-        if pro_scan_required:
-            pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
+        except asyncio.CancelledError:
+            self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
+            raise
         is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
 
         try:
@@ -207,6 +219,8 @@ class AnalysisRunner:
     def _provider_photo_input(self, photo_id: UUID) -> ProviderPhotoInput:
         photo_url = self.photo_repository.get_public_photo_url(photo_id)
         photo_bytes, photo_mime_type = self.photo_repository.get_photo_bytes(photo_id)
+        if photo_bytes is None and photo_url is None:
+            raise HTTPException(status_code=410, detail="Temporary photo expired. Please upload it again.")
         return ProviderPhotoInput(
             photo_id=photo_id,
             photo_url=photo_url,

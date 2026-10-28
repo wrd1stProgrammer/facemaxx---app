@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile, status
 
 from app.api.deps import RequestIdentity, get_request_identity
 from app.repositories.photo_repository import PhotoRepository
@@ -26,6 +26,7 @@ async def upload_photo(
     file: UploadFile = File(...),
     width: Optional[int] = Form(default=None),
     height: Optional[int] = Form(default=None),
+    x_facemaxx_device_storage: str | None = Header(default=None),
 ) -> PhotoOut:
     mime_type = file.content_type or "application/octet-stream"
     if not mime_type.startswith("image/"):
@@ -49,6 +50,7 @@ async def upload_photo(
         mime_type=mime_type,
         width=width,
         height=height,
+        device_storage=x_facemaxx_device_storage == "1",
     )
 
 

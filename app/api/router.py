@@ -11,6 +11,7 @@ from app.api.routes import (
     onboarding,
     photos,
     purchases,
+    style_studio,
 )
 
 api_router = APIRouter()
@@ -24,3 +25,4 @@ api_router.include_router(account.router)
 api_router.include_router(purchases.router)
 api_router.include_router(habitdot.router)
 api_router.include_router(flirtist.router)
+api_router.include_router(style_studio.router)

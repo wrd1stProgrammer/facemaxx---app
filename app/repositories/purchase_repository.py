@@ -144,14 +144,7 @@ class PurchaseRepository:
 
         supabase = get_supabase_service_client()
         if supabase is None:
-            return ProScanReservation(
-                app_user_id=app_user_id,
-                allowed=False,
-                subscription_active=False,
-                free_trial_scan_available=False,
-                credits_remaining=0,
-                consumed_source=None,
-            )
+            raise HTTPException(status_code=503, detail="Credit verification is unavailable. Please retry later.")
 
         response = supabase.rpc(
             "consume_pro_scan_credit",

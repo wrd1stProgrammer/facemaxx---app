@@ -67,22 +67,24 @@ class PhotoRepository:
         mime_type: str | None,
         width: int | None,
         height: int | None,
+        device_storage: bool = False,
     ) -> PhotoOut:
         settings = get_settings()
         photo_id = uuid4()
         mime_type = mime_type or "application/octet-stream"
         extension = self._extension_for(mime_type, filename)
         owner_segment = f"users/{user_id}" if user_id else f"installs/{client_install_id or settings.demo_user_id}"
-        local_storage_path = f"{owner_segment}/{photo_id}.{extension}"
+        prefix = "ephemeral/" if device_storage else ""
+        local_storage_path = f"{prefix}{owner_segment}/{photo_id}.{extension}"
         digest = hashlib.sha256(content).hexdigest()
         self._write_local_photo(local_storage_path, content)
-        remote_location = self._upload_remote_photo(
-            local_storage_path=local_storage_path,
-            photo_id=photo_id,
-            owner_segment=owner_segment,
-            content=content,
-            filename=filename,
-            mime_type=mime_type,
+        # Original photos live on the device; the server only stages AI inputs.
+        remote_location = (
+            PhotoStorageLocation(bucket="temporary", path=local_storage_path)
+            if device_storage else self._upload_remote_photo(
+                local_storage_path=local_storage_path, photo_id=photo_id,
+                owner_segment=owner_segment, content=content, filename=filename, mime_type=mime_type,
+            )
         )
 
         return self.create_photo(
@@ -110,6 +112,8 @@ class PhotoRepository:
 
         bucket = response.data["storage_bucket"]
         path = response.data["storage_path"]
+        if bucket == "temporary":
+            return None
         if bucket == "cloudinary":
             return path
 
