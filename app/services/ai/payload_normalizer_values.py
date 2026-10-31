@@ -72,13 +72,8 @@ class FaceAnalysisPayloadValueMixin:
 
     @classmethod
     def _score_display_value(cls, raw_value: object, normalized_score: float) -> str:
-        number = cls._optional_float(raw_value)
-        if number is not None:
-            return cls._score_text(cls._visible_score(number))
-
-        text = cls._optional_string(raw_value)
-        if text:
-            return text
+        # Ring text must agree with its progress and fit the numeric-only UI.
+        # Model-provided display strings may contain prose or conflicting scores.
         return cls._score_text(normalized_score * 10)
 
     @classmethod
