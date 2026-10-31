@@ -1,8 +1,11 @@
 import asyncio
 import traceback
+import logging
+from time import perf_counter
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import RequestIdentity
 from app.repositories.analysis_repository import AnalysisRepository
@@ -32,6 +35,7 @@ FREE_TRIAL_MODE_IDS = {
 }
 
 PROVIDER_TIMEOUT_SECONDS = 540
+logger = logging.getLogger(__name__)
 
 
 class AnalysisRunner:
@@ -43,6 +47,7 @@ class AnalysisRunner:
         self.purchase_repository = PurchaseRepository()
 
     async def run(self, identity: RequestIdentity, request: CreateAnalysisRunRequest) -> AnalysisRunResponse:
+        started_at = perf_counter()
         photo_ids = self._analysis_photo_ids(request)
         minimum_photo_count = MULTI_PHOTO_MINIMUMS.get(request.mode_id, 1)
         if len(photo_ids) < minimum_photo_count:
@@ -51,14 +56,14 @@ class AnalysisRunner:
                 detail=f"{request.mode_id} requires at least {minimum_photo_count} photos.",
             )
 
-        stored_onboarding_context = self.onboarding_repository.context_for_user(identity.user_id)
+        stored_onboarding_context = await run_in_threadpool(self.onboarding_repository.context_for_user, identity.user_id)
         request_onboarding_context = self.onboarding_repository.normalized_context(request.onboarding_context)
         onboarding_context = stored_onboarding_context or request_onboarding_context
 
         pro_scan_required = request.mode_id in PRO_SCAN_MODE_IDS
         pro_scan_reservation = None
         if pro_scan_required:
-            pro_scan_status = self.purchase_repository.status_for_identity(identity)
+            pro_scan_status = await run_in_threadpool(self.purchase_repository.status_for_identity, identity)
             if pro_scan_status.free_trial_scan_available and request.mode_id not in FREE_TRIAL_MODE_IDS:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -81,13 +86,15 @@ class AnalysisRunner:
                 )
 
         provider = get_face_analysis_provider()
-        photos = [self._provider_photo_input(photo_id) for photo_id in photo_ids]
+        # Keep photo order and bound work to one worker per request; network/file
+        # reads must not block other analyses while they await their AI response.
+        photos = await run_in_threadpool(lambda: [self._provider_photo_input(photo_id) for photo_id in photo_ids])
         primary_photo = photos[0] if photos else None
         photo_url = primary_photo.photo_url if primary_photo else None
         photo_bytes = primary_photo.photo_bytes if primary_photo else None
         photo_mime_type = primary_photo.photo_mime_type if primary_photo else None
         face_metrics = (
-            self.face_scan_repository.get_capture_metrics(request.face_scan_capture_id)
+            await run_in_threadpool(self.face_scan_repository.get_capture_metrics, request.face_scan_capture_id)
             if request.face_scan_capture_id
             else []
         )
@@ -102,6 +109,7 @@ class AnalysisRunner:
                 raise HTTPException(status_code=402, detail="The free trial is only available for proportions analysis")
 
         try:
+            provider_started_at = perf_counter()
             print(
                 "Facemaxx analysis provider:",
                 getattr(provider, "name", provider.__class__.__name__),
@@ -155,6 +163,7 @@ class AnalysisRunner:
                 bool(result.look_archetype),
             )
             result = sanitize_analysis_result(result)
+            provider_finished_at = perf_counter()
         except asyncio.TimeoutError as exc:
             self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
             print("Facemaxx analysis provider timed out.")
@@ -200,6 +209,12 @@ class AnalysisRunner:
                 detail=f"Analysis persistence failed: {exc}",
             ) from exc
 
+        logger.info(
+            "Analysis timing mode=%s prepare_seconds=%.3f provider_seconds=%.3f persist_seconds=%.3f total_seconds=%.3f",
+            request.mode_id, provider_started_at - started_at,
+            provider_finished_at - provider_started_at,
+            perf_counter() - provider_finished_at, perf_counter() - started_at,
+        )
         return AnalysisRunResponse(
             id=run_id,
             status="completed",
@@ -217,8 +232,10 @@ class AnalysisRunner:
         return [request.photo_id] if request.photo_id else []
 
     def _provider_photo_input(self, photo_id: UUID) -> ProviderPhotoInput:
-        photo_url = self.photo_repository.get_public_photo_url(photo_id)
         photo_bytes, photo_mime_type = self.photo_repository.get_photo_bytes(photo_id)
+        # The provider already prefers original bytes. Avoid an unused database
+        # lookup and signed-URL request when those bytes are available locally.
+        photo_url = self.photo_repository.get_public_photo_url(photo_id) if photo_bytes is None else None
         if photo_bytes is None and photo_url is None:
             raise HTTPException(status_code=410, detail="Temporary photo expired. Please upload it again.")
         return ProviderPhotoInput(

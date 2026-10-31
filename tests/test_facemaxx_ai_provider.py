@@ -145,7 +145,8 @@ class _FakeResponse:
 
 
 class _FakeResponses:
-    async def create(self, *, model: str, input: list[dict[str, JsonValue]], text: dict[str, JsonValue]) -> _FakeResponse:
+    async def create(self, *, model: str, input: list[dict[str, JsonValue]], text: dict[str, JsonValue], reasoning: dict) -> _FakeResponse:
+        assert reasoning == {"effort": "low"}
         _FakeAsyncOpenAI.last_model = model
         _FakeAsyncOpenAI.last_text_format = text
         user_message = input[0]

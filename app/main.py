@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.services.transient_image_cleanup import cleanup_loop
+from app.services.ai.openai_provider import close_face_analysis_client
 
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
         cleanup.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup
+        await close_face_analysis_client()
 
 
 def create_app() -> FastAPI:
