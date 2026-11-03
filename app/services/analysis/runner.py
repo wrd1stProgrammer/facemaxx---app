@@ -39,7 +39,8 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisRunner:
-    def __init__(self) -> None:
+    def __init__(self, *, pending_run_id: UUID | None = None) -> None:
+        self.pending_run_id = pending_run_id
         self.analysis_repository = AnalysisRepository()
         self.photo_repository = PhotoRepository()
         self.face_scan_repository = FaceScanRepository()
@@ -64,12 +65,13 @@ class AnalysisRunner:
         pro_scan_reservation = None
         if pro_scan_required:
             pro_scan_status = await run_in_threadpool(self.purchase_repository.status_for_identity, identity)
-            if pro_scan_status.free_trial_scan_available and request.mode_id not in FREE_TRIAL_MODE_IDS:
+            trial_modes = {"aesthetics"} if getattr(self, "pending_run_id", None) else FREE_TRIAL_MODE_IDS
+            if pro_scan_status.free_trial_scan_available and request.mode_id not in trial_modes:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
                     detail={
                         "code": "free_trial_mode_locked",
-                        "message": "Free trial analysis is limited to proportions.",
+                        "message": "This analysis requires a paid scan credit.",
                         "app_user_id": pro_scan_status.app_user_id,
                         "pro_scans_remaining": pro_scan_status.pro_scans_remaining,
                     },
@@ -104,9 +106,9 @@ class AnalysisRunner:
             pro_scan_reservation = self.purchase_repository.reserve_pro_scan(identity)
             if not pro_scan_reservation.allowed:
                 raise HTTPException(status_code=402, detail="A scan credit is required")
-            if pro_scan_reservation.consumed_free_trial and request.mode_id not in FREE_TRIAL_MODE_IDS:
+            if pro_scan_reservation.consumed_free_trial and request.mode_id not in trial_modes:
                 self.purchase_repository.refund_reserved_credit(pro_scan_reservation)
-                raise HTTPException(status_code=402, detail="The free trial is only available for proportions analysis")
+                raise HTTPException(status_code=402, detail="This analysis is not eligible for the free trial")
 
         try:
             provider_started_at = perf_counter()
@@ -186,7 +188,7 @@ class AnalysisRunner:
         is_free_trial_result = bool(pro_scan_reservation and pro_scan_reservation.consumed_free_trial)
 
         try:
-            run_id = self.analysis_repository.create_run(
+            run_id = getattr(self, "pending_run_id", None) or self.analysis_repository.create_run(
                 user_id=identity.user_id,
                 client_install_id=identity.client_install_id,
                 mode_id=request.mode_id,
@@ -197,6 +199,8 @@ class AnalysisRunner:
                 onboarding_context=onboarding_context,
                 is_free_trial_result=is_free_trial_result,
             )
+            if getattr(self, "pending_run_id", None):
+                self.analysis_repository.set_trial_result(run_id, is_free_trial_result)
             self.analysis_repository.complete_run(run_id, result, photo_ids=photo_ids)
         except Exception as exc:
             print("Facemaxx analysis persistence failed:", repr(exc))

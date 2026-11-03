@@ -45,9 +45,10 @@ class AnalysisRepository:
         face_scan_capture_id: UUID | None = None,
         onboarding_context: dict[str, Any] | None = None,
         is_free_trial_result: bool = False,
+        run_id: UUID | None = None,
     ) -> UUID:
         settings = get_settings()
-        run_id = uuid4()
+        run_id = run_id or uuid4()
         payload = {
             "id": str(run_id),
             "user_id": user_id,
@@ -250,6 +251,13 @@ class AnalysisRepository:
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", str(run_id)).execute()
 
+    def set_trial_result(self, run_id: UUID, is_trial: bool) -> None:
+        supabase = get_supabase_service_client()
+        if supabase is not None:
+            supabase.table("analysis_runs").update({
+                "is_free_trial_result": is_trial,
+            }).eq("id", str(run_id)).execute()
+
     def get_run(
         self,
         run_id: UUID,
@@ -271,11 +279,11 @@ class AnalysisRepository:
         else:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing request identity")
 
-        response = query.single().execute()
+        response = query.limit(1).execute()
         if not response.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis run not found")
 
-        row = response.data
+        row = response.data[0]
         result = None
         raw_provider_response = row.get("raw_provider_response")
         if raw_provider_response:
@@ -296,6 +304,7 @@ class AnalysisRepository:
             created_at=row.get("created_at"),
             completed_at=row.get("completed_at"),
             result=result,
+            error_code=int(row["error_message"]) if str(row.get("error_message", "")).isdigit() else None,
         )
 
     def list_runs(

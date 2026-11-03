@@ -295,6 +295,7 @@ class AnalysisRunResponse(FacemaxxBaseModel):
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     result: Optional[AnalysisResultPayload] = None
+    error_code: int | None = None
 
 
 class AnalysisRunSummaryResponse(FacemaxxBaseModel):
