@@ -19,4 +19,4 @@ jobs:
           chmod 600 ~/.ssh/ec2_key
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           scp -i ~/.ssh/ec2_key -r briefing-deploy/. "$EC2_USER@$EC2_HOST:/tmp/chartagent-briefing-20261105"
-          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash /tmp/chartagent-briefing-20261105/deploy.sh'
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'curl -fsS http://127.0.0.1:8010/health; docker run --rm --env-file /opt/chartagent/.env -e PYTHONPATH=/app chartagent-briefing:20261105 python -c "import app.main"' 
