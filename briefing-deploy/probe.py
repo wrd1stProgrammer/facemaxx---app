@@ -12,7 +12,7 @@ async def main():
         print('SOURCES',json.dumps({'symbol':sid,'keywords':terms,'raw_count':len(raw.get('data',[])),'meta':{k:v for k,v in raw.items() if k!='data'},'accepted':len(sources),'oldest_hours':round((time.time()-min(s['published_at'] for s in sources))/3600,2) if sources else None,'titles':[s['title'] for s in sources[:4]]}),flush=True)
         assert sources, sid
     repo=b.repository()
-    repo.select('probe',['BTCUSD'],'ko')
+    repo.select('probe',b.Preferences(instruments=['BTCUSD'],language='ko'))
     job=repo.claim()
     story=await b.generate(job)
     repo.finish(job,story)
