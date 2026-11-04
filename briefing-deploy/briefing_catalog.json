@@ -1,0 +1,652 @@
+[
+  {
+    "id": "BTCUSD",
+    "name": "Bitcoin",
+    "category": "crypto"
+  },
+  {
+    "id": "ETHUSD",
+    "name": "Ethereum",
+    "category": "crypto"
+  },
+  {
+    "id": "BNBUSD",
+    "name": "BNB",
+    "category": "crypto"
+  },
+  {
+    "id": "SOLUSD",
+    "name": "Solana",
+    "category": "crypto"
+  },
+  {
+    "id": "XRPUSD",
+    "name": "XRP",
+    "category": "crypto"
+  },
+  {
+    "id": "ADAUSD",
+    "name": "Cardano",
+    "category": "crypto"
+  },
+  {
+    "id": "DOGEUSD",
+    "name": "Dogecoin",
+    "category": "crypto"
+  },
+  {
+    "id": "AVAXUSD",
+    "name": "Avalanche",
+    "category": "crypto"
+  },
+  {
+    "id": "DOTUSD",
+    "name": "Polkadot",
+    "category": "crypto"
+  },
+  {
+    "id": "LINKUSD",
+    "name": "Chainlink",
+    "category": "crypto"
+  },
+  {
+    "id": "POLUSD",
+    "name": "Polygon",
+    "category": "crypto"
+  },
+  {
+    "id": "LTCUSD",
+    "name": "Litecoin",
+    "category": "crypto"
+  },
+  {
+    "id": "TRXUSD",
+    "name": "TRON",
+    "category": "crypto"
+  },
+  {
+    "id": "SHIBUSD",
+    "name": "Shiba Inu",
+    "category": "crypto"
+  },
+  {
+    "id": "ATOMUSD",
+    "name": "Cosmos",
+    "category": "crypto"
+  },
+  {
+    "id": "UNIUSD",
+    "name": "Uniswap",
+    "category": "crypto"
+  },
+  {
+    "id": "ETCUSD",
+    "name": "Ethereum Classic",
+    "category": "crypto"
+  },
+  {
+    "id": "XLMUSD",
+    "name": "Stellar",
+    "category": "crypto"
+  },
+  {
+    "id": "NEARUSD",
+    "name": "NEAR Protocol",
+    "category": "crypto"
+  },
+  {
+    "id": "APTUSD",
+    "name": "Aptos",
+    "category": "crypto"
+  },
+  {
+    "id": "ARBUSD",
+    "name": "Arbitrum",
+    "category": "crypto"
+  },
+  {
+    "id": "OPUSD",
+    "name": "Optimism",
+    "category": "crypto"
+  },
+  {
+    "id": "AAPL",
+    "name": "Apple",
+    "category": "stocks"
+  },
+  {
+    "id": "MSFT",
+    "name": "Microsoft",
+    "category": "stocks"
+  },
+  {
+    "id": "NVDA",
+    "name": "NVIDIA",
+    "category": "stocks"
+  },
+  {
+    "id": "AMZN",
+    "name": "Amazon",
+    "category": "stocks"
+  },
+  {
+    "id": "GOOGL",
+    "name": "Alphabet (Google)",
+    "category": "stocks"
+  },
+  {
+    "id": "TSLA",
+    "name": "Tesla",
+    "category": "stocks"
+  },
+  {
+    "id": "META",
+    "name": "Meta",
+    "category": "stocks"
+  },
+  {
+    "id": "AMD",
+    "name": "AMD",
+    "category": "stocks"
+  },
+  {
+    "id": "INTC",
+    "name": "Intel",
+    "category": "stocks"
+  },
+  {
+    "id": "TSM",
+    "name": "TSMC",
+    "category": "stocks"
+  },
+  {
+    "id": "AVGO",
+    "name": "Broadcom",
+    "category": "stocks"
+  },
+  {
+    "id": "QCOM",
+    "name": "Qualcomm",
+    "category": "stocks"
+  },
+  {
+    "id": "MU",
+    "name": "Micron",
+    "category": "stocks"
+  },
+  {
+    "id": "NFLX",
+    "name": "Netflix",
+    "category": "stocks"
+  },
+  {
+    "id": "PLTR",
+    "name": "Palantir",
+    "category": "stocks"
+  },
+  {
+    "id": "COIN",
+    "name": "Coinbase",
+    "category": "stocks"
+  },
+  {
+    "id": "UBER",
+    "name": "Uber",
+    "category": "stocks"
+  },
+  {
+    "id": "SHOP",
+    "name": "Shopify",
+    "category": "stocks"
+  },
+  {
+    "id": "BABA",
+    "name": "Alibaba",
+    "category": "stocks"
+  },
+  {
+    "id": "JPM",
+    "name": "JPMorgan Chase",
+    "category": "stocks"
+  },
+  {
+    "id": "V",
+    "name": "Visa",
+    "category": "stocks"
+  },
+  {
+    "id": "DIS",
+    "name": "Disney",
+    "category": "stocks"
+  },
+  {
+    "id": "BA",
+    "name": "Boeing",
+    "category": "stocks"
+  },
+  {
+    "id": "KO",
+    "name": "Coca-Cola",
+    "category": "stocks"
+  },
+  {
+    "id": "MCD",
+    "name": "McDonald’s",
+    "category": "stocks"
+  },
+  {
+    "id": "GME",
+    "name": "GameStop",
+    "category": "stocks"
+  },
+  {
+    "id": "HOOD",
+    "name": "Robinhood",
+    "category": "stocks"
+  },
+  {
+    "id": "MSTR",
+    "name": "MicroStrategy",
+    "category": "stocks"
+  },
+  {
+    "id": "ORCL",
+    "name": "Oracle",
+    "category": "stocks"
+  },
+  {
+    "id": "CRM",
+    "name": "Salesforce",
+    "category": "stocks"
+  },
+  {
+    "id": "ADBE",
+    "name": "Adobe",
+    "category": "stocks"
+  },
+  {
+    "id": "ASML",
+    "name": "ASML",
+    "category": "stocks"
+  },
+  {
+    "id": "ARM",
+    "name": "Arm",
+    "category": "stocks"
+  },
+  {
+    "id": "SMCI",
+    "name": "Super Micro Computer",
+    "category": "stocks"
+  },
+  {
+    "id": "CRWD",
+    "name": "CrowdStrike",
+    "category": "stocks"
+  },
+  {
+    "id": "SNOW",
+    "name": "Snowflake",
+    "category": "stocks"
+  },
+  {
+    "id": "PYPL",
+    "name": "PayPal",
+    "category": "stocks"
+  },
+  {
+    "id": "SOFI",
+    "name": "SoFi",
+    "category": "stocks"
+  },
+  {
+    "id": "ABNB",
+    "name": "Airbnb",
+    "category": "stocks"
+  },
+  {
+    "id": "SPOT",
+    "name": "Spotify",
+    "category": "stocks"
+  },
+  {
+    "id": "RDDT",
+    "name": "Reddit",
+    "category": "stocks"
+  },
+  {
+    "id": "SNAP",
+    "name": "Snap",
+    "category": "stocks"
+  },
+  {
+    "id": "RIVN",
+    "name": "Rivian",
+    "category": "stocks"
+  },
+  {
+    "id": "NIO",
+    "name": "NIO",
+    "category": "stocks"
+  },
+  {
+    "id": "F",
+    "name": "Ford",
+    "category": "stocks"
+  },
+  {
+    "id": "GM",
+    "name": "General Motors",
+    "category": "stocks"
+  },
+  {
+    "id": "XOM",
+    "name": "ExxonMobil",
+    "category": "stocks"
+  },
+  {
+    "id": "CVX",
+    "name": "Chevron",
+    "category": "stocks"
+  },
+  {
+    "id": "LLY",
+    "name": "Eli Lilly",
+    "category": "stocks"
+  },
+  {
+    "id": "PFE",
+    "name": "Pfizer",
+    "category": "stocks"
+  },
+  {
+    "id": "JNJ",
+    "name": "Johnson & Johnson",
+    "category": "stocks"
+  },
+  {
+    "id": "WMT",
+    "name": "Walmart",
+    "category": "stocks"
+  },
+  {
+    "id": "COST",
+    "name": "Costco",
+    "category": "stocks"
+  },
+  {
+    "id": "GS",
+    "name": "Goldman Sachs",
+    "category": "stocks"
+  },
+  {
+    "id": "BAC",
+    "name": "Bank of America",
+    "category": "stocks"
+  },
+  {
+    "id": "EURUSD",
+    "name": "EUR/USD",
+    "category": "forex"
+  },
+  {
+    "id": "GBPUSD",
+    "name": "GBP/USD",
+    "category": "forex"
+  },
+  {
+    "id": "USDJPY",
+    "name": "USD/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "USDCHF",
+    "name": "USD/CHF",
+    "category": "forex"
+  },
+  {
+    "id": "AUDUSD",
+    "name": "AUD/USD",
+    "category": "forex"
+  },
+  {
+    "id": "USDCAD",
+    "name": "USD/CAD",
+    "category": "forex"
+  },
+  {
+    "id": "NZDUSD",
+    "name": "NZD/USD",
+    "category": "forex"
+  },
+  {
+    "id": "EURGBP",
+    "name": "EUR/GBP",
+    "category": "forex"
+  },
+  {
+    "id": "EURJPY",
+    "name": "EUR/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "EURCHF",
+    "name": "EUR/CHF",
+    "category": "forex"
+  },
+  {
+    "id": "EURAUD",
+    "name": "EUR/AUD",
+    "category": "forex"
+  },
+  {
+    "id": "EURCAD",
+    "name": "EUR/CAD",
+    "category": "forex"
+  },
+  {
+    "id": "EURNZD",
+    "name": "EUR/NZD",
+    "category": "forex"
+  },
+  {
+    "id": "GBPJPY",
+    "name": "GBP/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "GBPCHF",
+    "name": "GBP/CHF",
+    "category": "forex"
+  },
+  {
+    "id": "GBPAUD",
+    "name": "GBP/AUD",
+    "category": "forex"
+  },
+  {
+    "id": "GBPCAD",
+    "name": "GBP/CAD",
+    "category": "forex"
+  },
+  {
+    "id": "AUDJPY",
+    "name": "AUD/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "AUDNZD",
+    "name": "AUD/NZD",
+    "category": "forex"
+  },
+  {
+    "id": "CADJPY",
+    "name": "CAD/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "CHFJPY",
+    "name": "CHF/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "NZDJPY",
+    "name": "NZD/JPY",
+    "category": "forex"
+  },
+  {
+    "id": "USDCNH",
+    "name": "USD/CNH",
+    "category": "forex"
+  },
+  {
+    "id": "USDMXN",
+    "name": "USD/MXN",
+    "category": "forex"
+  },
+  {
+    "id": "XAUUSD",
+    "name": "Gold",
+    "category": "commodities"
+  },
+  {
+    "id": "XAGUSD",
+    "name": "Silver",
+    "category": "commodities"
+  },
+  {
+    "id": "WTIUSD",
+    "name": "Crude Oil (WTI)",
+    "category": "commodities"
+  },
+  {
+    "id": "BCOUSD",
+    "name": "Brent Crude Oil",
+    "category": "commodities"
+  },
+  {
+    "id": "NATGAS",
+    "name": "Natural Gas",
+    "category": "commodities"
+  },
+  {
+    "id": "XCUUSD",
+    "name": "Copper",
+    "category": "commodities"
+  },
+  {
+    "id": "XPTUSD",
+    "name": "Platinum",
+    "category": "commodities"
+  },
+  {
+    "id": "XPDUSD",
+    "name": "Palladium",
+    "category": "commodities"
+  },
+  {
+    "id": "WHEAT",
+    "name": "Wheat",
+    "category": "commodities"
+  },
+  {
+    "id": "CORN",
+    "name": "Corn",
+    "category": "commodities"
+  },
+  {
+    "id": "COFFEE",
+    "name": "Coffee",
+    "category": "commodities"
+  },
+  {
+    "id": "SUGAR",
+    "name": "Sugar",
+    "category": "commodities"
+  },
+  {
+    "id": "SPX500",
+    "name": "S&P 500",
+    "category": "indices"
+  },
+  {
+    "id": "NAS100",
+    "name": "Nasdaq 100",
+    "category": "indices"
+  },
+  {
+    "id": "DJI30",
+    "name": "Dow Jones",
+    "category": "indices"
+  },
+  {
+    "id": "US2000",
+    "name": "Russell 2000",
+    "category": "indices"
+  },
+  {
+    "id": "DAX40",
+    "name": "DAX 40",
+    "category": "indices"
+  },
+  {
+    "id": "FTSE100",
+    "name": "FTSE 100",
+    "category": "indices"
+  },
+  {
+    "id": "CAC40",
+    "name": "CAC 40",
+    "category": "indices"
+  },
+  {
+    "id": "ESTX50",
+    "name": "Euro Stoxx 50",
+    "category": "indices"
+  },
+  {
+    "id": "IBEX35",
+    "name": "IBEX 35",
+    "category": "indices"
+  },
+  {
+    "id": "FTSEMIB",
+    "name": "FTSE MIB",
+    "category": "indices"
+  },
+  {
+    "id": "AEX25",
+    "name": "AEX",
+    "category": "indices"
+  },
+  {
+    "id": "SMI20",
+    "name": "SMI",
+    "category": "indices"
+  },
+  {
+    "id": "NI225",
+    "name": "Nikkei 225",
+    "category": "indices"
+  },
+  {
+    "id": "HSI50",
+    "name": "Hang Seng",
+    "category": "indices"
+  },
+  {
+    "id": "ASX200",
+    "name": "ASX 200",
+    "category": "indices"
+  },
+  {
+    "id": "CN50",
+    "name": "China A50",
+    "category": "indices"
+  },
+  {
+    "id": "KOSPI",
+    "name": "KOSPI",
+    "category": "indices"
+  }
+]
