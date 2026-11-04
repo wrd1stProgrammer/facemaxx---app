@@ -19,13 +19,4 @@ jobs:
           chmod 600 ~/.ssh/ec2_key
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           scp -i ~/.ssh/ec2_key -r briefing-deploy/. "$EC2_USER@$EC2_HOST:/tmp/chartagent-briefing-20261105"
-          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash -se' <<'REMOTE'
-            cd /opt/facemaxx
-            docker inspect chartagent-api --format 'BASE={{.Config.Image}} USER={{.Config.User}}'
-            docker inspect chartagent-api --format '{{json .Mounts}}'
-            docker compose config --images
-            base=$(docker inspect chartagent-api --format '{{.Config.Image}}')
-            app_user=$(docker inspect chartagent-api --format '{{.Config.User}}')
-            docker build --build-arg BASE="$base" --build-arg APP_USER="${app_user:-root}" -t chartagent-briefing:20261105 /tmp/chartagent-briefing-20261105
-            docker run --rm --env-file /opt/chartagent/.env -e PYTHONPATH=/app -e CHARTAGENT_OPENAI_MODEL=gpt-6-luna -v /tmp/chartagent-briefing-20261105/probe.py:/tmp/probe.py:ro chartagent-briefing:20261105 python /tmp/probe.py
-          REMOTE
+          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash /tmp/chartagent-briefing-20261105/deploy.sh'
