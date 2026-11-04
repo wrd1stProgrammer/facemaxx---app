@@ -2,7 +2,9 @@ from pathlib import Path
 p=Path('/app/app/main.py')
 s=p.read_text()
 assert 'briefings_router' not in s
-s='import asyncio\nfrom contextlib import suppress\nfrom app.briefings import router as briefings_router, worker as briefing_worker\n'+s
+anchor='from __future__ import annotations\n'
+assert anchor in s
+s=s.replace(anchor,anchor+'import asyncio\nfrom contextlib import suppress\nfrom app.briefings import router as briefings_router, worker as briefing_worker\n',1)
 old='    yield\n    await analytics.close()'
 assert old in s
 s=s.replace(old,'''    task = asyncio.create_task(briefing_worker())
