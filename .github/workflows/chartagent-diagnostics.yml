@@ -1,22 +1,27 @@
-name: ChartAgent Runtime Diagnostics
-
+name: ChartAgent APNs configuration
 on:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  inspect:
+  configure:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read ChartAgent provider status
+      - name: Configure ChartAgent briefing notifications
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
+          set -euo pipefail
+          umask 077
           mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
-          scp -i ~/.ssh/ec2_key -r briefing-deploy/. "$EC2_USER@$EC2_HOST:/tmp/chartagent-briefing-20261105"
-          ssh -i ~/.ssh/ec2_key "$EC2_USER@$EC2_HOST" 'bash /tmp/chartagent-briefing-20261105/rebuild.sh'
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/apns-deploy
+          printf '%s\n' 'chartagent-deploy ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGTdAf8oyakZP/v7IErQiYQ/5IaCEuXvzW3fgBUwYbQy' > ~/.ssh/known_hosts
+          opt=(-i ~/.ssh/apns-deploy -o HostKeyAlias=chartagent-deploy -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          dest="$EC2_USER@$EC2_HOST"
+          target=$(ssh "${opt[@]}" "$dest" 'mktemp -d')
+          trap 'ssh "${opt[@]}" "$dest" "rm -rf -- $target"; rm -f ~/.ssh/apns-deploy' EXIT
+          scp "${opt[@]}" briefing-deploy/{apns-*,briefings.py} "$dest:$target/"
+          ssh "${opt[@]}" "$dest" "cd $target && bash apns-configure.sh"
