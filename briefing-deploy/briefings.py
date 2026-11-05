@@ -82,8 +82,26 @@ def owner(authorization: str) -> str:
     return hashlib.sha256(authorization.encode()).hexdigest()
 
 
-def push_configured() -> bool:
-    return all(os.environ.get(k) for k in ('CHARTAGENT_APNS_KEY_ID', 'CHARTAGENT_APNS_TEAM_ID', 'CHARTAGENT_APNS_KEY_PATH'))
+def push_credentials(environment):
+    if environment not in ('production', 'sandbox'):
+        return None
+    prefix = 'CHARTAGENT_APNS_'
+    scoped = prefix + environment.upper() + '_'
+    if any(scoped + suffix in os.environ for suffix in ('KEY_PATH', 'KEY_ID')):
+        prefix = scoped
+    key_id = os.getenv(prefix + 'KEY_ID')
+    path = os.getenv(prefix + 'KEY_PATH')
+    team = os.getenv('CHARTAGENT_APNS_TEAM_ID')
+    if team and key_id and path and os.path.isfile(path) and os.access(path, os.R_OK):
+        return team, key_id, Path(path)
+    return None
+
+
+def push_configured(environment=None) -> bool:
+    if environment is not None:
+        return push_credentials(environment) is not None
+    return any(push_credentials(env) for env in ('production', 'sandbox'))
+
 
 class BriefingRepository:
     def __init__(self, path: str):
@@ -169,7 +187,7 @@ class BriefingRepository:
                 busy = row['lease']>now or (row['translation_lease'] or 0)>now
                 state = 'ready' if story else ('failed' if failed else ('generating' if busy else 'queued'))
                 items.append(dict(instrument=row['instrument'],status=state,refreshing=bool(refreshing),next_refresh_at=row['due'] if story else None,story=story))
-            return dict(items=items,language=client['language'],push_available=push_configured(),notifications_enabled=bool(client['token']))
+            return dict(items=items,language=client['language'],push_available=push_configured(client['environment']),notifications_enabled=bool(client['token']))
 
     def claim(self):
         now = time.time()
@@ -312,7 +330,11 @@ async def translate(job):
 
 async def send_push(client, fingerprint):
     import jwt
-    token=jwt.encode({'iss':os.environ['CHARTAGENT_APNS_TEAM_ID'],'iat':int(time.time())},Path(os.environ['CHARTAGENT_APNS_KEY_PATH']).read_text(),algorithm='ES256',headers={'kid':os.environ['CHARTAGENT_APNS_KEY_ID']})
+    credentials = push_credentials(client['environment'])
+    if credentials is None:
+        raise RuntimeError('APNs signing credentials unavailable')
+    team, key_id, key_path = credentials
+    token=jwt.encode({'iss':team,'iat':int(time.time())},key_path.read_text(),algorithm='ES256',headers={'kid':key_id})
     host='api.sandbox.push.apple.com' if client['environment']=='sandbox' else 'api.push.apple.com'
     ko=client['language'].startswith('ko')
     payload={'aps':{'alert':{'title':'브리핑이 준비됐어요' if ko else 'Your briefing is ready','body':'선택한 종목의 최신 소식을 확인하세요.' if ko else 'Catch up on the latest stories for your markets.'},'sound':'default'},'route':'briefing'}
@@ -328,6 +350,7 @@ async def notify_ready():
     if not push_configured(): return
     with repository().connect() as db: clients=db.execute('SELECT * FROM clients WHERE token IS NOT NULL').fetchall()
     for client in clients:
+        if not push_configured(client['environment']): continue
         if _PUSH_RETRY.get(client['owner'], 0) > time.time(): continue
         snapshot=repository().snapshot(client['owner'])
         items=snapshot['items']
@@ -383,7 +406,7 @@ async def device(req: Device,authorization: str=Header(default='')):
     with repository().connect() as db:
         result = db.execute('UPDATE clients SET token=?,environment=? WHERE owner=?',(req.token.lower(),req.environment,who))
         if not result.rowcount: raise ChartAgentError('preferences_required','Save briefing preferences first.',409)
-    return {'registered':True,'push_available':push_configured()}
+    return {'registered':True,'push_available':push_configured(req.environment)}
 
 @router.post('/chat')
 async def chat(req: Chat,request: Request,authorization: str=Header(default=''),x_chartagent_customer: str=Header(default='')):
