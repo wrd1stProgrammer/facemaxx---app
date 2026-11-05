@@ -9,7 +9,7 @@ gid=$(docker exec chartagent-api id -g)
 new=chartagent-briefing:apns-20261105
 mkdir build
 cp briefings.py build/
-printf 'ARG BASE\nFROM ${BASE}\nCOPY briefings.py /app/app/briefings.py\n' > build/Dockerfile
+printf 'ARG BASE\nFROM ${BASE}\nCOPY --chmod=0644 briefings.py /app/app/briefings.py\n' > build/Dockerfile
 docker build -q --build-arg BASE="$base" -t "$new" build/
 sudo install -d -m 750 -o root -g "$gid" "$appdir"
 for env in production sandbox; do
@@ -50,9 +50,10 @@ merge('/opt/chartagent/.env',{'CHARTAGENT_APNS_TEAM_ID':'U9QTM9L965','CHARTAGENT
 merge('.env',{'CHARTAGENT_IMAGE':sys.argv[2]})
 PY
 docker compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin)["services"]["chartagent-api"]; assert any(x["target"]=="/run/chartagent-apns" and x["read_only"] for x in c["volumes"]); assert c["image"]=="chartagent-briefing:apns-20261105" and c["environment"]["CHARTAGENT_APNS_TOPIC"]=="ai.chartagent.ios"'
+docker compose run --rm --no-deps --entrypoint python chartagent-api -c 'import app.main; from app.briefings import push_credentials; assert all(push_credentials(e)[2].is_file() for e in ("production","sandbox"))'
 docker compose up -d --no-deps chartagent-api
-for x in $(seq 1 24); do if curl -fs http://localhost:8010/health >/dev/null; then break; fi; sleep 1; done
-curl -fsS http://localhost:8010/health >/dev/null
+for x in $(seq 1 60); do if curl -fs http://127.0.0.1:8010/health >/dev/null; then break; fi; sleep 1; done
+curl -fsS http://127.0.0.1:8010/health >/dev/null
 docker exec -i chartagent-api python - <<'PY'
 import time, jwt, httpx, secrets
 from app.briefings import push_credentials
